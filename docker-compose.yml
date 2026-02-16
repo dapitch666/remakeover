@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  rm-manager:
+    build: .
+    container_name: rm-manager
+    ports:
+      - "8501:8501"
+    volumes:
+      # Persiste la configuration et les données
+      - ./data:/app/data
+      # Persiste les clés SSH (à créer avant le lancement)
+      - ./data/ssh_keys:/app/ssh_keys
+    restart: unless-stopped
