@@ -26,6 +26,16 @@ DEVICE_SIZES = {
 }
 DEFAULT_DEVICE_TYPE = "reMarkable Paper Pro"
 
+
+def truncate_display_name(name: str, max_len: int = 12) -> str:
+    """Retourne une version tronquée du nom pour l'affichage (ajoute '...' si tronqué)."""
+    if not isinstance(name, str):
+        return str(name)
+    if len(name) <= max_len:
+        return name
+    # Garder un peu d'espace pour l'extension si présente
+    return name[: max_len - 3] + "..."
+
 def load_config():
     """Charge la configuration depuis le fichier JSON"""
     if os.path.exists(CONFIG_PATH):
@@ -436,9 +446,10 @@ else:  # Page principale de gestion
     
     if stored_images:
         # Sélection d'images existantes en grille 4 colonnes
-        cols = st.columns(4)
+        cols = st.columns(4, gap="medium")
         for idx, img_name in enumerate(stored_images):
-            with cols[idx % 4]:
+            col_index = idx % 4
+            with cols[col_index]:
                 img_data = load_device_image(selected_name, img_name)
                 
                 # clé d'édition unique pour cette image (définie avant les boutons)
@@ -449,15 +460,21 @@ else:  # Page principale de gestion
                 if st.session_state.get(edit_key):
                     # Champ texte inline qui soumet le renommage à l'appui d'Enter
                     st.text_input(
-                        "",
+                        "Renommer l'image",
                         value=img_name,
                         key=f"rename_input_{img_name}",
                         label_visibility="collapsed",
                         on_change=submit_rename_factory(img_name, selected_name),
                     )
                 else:
-                    # Cliquer sur le nom active le mode édition
-                    if st.button(f"**{img_name}**", key=f"name_{img_name}", icon=star_prefix, type="tertiary", width='stretch'):
+                    # Cliquer sur le nom active le mode édition (affichage tronqué pour ne pas casser la mise en page)
+                    display_name = truncate_display_name(img_name)
+                    if st.button(f"**{display_name}**",
+                                 key=f"name_{img_name}",
+                                 help="Cliquez pour renommer",
+                                 icon=star_prefix,
+                                 type="tertiary",
+                                 width='stretch'):
                         st.session_state[edit_key] = True
                         st.rerun()
                 
@@ -506,8 +523,7 @@ else:  # Page principale de gestion
                                 "",
                                 key=f"pref_{img_name}",
                                 icon=f":material/star:",
-                                help="Favori",
-                                use_container_width=True
+                                help="Favori"
                             ):
                                 if preferred_image == img_name:
                                     config["devices"][selected_name].pop("preferred_image", None)
@@ -526,6 +542,7 @@ else:  # Page principale de gestion
                             ):
                                 st.session_state[pending_key] = True
                                 st.rerun()
+                # Pas de séparateurs visuels entre colonnes (grille simple)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -536,7 +553,7 @@ else:  # Page principale de gestion
                 img_data = download_file_ssh(device['ip'], device.get('password', ''), "/usr/share/remarkable/suspended.png")
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"current_{timestamp}.png"
+                filename = f"{timestamp}.png"
                 save_device_image(selected_name, img_data, filename)
                 add_log(f"Téléchargé suspended.png depuis '{selected_name}' en {filename}")
                 st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
@@ -645,7 +662,7 @@ def _display_image_version_bottom(version_text: str):
     </div>
     """
     try:
-        st.sidebar.markdown(html, unsafe_allow_html=True)
+        st.sidebar.html(html)
     except Exception:
         # Fallback : simple caption si l'injection échoue
         try:
