@@ -232,10 +232,6 @@ if not IMAGE_VERSION:
     except Exception:
         IMAGE_VERSION = None
 
-if IMAGE_VERSION:
-    # Ne pas afficher ici — on l'affichera en bas de la sidebar plus loin
-    pass
-
 # --- SESSION LOGS ---
 if 'logs' not in st.session_state:
     st.session_state['logs'] = []
@@ -645,7 +641,7 @@ def _display_image_version_bottom(version_text: str):
     # CSS pour fixer en bas de la sidebar
     html = f"""
     <div style="position: fixed; left: 20px; bottom: 8px; font-size: 12px;">
-      <a href="#" target="_blank" style="color: rgba(0, 0, 0, 0.6); text-decoration: none;">rm-manager - version {version_text}</a>
+      <a href="https://github.com/dapitch666/rm-manager" target="_blank" style="color: rgba(0, 0, 0, 0.6); text-decoration: none;">rm-manager - version {version_text}</a>
     </div>
     """
     try:
