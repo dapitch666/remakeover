@@ -505,46 +505,79 @@ else:  # Page principale de gestion
                                 st.session_state.pop(pending_key, None)
                                 st.rerun()
                     else:
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            if st.button(
-                                "",
-                                key=f"send_{img_name}",
-                                icon=":material/cloud_upload:",
-                                help="Envoyer"
-                            ):
-                                success, msg = upload_file_ssh(device['ip'], device.get('password', ''), img_data, "/usr/share/remarkable/suspended.png")
-                                if success:
-                                    run_ssh_cmd(device['ip'], device.get('password', ''), ["systemctl restart xochitl"])
-                                    add_log(f"Sent {img_name} to '{selected_name}'")
-                                    st.toast("Envoyée !", icon=":material/task_alt:")
-                                else:
-                                    add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
-                                    st.toast(f"Erreur", icon=":material/error:")
-                        with col2:
-                            if st.button(
-                                "",
-                                key=f"pref_{img_name}",
-                                icon=f":material/star:",
-                                help="Favori"
-                            ):
-                                if preferred_image == img_name:
-                                    config["devices"][selected_name].pop("preferred_image", None)
-                                    add_log(f"Preferred image removed for '{selected_name}'")
-                                else:
-                                    config["devices"][selected_name]["preferred_image"] = img_name
-                                    add_log(f"Preferred image set: {img_name} for '{selected_name}'")
-                                save_config(config)
-                                st.rerun()
-                        with col3:
-                            if st.button(
-                                "",
-                                key=f"del_{img_name}",
-                                icon=":material/delete:",
-                                help="Supprimer"
-                            ):
-                                st.session_state[pending_key] = True
-                                st.rerun()
+                        # Compact segmented control under each image using icons
+                        action_key = f"action_{img_name}"
+                        option_map = {
+                            0: ":material/cloud_upload:",
+                            1: ":material/star:",
+                            2: ":material/delete:",
+                        }
+
+                        # Ensure session state key exists so the on_change handler can reset it
+                        if action_key not in st.session_state:
+                            st.session_state[action_key] = None
+
+                        # Handler factory binds values to avoid closure loop issues
+                        def make_action_handler(img_local=img_name, sel_key=action_key, pending_k=pending_key, sel_name=selected_name, dev=device, img_blob=img_data, pref=preferred_image):
+                            def _handler():
+                                selection = st.session_state.get(sel_key)
+                                if selection is None:
+                                    return
+                                try:
+                                    if selection == 0:
+                                        success, msg = upload_file_ssh(dev['ip'], dev.get('password', ''), img_blob, "/usr/share/remarkable/suspended.png")
+                                        if success:
+                                            run_ssh_cmd(dev['ip'], dev.get('password', ''), ["systemctl restart xochitl"])
+                                            add_log(f"Sent {img_local} to '{sel_name}'")
+                                            try:
+                                                st.toast("Envoyée !", icon=":material/task_alt:")
+                                            except Exception:
+                                                pass
+                                        else:
+                                            add_log(f"Error sending {img_local} to '{sel_name}': {msg}")
+                                            try:
+                                                st.toast(f"Erreur", icon=":material/error:")
+                                            except Exception:
+                                                pass
+                                    elif selection == 1:
+                                        # Toggle preferred image
+                                        current_pref = config.get("devices", {}).get(sel_name, {}).get("preferred_image")
+                                        if current_pref == img_local:
+                                            config["devices"][sel_name].pop("preferred_image", None)
+                                            add_log(f"Preferred image removed for '{sel_name}'")
+                                            try:
+                                                st.toast("Favori supprimé", icon=":material/task_alt:")
+                                            except Exception:
+                                                pass
+                                        else:
+                                            config["devices"][sel_name]["preferred_image"] = img_local
+                                            add_log(f"Preferred image set: {img_local} for '{sel_name}'")
+                                            try:
+                                                st.toast("Favori défini", icon=":material/task_alt:")
+                                            except Exception:
+                                                pass
+                                        save_config(config)
+                                    elif selection == 2:
+                                        st.session_state[pending_k] = True
+                                        st.rerun()
+                                finally:
+                                    # Deselect the control so it appears unselected for the user
+                                    try:
+                                        st.session_state[sel_key] = None
+                                    except Exception:
+                                        pass
+
+                            return _handler
+
+                        st.segmented_control(
+                            "Actions",
+                            options=list(option_map.keys()),
+                            format_func=lambda option: option_map[option],
+                            key=action_key,
+                            selection_mode="single",
+                            label_visibility="collapsed",
+                            on_change=make_action_handler(),
+                        )
                 # No visual separators between columns (simple grid)
     
     col1, col2 = st.columns(2)
