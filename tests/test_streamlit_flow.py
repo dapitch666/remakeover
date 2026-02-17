@@ -74,7 +74,7 @@ class FakeStreamlit:
         pass
 
     def selectbox(self, label, options, **kwargs):
-        # If the first option is a placeholder like "-- Créer... --", return the next
+        # If the first option is a placeholder like "-- Create... --", return the next
         if options and isinstance(options, (list, tuple)):
             first = options[0]
             if isinstance(first, str) and first.startswith("--") and len(options) > 1:
