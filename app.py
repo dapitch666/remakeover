@@ -27,7 +27,7 @@ DEVICE_SIZES = {
 DEFAULT_DEVICE_TYPE = "reMarkable Paper Pro"
 
 
-def truncate_display_name(name: str, max_len: int = 12) -> str:
+def truncate_display_name(name: str, max_len: int = 13) -> str:
     """Return a truncated version of the name for display (adds '...' when truncated)."""
     if not isinstance(name, str):
         return str(name)
@@ -78,19 +78,39 @@ def run_ssh_cmd(ip, password, commands):
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
         client.connect(ip, username='root', password=password, timeout=10)
-        
-        # Always force a RW mount before starting
-        full_cmd = "mount -o remount,rw / && " + " && ".join(commands)
-        stdin, stdout, stderr = client.exec_command(full_cmd)
-        output = stdout.read().decode()
-        error = stderr.read().decode()
+        # First check whether root is already mounted read-write.
+        check_cmd = (
+            "if mount | grep \"on / \" | grep -q \"(rw,\"; then printf \"writable\"; else printf \"readonly\"; fi"
+        )
+        try:
+            stdin, stdout, stderr = client.exec_command(check_cmd)
+            check_out = stdout.read().decode().strip()
+            check_err = stderr.read().decode().strip()
+        except Exception as e:
+            add_log(f"SSH check command failed on {ip}: {e}")
+            check_out = "readonly"
+
+        # If not writable, prepend remount command; otherwise run commands directly.
+        if check_out == "writable":
+            full_cmd = " && ".join(commands) if commands else ""
+        else:
+            full_cmd = ("mount -o remount,rw / && " + " && ".join(commands)) if commands else "mount -o remount,rw /"
+
+        try:
+            stdin, stdout, stderr = client.exec_command(full_cmd)
+            output = stdout.read().decode()
+            error = stderr.read().decode()
+        except Exception as e:
+            add_log(f"SSH exec failed on {ip}: {e}")
+            client.close()
+            return "", str(e)
+
         client.close()
-        add_log(f"SSH exec on {ip} (out_len={len(output)}, err_len={len(error)})")
+        add_log(f"SSH exec on {ip} (check={check_out}, out_len={len(output)}, err_len={len(error)})")
         return output, error
     except Exception as e:
         add_log(f"SSH error on {ip}: {str(e)}")
         return "", str(e)
-
 
 def test_ssh_connection(ip, password):
     """Test simple SSH connectivity without modifying the device."""
@@ -294,7 +314,7 @@ if page == ":material/description: Logs":
         for entry in reversed(st.session_state['logs']):
             st.text(entry)
 
-    if st.button("Effacer les logs de cette session", icon=":material/delete:"):
+    if st.button("Effacer les logs de cette session", icon=":material/delete:", help="Efface les logs stockés dans la session en cours"):
         st.session_state['logs'] = []
         st.success("Logs effacés.", icon=":material/task_alt:")
         st.rerun()
@@ -363,7 +383,7 @@ if page == ":material/settings: Configuration":
     col_save, col_delete = st.columns([3, 1])
     
     with col_save:
-        if st.button("Sauvegarder", width='stretch', icon=":material/save:"):
+        if st.button("Sauvegarder", width='stretch', icon=":material/save:", help="Enregistrer la configuration de l'appareil"):
             if is_new and not device_name:
                 # TODO: Make a more robust check
                 st.error("Veuillez donner un nom à l'appareil", icon=":material/error:")
@@ -383,7 +403,7 @@ if page == ":material/settings: Configuration":
                 st.rerun()
     
     with col_delete:
-        if not is_new and st.button("Supprimer", type="primary", width='stretch', icon=":material/delete:"):
+        if not is_new and st.button("Supprimer", type="primary", width='stretch', icon=":material/delete:", help="Supprimer cet appareil et ses images locales"):
             st.session_state["pending_delete_device"] = device_name
             st.rerun()
 
@@ -392,7 +412,7 @@ if page == ":material/settings: Configuration":
         st.warning(f"Confirmez-vous la suppression de l'appareil '{device_name}' ? Cette action supprimera aussi ses images locales.")
         c1, c2 = st.columns([1, 1])
         with c1:
-            if st.button("Confirmer la suppression", key=f"confirm_delete_{device_name}"):
+            if st.button("Confirmer la suppression", key=f"confirm_delete_{device_name}", help="Confirme la suppression définitive de cet appareil"):
                 # Remove associated images
                 device_images_dir = get_device_images_dir(device_name)
                 if os.path.exists(device_images_dir):
@@ -412,7 +432,7 @@ if page == ":material/settings: Configuration":
                 st.session_state.pop("pending_delete_device", None)
                 st.rerun()
         with c2:
-            if st.button("Annuler", key=f"cancel_delete_{device_name}"):
+            if st.button("Annuler", key=f"cancel_delete_{device_name}", help="Annuler la suppression de cet appareil"):
                 st.session_state.pop("pending_delete_device", None)
                 st.rerun()
 
@@ -432,7 +452,7 @@ else:  # Page principale de gestion
         preferred_image = device.get("preferred_image")
 
     with col2:
-        if st.button("Tester la connectivité", icon=":material/wifi:", width='stretch'):
+        if st.button("Tester la connectivité", icon=":material/wifi:", width='stretch', help="Vérifier la connexion SSH vers la tablette"):
             ok, err = test_ssh_connection(device['ip'], device.get('password', ''))
             if ok:
                 st.toast("Connexion SSH OK", icon=":material/task_alt:")
@@ -441,13 +461,19 @@ else:  # Page principale de gestion
 
     st.space()
 
-    # Screensaver
-    st.subheader("Écran de veille (suspended.png)", divider="rainbow")
+    # Image Library
+    st.subheader("Bibliothèque d'images suspended.png", divider="rainbow")
     
     # List stored images for this tablet
     stored_images = list_device_images(selected_name)
     
     if stored_images:
+        # Single help expander explaining the actions available for images
+        with st.expander("Aide — Actions des images (cliquer pour développer)", expanded=False):
+            st.markdown(":material/cloud_upload: **Envoyer** — Mettre l'image comme écran de veille sur la tablette  ")
+            st.markdown(":material/star: **Favori** — Définir ou supprimer l'image préférée  ")
+            st.markdown(":material/delete: **Supprimer** — Effacer l'image localement  ")
+
         # Select existing images in a 4-column grid
         cols = st.columns(4, gap="medium")
         for idx, img_name in enumerate(stored_images):
@@ -575,14 +601,13 @@ else:  # Page principale de gestion
                             format_func=lambda option: option_map[option],
                             key=action_key,
                             selection_mode="single",
-                            label_visibility="collapsed",
+                            label_visibility="hidden",
                             on_change=make_action_handler(),
                         )
-                # No visual separators between columns (simple grid)
     
     col1, col2 = st.columns(2)
     with col1:
-            # Retrieve the current image from the tablet
+        # Retrieve the current image from the tablet
         st.subheader("Récupérer l'image actuelle", divider="rainbow")
         if st.button("Importer depuis la tablette", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):
             try:
@@ -606,7 +631,7 @@ else:  # Page principale de gestion
             col_save, col_send = st.columns(2)
 
             with col_save:
-                if st.button("Sauvegarder", icon=":material/save:"):
+                if st.button("Sauvegarder", icon=":material/save:", help="Sauvegarder l'image localement"):
                     img_data = process_image(uploaded_file, width, height)
                     filename = uploaded_file.name.replace(" ", "_")
                     if not filename.endswith('.png'):
@@ -635,56 +660,227 @@ else:  # Page principale de gestion
                         add_log(f"Error sending {filename} to '{selected_name}': {msg}")
                         st.toast(f"Erreur lors de l'envoi : {msg}", icon=":material/error:")
 
-    # POST-UPDATE MAINTENANCE BUTTON
+    # Post-update maintenance actions
     st.subheader(":material/build: Maintenance après mise à jour", divider="rainbow")
-    col1, col2 = st.columns(2)
+    # gather local image/library info for later
+    imgs_available = list_device_images(selected_name)
+    has_images = bool(imgs_available)
+    
+    # Expliquer les actions qui seront effectuées par le script de maintenance
+    with st.expander("Ce que le script va faire : (cliquer pour développer)", expanded=False):
+        st.markdown("**Ce script va :**")
+        st.markdown("- Vérifier que le système de fichiers est writable et le remonter en lecture-écriture si nécessaire")
+        if device.get('preferred_image'):
+            st.markdown(f"- Uploader l'image préférée (`{device.get('preferred_image')}`) comme `suspended.png` sur la tablette")
+        elif has_images:
+            st.markdown("- Uploader une image de la bibliothèque locale comme `suspended.png` sur la tablette")
+        if device.get('template', True):
+             st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
+             st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
+             st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
+        if device.get('carousel', True):
+            st.markdown("- Désactiver le carousel en déplaçant les illustrations actuelles dans un dossier de backup")
+        st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
 
-    with col1:
-        if st.button("Lancer le script complet", icon=":material/autorenew:"):
-            if preferred_image:
-                try:
-                    img_data = load_device_image(selected_name, preferred_image)
-                    success, msg = upload_file_ssh(
-                        device['ip'],
-                        device.get('password', ''),
-                        img_data,
-                        "/usr/share/remarkable/suspended.png"
-                    )
-                    if success:
-                        add_log(f"Preferred image sent to '{selected_name}': {preferred_image}")
-                        st.toast(f"Image preferee envoyee : {preferred_image}", icon=":material/task_alt:")
-                    else:
-                        add_log(f"Error sending preferred image {preferred_image} to '{selected_name}': {msg}")
-                        st.error(f"Erreur en envoyant l'image preferee : {msg}", icon=":material/error:")
-                except Exception as e:
-                    add_log(f"Error loading preferred image {preferred_image} for '{selected_name}': {str(e)}")
-                    st.error(f"Erreur en chargeant l'image preferee : {str(e)}", icon=":material/error:")
-            else:
-                st.warning("Aucune image preferee definie pour cette tablette.")
-
-            cmds = []
-            if device.get('carousel', True):
-                cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
-                cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
-            
-            # Add your template commands here if needed
-            cmds.append("systemctl restart xochitl")
-            
-            out, err = run_ssh_cmd(device['ip'], device.get('password', ''), cmds)
-            add_log(f"Maintenance executed on '{selected_name}': out={out.strip()} err={err.strip()}")
-            if err and "mount" not in err:
-                st.toast(err, icon=":material/error:")
-            else:
-                st.toast("Tablette mise à jour !", icon=":material/task_alt:")
-
+    col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
-        st.info(
-            f"IP: {device['ip']}\n\n"
-            f"Type: {device_type}\n\n"
-            f"Taille: {width}x{height}\n\n"
-            f"Templates: {device.get('templates')}\n\n"
-            f"Carousel: {device.get('carousel')}"
-        )
+        if st.button("Lancer le script complet",
+                     icon=":material/autorenew:",
+                     help="Exécuter les actions de maintenance post-mise à jour",
+                     type="primary",
+                     width='stretch'):
+            # provide a status area and progress bar for immediate feedback
+            try:
+                try:
+                    status = st.status("Démarrage de la maintenance...")
+                except Exception:
+                    status = st.empty()
+                    status.text("Démarrage de la maintenance...")
+                progress = st.progress(0)
+
+                # align maintenance steps with run_after_update.sh behavior
+                steps = []
+                steps.append("Upload de suspended.png depuis le dépôt (ou image locale si non présente)")
+                steps.append("Assurer l'existence des dossiers de templates sur la tablette")
+                steps.append("Upload des fichiers SVG de templates locaux vers la tablette")
+                steps.append("Sauvegarde et comparaison de templates.json distant")
+                steps.append("Désactivation / sauvegarde du carousel si activé")
+                steps.append("Redémarrage du service xochitl")
+
+                total = len(steps)
+                current = [0]
+
+                def step(msg):
+                    current[0] += 1
+                    pct = int((current[0] / total) * 100)
+                    try:
+                        status.text(f"{current[0]}/{total} — {msg}")
+                    except Exception:
+                        status.markdown(f"**{msg}**")
+                    progress.progress(pct)
+                    add_log(msg)
+
+                # 1) Check writable filesystem (best-effort) using the POSIX snippet from run_after_update.sh
+                step(steps[0])
+                try:
+                    check_cmd = (
+                        "if mount | grep \"on / \" | grep -q \"(rw,\"; then\n"
+                        "  printf \"  / is already writable\"\n"
+                        "else\n"
+                        "  printf \"  Remounting / read-write\\n\"\n"
+                        "  mount -o remount,rw /\n"
+                        "  printf \"  Remounted / read-write\"\n"
+                        "fi"
+                    )
+                    remount_out, remount_err = run_ssh_cmd_no_remount(device['ip'], device.get('password', ''), [check_cmd])
+                    remount_trim = remount_out.strip()
+                    if remount_trim:
+                        step(remount_trim)
+                    else:
+                        step("Vérification du système de fichiers exécutée")
+                    add_log(f"Filesystem check output for {device['ip']}: {remount_trim} err_len={len(remount_err)}")
+                except Exception as e:
+                    add_log(f"Filesystem writable check failed: {e}")
+                    step("Erreur lors de la vérification du système de fichiers")
+
+                # 2) Upload suspended.png (prefer repo suspended.png if present)
+                step(steps[1])
+                try:
+                    repo_suspended = os.path.join(BASE_DIR, 'suspended.png')
+                    chosen_image = None
+                    chosen_source = None
+                    if preferred_image and os.path.exists(os.path.join(get_device_images_dir(selected_name), preferred_image)):
+                        chosen_source = 'preferred'
+                        img_blob = load_device_image(selected_name, preferred_image)
+                        chosen_image = preferred_image
+                    elif has_images:
+                        import random
+                        chosen_image = random.choice(imgs_available)
+                        img_blob = load_device_image(selected_name, chosen_image)
+                        chosen_source = 'library'
+
+                    if chosen_image and img_blob:
+                        success, msg = upload_file_ssh(device['ip'], device.get('password', ''), img_blob, "/usr/share/remarkable/suspended.png")
+                        if success:
+                            add_log(f"Uploaded {chosen_image} (source={chosen_source}) as suspended.png to '{selected_name}'")
+                            step(f"suspended.png uploadé ({chosen_image})")
+                        else:
+                            add_log(f"Error uploading suspended.png: {msg}")
+                            step(f"Erreur upload suspended.png: {msg}")
+                    else:
+                        step("Aucune image locale disponible pour upload comme suspended.png")
+                except Exception as e:
+                    add_log(f"Error during suspended.png upload: {e}")
+                    step(f"Erreur upload suspended.png: {str(e)}")
+
+                # 3) Ensure remote template dirs exist and upload templates
+                step(steps[2])
+                if device.get('templates', True):
+                    try:
+                        remote_custom_dir = "/home/root/templates"
+                        remote_templates_dir = "/usr/share/remarkable/templates"
+                        # ensure dirs
+                        run_ssh_cmd(device['ip'], device.get('password', ''), [f"mkdir -p '{remote_custom_dir}' '{remote_templates_dir}'"])
+                        step("Dossiers de templates créés sur la tablette (si nécessaire)")
+                    except Exception as e:
+                        add_log(f"Error ensuring remote template dirs: {e}")
+                        step(f"Erreur création dossiers templates: {str(e)}")
+
+                # 4) Upload template SVGs from local templates directories
+                step(steps[3])
+                if device.get('templates', True):
+                    try:
+                        local_templates_dirs = [os.path.join(BASE_DIR, 'templates'), os.path.join(BASE_DIR, 'data', 'templates')]
+                        sent_count = 0
+                        for local_templates_dir in local_templates_dirs:
+                            if os.path.exists(local_templates_dir):
+                                for fname in os.listdir(local_templates_dir):
+                                    if fname.lower().endswith('.svg'):
+                                        local_path = os.path.join(local_templates_dir, fname)
+                                        with open(local_path, 'rb') as lf:
+                                            content = lf.read()
+                                        remote_path = f"{remote_custom_dir}/{fname}"
+                                        ok, msg = upload_file_ssh(device['ip'], device.get('password', ''), content, remote_path)
+                                        if ok:
+                                            sent_count += 1
+                        if sent_count:
+                            # create symlinks for uploaded svgs
+                            run_ssh_cmd(device['ip'], device.get('password', ''), [f"for file in {remote_custom_dir}/*.svg; do [ -f \"$file\" ] || continue; ln -sf \"$file\" \"{remote_templates_dir}/\"$(basename \"$file\"); done"])
+                            step(f"{sent_count} templates SVG uploadés et liens créés")
+                        else:
+                            step("Aucun fichier SVG de template local trouvé à uploader")
+                    except Exception as e:
+                        add_log(f"Error uploading templates: {e}")
+                        step(f"Erreur upload templates: {str(e)}")
+
+                # 5) Backup/compare remote templates.json with local and replace
+                step(steps[4])
+                if device.get('templates', True):
+                    try:
+                        remote_templates_json = f"{remote_templates_dir}/templates.json"
+                        try:
+                            remote_content = download_file_ssh(device['ip'], device.get('password', ''), remote_templates_json)
+                            local_templates_json = os.path.join(BASE_DIR, 'templates.json')
+                            if os.path.exists(local_templates_json):
+                                with open(local_templates_json, 'rb') as lf:
+                                    local_content = lf.read()
+                                if remote_content != local_content:
+                                    backup_path = os.path.join(BASE_DIR, 'templates.backup.json')
+                                    with open(backup_path, 'wb') as bf:
+                                        bf.write(remote_content)
+                                    add_log(f"Remote templates.json backed up to {backup_path}")
+                                    # replace remote with local
+                                    ok, msg = upload_file_ssh(device['ip'], device.get('password', ''), local_content, remote_templates_json)
+                                    if ok:
+                                        step("templates.json remplacé par la version locale")
+                                    else:
+                                        step(f"Erreur en remplaçant templates.json: {msg}")
+                                else:
+                                    step("templates.json distant identique au local; pas de backup nécessaire")
+                            else:
+                                step("Aucun templates.json local trouvé pour comparaison")
+                        except Exception as e:
+                            add_log(f"Impossible de télécharger templates.json: {e}")
+                            step("Aucun templates.json distant trouvé ou erreur de téléchargement")
+                    except Exception as e:
+                        add_log(f"Error handling templates.json: {e}")
+
+                # 5) Disable carousel
+                step("Désactivation / sauvegarde du carousel si activé")
+                if device.get('carousel', True):
+                    try:
+                        cmds = []
+                        cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
+                        cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
+                    except Exception as e:
+                        add_log(f"Error handling carousel: {e}")
+                        step(f"Erreur carousel: {str(e)}")
+
+                #6) Restart xochitl
+                step("Redémarrage de xochitl")
+                try:
+                    cmds.append("systemctl restart xochitl")
+                    out, err = run_ssh_cmd(device['ip'], device.get('password', ''), cmds)
+                    add_log(f"Command executed: out={out.strip()} err={err.strip()}")
+                    step("Redémarrage de xochitl demandé")
+                except Exception as e:
+                    add_log(f"Error restarting xochitl: {e}")
+                    step(f"Erreur redémarrage xochitl: {str(e)}")
+
+
+                # finish
+                progress.progress(100)
+                try:
+                    status.text("Maintenance terminée")
+                except Exception:
+                    status.markdown("**Maintenance terminée**")
+                st.toast("Maintenance terminée", icon=":material/task_alt:")
+            except Exception as e:
+                add_log(f"Unexpected error during maintenance: {e}")
+                try:
+                    status.text(f"Erreur inattendue: {e}")
+                except Exception:
+                    status.markdown(f"**Erreur inattendue: {e}**")
 
 
 # Display the image version at the bottom of the sidebar via CSS (fixed position)
