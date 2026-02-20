@@ -68,175 +68,23 @@ def save_config(config):
     with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
-def run_ssh_cmd(ip, password, commands):
-    add_log(f"SSH connect to {ip} (commands={len(commands)})")
-    client = paramiko.SSHClient()
-    # TODO: Ensure that if a hostkey changes (e.g. after an update), we still
-    # accept the connection and update the stored hostkey. Currently, when the
-    # hostkey changes the connection fails and users must manually remove the
-    # hostkey from ~/.ssh/known_hosts, which is not ideal for non-technical users.
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        # First check whether root is already mounted read-write.
-        check_cmd = (
-            "if mount | grep \"on / \" | grep -q \"(rw,\"; then printf \"writable\"; else printf \"readonly\"; fi"
-        )
-        try:
-            stdin, stdout, stderr = client.exec_command(check_cmd)
-            check_out = stdout.read().decode().strip()
-            check_err = stderr.read().decode().strip()
-        except Exception as e:
-            add_log(f"SSH check command failed on {ip}: {e}")
-            check_out = "readonly"
-
-        # If not writable, prepend remount command; otherwise run commands directly.
-        if check_out == "writable":
-            full_cmd = " && ".join(commands) if commands else ""
-        else:
-            full_cmd = ("mount -o remount,rw / && " + " && ".join(commands)) if commands else "mount -o remount,rw /"
-
-        try:
-            stdin, stdout, stderr = client.exec_command(full_cmd)
-            output = stdout.read().decode()
-            error = stderr.read().decode()
-        except Exception as e:
-            add_log(f"SSH exec failed on {ip}: {e}")
-            client.close()
-            return "", str(e)
-
-        client.close()
-        add_log(f"SSH exec on {ip} (check={check_out}, out_len={len(output)}, err_len={len(error)})")
-        return output, error
-    except Exception as e:
-        add_log(f"SSH error on {ip}: {str(e)}")
-        return "", str(e)
-
-def test_ssh_connection(ip, password):
-    """Test simple SSH connectivity without modifying the device."""
-    add_log(f"SSH connectivity test start for {ip}")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        stdin, stdout, stderr = client.exec_command("echo ok")
-        output = stdout.read().decode().strip()
-        error = stderr.read().decode().strip()
-        client.close()
-        add_log(f"SSH connectivity test OK for {ip} (out={output}, err_len={len(error)})")
-        return output == "ok", error
-    except Exception as e:
-        add_log(f"SSH connectivity test error for {ip}: {str(e)}")
-        return False, str(e)
-
-def process_image(uploaded_file, width, height):
-    img = Image.open(uploaded_file)
-    
-    # If the image is already PNG and the correct size, return it as-is
-    if img.format == "PNG" and img.size == (width, height):
-        uploaded_file.seek(0)
-        return uploaded_file.read()
-    
-    # Otherwise, process the image
-    if img.size != (width, height):
-        img = img.resize((width, height), Image.Resampling.LANCZOS)
-    
-    img = img.convert("RGB")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
-
-def upload_file_ssh(ip, password, file_content, remote_path):
-    add_log(f"SSH prepare upload to {ip}:{remote_path} (bytes={len(file_content)})")
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        # Mount the filesystem RW before uploading
-        stdin, stdout, stderr = client.exec_command("mount -o remount,rw /")
-        stdout.read()
-        client.close()
-    except Exception as e:
-        add_log(f"SSH RW mount failed on {ip}: {str(e)}")
-        return False, str(e)
-    
-    # Now upload the file via SFTP
-    transport = paramiko.Transport((ip, 22))
-    transport.connect(username='root', password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    
-    try:
-        with sftp.file(remote_path, 'wb') as f:
-            f.write(file_content)
-        sftp.close()
-        transport.close()
-        add_log(f"SFTP upload OK to {ip}:{remote_path} (bytes={len(file_content)})")
-        return True, "OK"
-    except Exception as e:
-        sftp.close()
-        transport.close()
-        add_log(f"SFTP upload error to {ip}:{remote_path}: {str(e)}")
-        return False, str(e)
-
-def download_file_ssh(ip, password, remote_path):
-    """Download a file from the tablet."""
-    add_log(f"SFTP download start from {ip}:{remote_path}")
-    transport = paramiko.Transport((ip, 22))
-    transport.connect(username='root', password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    
-    with sftp.file(remote_path, 'rb') as f:
-        content = f.read()
-    
-    sftp.close()
-    transport.close()
-    add_log(f"SFTP download OK from {ip}:{remote_path} (bytes={len(content)})")
-    return content
-
-def get_device_images_dir(device_name):
-    """Return the images directory for a device and create it if needed."""
-    device_dir = os.path.join(IMAGES_DIR, device_name.replace("/", "_").replace(" ", "_"))
-    os.makedirs(device_dir, exist_ok=True)
-    return device_dir
-
-def list_device_images(device_name):
-    """List all stored images for a device."""
-    device_dir = get_device_images_dir(device_name)
-    if not os.path.exists(device_dir):
-        return []
-    return sorted([f for f in os.listdir(device_dir) if f.endswith('.png')])
-
-def save_device_image(device_name, image_data, filename):
-    """Save an image for a device."""
-    device_dir = get_device_images_dir(device_name)
-    filepath = os.path.join(device_dir, filename)
-    with open(filepath, 'wb') as f:
-        f.write(image_data)
-    return filepath
-
-def load_device_image(device_name, filename):
-    """Load an image from a device."""
-    device_dir = get_device_images_dir(device_name)
-    filepath = os.path.join(device_dir, filename)
-    with open(filepath, 'rb') as f:
-        return f.read()
-
-def delete_device_image(device_name, filename):
-    """Delete an image from a device."""
-    device_dir = get_device_images_dir(device_name)
-    filepath = os.path.join(device_dir, filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-
-def rename_device_image(device_name, old_filename, new_filename):
-    """Rename an image for a device."""
-    device_dir = get_device_images_dir(device_name)
-    old_path = os.path.join(device_dir, old_filename)
-    new_path = os.path.join(device_dir, new_filename)
-    if os.path.exists(old_path):
-        os.rename(old_path, new_path)
-        return True
-    return False
+from src.ssh import (
+    run_ssh_cmd,
+    run_ssh_cmd_no_remount,
+    upload_file_ssh,
+    download_file_ssh,
+    test_ssh_connection,
+)
+from src.images import (
+    process_image,
+    get_device_images_dir,
+    list_device_images,
+    save_device_image,
+    load_device_image,
+    delete_device_image,
+    rename_device_image,
+)
+from src.maintenance import run_maintenance
 
 def resolve_device_type(device):
     device_type = device.get("device_type")
@@ -252,8 +100,7 @@ def resolve_device_type(device):
     return DEFAULT_DEVICE_TYPE
 
 # --- STREAMLIT INTERFACE ---
-# TODO: Change the page icon (favicon)
-st.set_page_config(page_title="rM Manager", page_icon="📝")
+st.set_page_config(page_title="rM Manager", page_icon="assets/favicon.png")
 st.logo(image="assets/logo.svg", size="large")
 
 # Display the image version if provided via environment or a VERSION file
@@ -674,11 +521,11 @@ else:  # Page principale de gestion
             st.markdown(f"- Uploader l'image préférée (`{device.get('preferred_image')}`) comme `suspended.png` sur la tablette")
         elif has_images:
             st.markdown("- Uploader une image de la bibliothèque locale comme `suspended.png` sur la tablette")
-        if device.get('template', True):
+        if device.get('template'):
              st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
              st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
              st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
-        if device.get('carousel', True):
+        if device.get('carousel'):
             st.markdown("- Désactiver le carousel en déplaçant les illustrations actuelles dans un dossier de backup")
         st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
 
@@ -689,198 +536,105 @@ else:  # Page principale de gestion
                      help="Exécuter les actions de maintenance post-mise à jour",
                      type="primary",
                      width='stretch'):
-            # provide a status area and progress bar for immediate feedback
+            # Prefer using the context manager so the status shows a "complete" state
+            # when the `with` block exits. Fall back to the previous approach if
+            # the context manager isn't available.
             try:
                 try:
-                    status = st.status("Démarrage de la maintenance...")
+                    with st.status("Démarrage de la maintenance...") as status:
+                        progress = st.progress(0)
+
+                        class UIAdapter:
+                            def __init__(self, status_obj, progress_obj):
+                                self._status = status_obj
+                                self._progress = progress_obj
+
+                            def step(self, msg: str):
+                                try:
+                                    self._status.text(msg)
+                                except Exception:
+                                    try:
+                                        self._status.markdown(f"**{msg}**")
+                                    except Exception:
+                                        pass
+                                add_log(msg)
+
+                            def progress(self, pct: int):
+                                try:
+                                    self._progress.progress(pct)
+                                except Exception:
+                                    pass
+
+                            def toast(self, msg: str):
+                                try:
+                                    st.toast(msg, icon=":material/task_alt:")
+                                except Exception:
+                                    pass
+
+                        ui = UIAdapter(status, progress)
+                        result = run_maintenance(selected_name, device, BASE_DIR, preferred_image, ui)
                 except Exception:
+                    # Fallback if `st.status` as context manager is not supported
                     status = st.empty()
                     status.text("Démarrage de la maintenance...")
-                progress = st.progress(0)
+                    progress = st.progress(0)
 
-                # align maintenance steps with run_after_update.sh behavior
-                steps = []
-                steps.append("Upload de suspended.png depuis le dépôt (ou image locale si non présente)")
-                steps.append("Assurer l'existence des dossiers de templates sur la tablette")
-                steps.append("Upload des fichiers SVG de templates locaux vers la tablette")
-                steps.append("Sauvegarde et comparaison de templates.json distant")
-                steps.append("Désactivation / sauvegarde du carousel si activé")
-                steps.append("Redémarrage du service xochitl")
+                    class UIAdapter:
+                        def __init__(self, status_obj, progress_obj):
+                            self._status = status_obj
+                            self._progress = progress_obj
 
-                total = len(steps)
-                current = [0]
+                        def step(self, msg: str):
+                            try:
+                                self._status.text(msg)
+                            except Exception:
+                                try:
+                                    self._status.markdown(f"**{msg}**")
+                                except Exception:
+                                    pass
+                            add_log(msg)
 
-                def step(msg):
-                    current[0] += 1
-                    pct = int((current[0] / total) * 100)
+                        def progress(self, pct: int):
+                            try:
+                                self._progress.progress(pct)
+                            except Exception:
+                                pass
+
+                        def toast(self, msg: str):
+                            try:
+                                st.toast(msg, icon=":material/task_alt:")
+                            except Exception:
+                                pass
+
+                    ui = UIAdapter(status, progress)
+                    result = run_maintenance(selected_name, device, BASE_DIR, preferred_image, ui)
+
+                # Handle result after the status context (or fallback) finishes
+                if result.get("ok"):
                     try:
-                        status.text(f"{current[0]}/{total} — {msg}")
+                        ui.step("Maintenance terminée")
+                        ui.progress(100)
+                        ui.toast("Maintenance terminée")
                     except Exception:
-                        status.markdown(f"**{msg}**")
-                    progress.progress(pct)
-                    add_log(msg)
-
-                # 1) Check writable filesystem (best-effort) using the POSIX snippet from run_after_update.sh
-                step(steps[0])
-                try:
-                    check_cmd = (
-                        "if mount | grep \"on / \" | grep -q \"(rw,\"; then\n"
-                        "  printf \"  / is already writable\"\n"
-                        "else\n"
-                        "  printf \"  Remounting / read-write\\n\"\n"
-                        "  mount -o remount,rw /\n"
-                        "  printf \"  Remounted / read-write\"\n"
-                        "fi"
-                    )
-                    remount_out, remount_err = run_ssh_cmd_no_remount(device['ip'], device.get('password', ''), [check_cmd])
-                    remount_trim = remount_out.strip()
-                    if remount_trim:
-                        step(remount_trim)
-                    else:
-                        step("Vérification du système de fichiers exécutée")
-                    add_log(f"Filesystem check output for {device['ip']}: {remount_trim} err_len={len(remount_err)}")
-                except Exception as e:
-                    add_log(f"Filesystem writable check failed: {e}")
-                    step("Erreur lors de la vérification du système de fichiers")
-
-                # 2) Upload suspended.png (prefer repo suspended.png if present)
-                step(steps[1])
-                try:
-                    repo_suspended = os.path.join(BASE_DIR, 'suspended.png')
-                    chosen_image = None
-                    chosen_source = None
-                    if preferred_image and os.path.exists(os.path.join(get_device_images_dir(selected_name), preferred_image)):
-                        chosen_source = 'preferred'
-                        img_blob = load_device_image(selected_name, preferred_image)
-                        chosen_image = preferred_image
-                    elif has_images:
-                        import random
-                        chosen_image = random.choice(imgs_available)
-                        img_blob = load_device_image(selected_name, chosen_image)
-                        chosen_source = 'library'
-
-                    if chosen_image and img_blob:
-                        success, msg = upload_file_ssh(device['ip'], device.get('password', ''), img_blob, "/usr/share/remarkable/suspended.png")
-                        if success:
-                            add_log(f"Uploaded {chosen_image} (source={chosen_source}) as suspended.png to '{selected_name}'")
-                            step(f"suspended.png uploadé ({chosen_image})")
-                        else:
-                            add_log(f"Error uploading suspended.png: {msg}")
-                            step(f"Erreur upload suspended.png: {msg}")
-                    else:
-                        step("Aucune image locale disponible pour upload comme suspended.png")
-                except Exception as e:
-                    add_log(f"Error during suspended.png upload: {e}")
-                    step(f"Erreur upload suspended.png: {str(e)}")
-
-                # 3) Ensure remote template dirs exist and upload templates
-                step(steps[2])
-                if device.get('templates', True):
+                        pass
+                else:
                     try:
-                        remote_custom_dir = "/home/root/templates"
-                        remote_templates_dir = "/usr/share/remarkable/templates"
-                        # ensure dirs
-                        run_ssh_cmd(device['ip'], device.get('password', ''), [f"mkdir -p '{remote_custom_dir}' '{remote_templates_dir}'"])
-                        step("Dossiers de templates créés sur la tablette (si nécessaire)")
-                    except Exception as e:
-                        add_log(f"Error ensuring remote template dirs: {e}")
-                        step(f"Erreur création dossiers templates: {str(e)}")
-
-                # 4) Upload template SVGs from local templates directories
-                step(steps[3])
-                if device.get('templates', True):
-                    try:
-                        local_templates_dirs = [os.path.join(BASE_DIR, 'templates'), os.path.join(BASE_DIR, 'data', 'templates')]
-                        sent_count = 0
-                        for local_templates_dir in local_templates_dirs:
-                            if os.path.exists(local_templates_dir):
-                                for fname in os.listdir(local_templates_dir):
-                                    if fname.lower().endswith('.svg'):
-                                        local_path = os.path.join(local_templates_dir, fname)
-                                        with open(local_path, 'rb') as lf:
-                                            content = lf.read()
-                                        remote_path = f"{remote_custom_dir}/{fname}"
-                                        ok, msg = upload_file_ssh(device['ip'], device.get('password', ''), content, remote_path)
-                                        if ok:
-                                            sent_count += 1
-                        if sent_count:
-                            # create symlinks for uploaded svgs
-                            run_ssh_cmd(device['ip'], device.get('password', ''), [f"for file in {remote_custom_dir}/*.svg; do [ -f \"$file\" ] || continue; ln -sf \"$file\" \"{remote_templates_dir}/\"$(basename \"$file\"); done"])
-                            step(f"{sent_count} templates SVG uploadés et liens créés")
-                        else:
-                            step("Aucun fichier SVG de template local trouvé à uploader")
-                    except Exception as e:
-                        add_log(f"Error uploading templates: {e}")
-                        step(f"Erreur upload templates: {str(e)}")
-
-                # 5) Backup/compare remote templates.json with local and replace
-                step(steps[4])
-                if device.get('templates', True):
-                    try:
-                        remote_templates_json = f"{remote_templates_dir}/templates.json"
-                        try:
-                            remote_content = download_file_ssh(device['ip'], device.get('password', ''), remote_templates_json)
-                            local_templates_json = os.path.join(BASE_DIR, 'templates.json')
-                            if os.path.exists(local_templates_json):
-                                with open(local_templates_json, 'rb') as lf:
-                                    local_content = lf.read()
-                                if remote_content != local_content:
-                                    backup_path = os.path.join(BASE_DIR, 'templates.backup.json')
-                                    with open(backup_path, 'wb') as bf:
-                                        bf.write(remote_content)
-                                    add_log(f"Remote templates.json backed up to {backup_path}")
-                                    # replace remote with local
-                                    ok, msg = upload_file_ssh(device['ip'], device.get('password', ''), local_content, remote_templates_json)
-                                    if ok:
-                                        step("templates.json remplacé par la version locale")
-                                    else:
-                                        step(f"Erreur en remplaçant templates.json: {msg}")
-                                else:
-                                    step("templates.json distant identique au local; pas de backup nécessaire")
-                            else:
-                                step("Aucun templates.json local trouvé pour comparaison")
-                        except Exception as e:
-                            add_log(f"Impossible de télécharger templates.json: {e}")
-                            step("Aucun templates.json distant trouvé ou erreur de téléchargement")
-                    except Exception as e:
-                        add_log(f"Error handling templates.json: {e}")
-
-                # 5) Disable carousel
-                step("Désactivation / sauvegarde du carousel si activé")
-                if device.get('carousel', True):
-                    try:
-                        cmds = []
-                        cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
-                        cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
-                    except Exception as e:
-                        add_log(f"Error handling carousel: {e}")
-                        step(f"Erreur carousel: {str(e)}")
-
-                #6) Restart xochitl
-                step("Redémarrage de xochitl")
-                try:
-                    cmds.append("systemctl restart xochitl")
-                    out, err = run_ssh_cmd(device['ip'], device.get('password', ''), cmds)
-                    add_log(f"Command executed: out={out.strip()} err={err.strip()}")
-                    step("Redémarrage de xochitl demandé")
-                except Exception as e:
-                    add_log(f"Error restarting xochitl: {e}")
-                    step(f"Erreur redémarrage xochitl: {str(e)}")
-
-
-                # finish
-                progress.progress(100)
-                try:
-                    status.text("Maintenance terminée")
-                except Exception:
-                    status.markdown("**Maintenance terminée**")
-                st.toast("Maintenance terminée", icon=":material/task_alt:")
+                        ui.step("Maintenance terminée (avec erreurs)")
+                        ui.toast("Maintenance terminée (avec erreurs)")
+                        for e in result.get('errors', []):
+                            add_log(f"Maintenance error: {e}")
+                    except Exception:
+                        pass
             except Exception as e:
-                add_log(f"Unexpected error during maintenance: {e}")
+                add_log(f"Unexpected error during maintenance invocation: {e}")
                 try:
+                    status = st.empty()
                     status.text(f"Erreur inattendue: {e}")
                 except Exception:
-                    status.markdown(f"**Erreur inattendue: {e}**")
+                    try:
+                        status.markdown(f"**Erreur inattendue: {e}**")
+                    except Exception:
+                        pass
 
 
 # Display the image version at the bottom of the sidebar via CSS (fixed position)
