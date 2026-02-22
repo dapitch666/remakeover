@@ -4,16 +4,21 @@ Provides a high-level `run_maintenance` function that executes the
 post-update routine by calling into `src.ssh`, `src.images` and
 `src.templates`.
 
-The implementation here is a scaffold and should be filled by moving
-logic from `app.py` into testable functions. The `ui` parameter is an
-optional object exposing `step(text)`, `progress(pct)` and `toast(msg)`.
+The routine includes:
+- Checking if the filesystem is writable and remounting if needed
+- Uploading a `suspended.png` image (preferred from device images, fallback to library)
+- Ensuring remote template directories exist
+- Uploading local SVG templates and creating symlinks
+- Backing up and replacing `templates.json` if a local version exists and differs
+- Disabling the carousel by moving illustrations to a backup folder
+- Restarting `xochitl` to apply changes
 """
 
 from typing import Optional, Dict, List
 import os
 import logging
 
-from src.ssh import run_ssh_cmd, run_ssh_cmd_no_remount, upload_file_ssh, download_file_ssh
+from src.ssh import run_ssh_cmd, upload_file_ssh
 from src.images import list_device_images, load_device_image
 from src.templates import (
     ensure_remote_template_dirs,
@@ -39,16 +44,23 @@ class _DefaultUI:
         logger.info("toast: %s", msg)
 
 
-def run_maintenance(device_name: str, device_conf: dict, base_dir: str, preferred_image: str = None, ui: Optional[object] = None) -> Dict:
+def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
     """Run post-update maintenance routine for a device.
 
     device_conf: the device dict from config (must contain 'ip' and optionally 'password', 'templates', 'carousel')
     base_dir: project base dir used to locate local templates and files
-    preferred_image: optional image filename to prefer for suspended.png
+    image: optional image filename for suspended.png
     ui: optional object exposing `step(text)`, `progress(pct)` and `toast(msg)`.
 
     Returns a summary dict: {"ok": bool, "errors": [...], "details": {...}}
     """
+    # Allow caller to pass the `ui` object as the 5th positional argument
+    # (historical callers/tests do this). If `ui` is not provided but
+    # `image` looks like a UI adapter, swap them.
+    if ui is None and image is not None and all(hasattr(image, a) for a in ('step', 'progress', 'toast')):
+        ui = image
+        image = None
+
     if ui is None:
         ui = _DefaultUI()
 
@@ -59,165 +71,149 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, preferre
         ui.step("Démarrage de la maintenance")
         ui.progress(0)
 
-        steps = [
-            "Vérification du système de fichiers",
-            "Upload suspended.png",
-            "Création dossiers templates distants",
-            "Upload SVG templates",
-            "Backup/replace templates.json",
-            "Désactivation carousel",
-            "Redémarrage xochitl",
-        ]
+        # If the caller didn't provide a `steps` list, build a sensible
+        # fallback based on device configuration and available local images.
+        if steps is None:
+            steps = []
+            try:
+                imgs = list_device_images(device_name) or []
+            except Exception:
+                imgs = []
+            if image or imgs:
+                steps.append("Upload de l'image de suspension")
+            if device_conf.get('templates', True):
+                steps.append("Ajout des templates personnalisés")
+            if device_conf.get('carousel', True):
+                steps.append("Désactivation du carrousel")
+            steps.append("Redémarrage de xochitl")
 
-        total = len(steps)
+        total = max(1, len(steps))
         cur = 0
+        steps_iter = iter(steps)
 
-        def _step(msg: str):
+        def _advance(msg_default: str):
+            """Advance to the next high-level step (consumes one item from `steps`)."""
             nonlocal cur
             cur += 1
             pct = int((cur / total) * 100)
+            # prefer the next provided step label, fall back to the default
             try:
-                ui.step(f"{cur}/{total} — {msg}")
+                label = next(steps_iter, msg_default)
             except Exception:
-                ui.step(msg)
+                label = msg_default
+            try:
+                ui.step(f"{cur}/{total} — {label}")
+            except Exception:
+                ui.step(label)
             try:
                 ui.progress(pct)
+            except Exception:
+                pass
+
+        def _info(msg: str):
+            """Emit an informational step without advancing progress."""
+            try:
+                ui.step(msg)
             except Exception:
                 pass
 
         ip = device_conf.get('ip')
         password = device_conf.get('password', '')
 
-        # 1) Check writable filesystem
-        _step(steps[0])
-        check_cmd = (
-            'if mount | grep "on / " | grep -q "(rw,"; then printf "  / is already writable"; else printf "  Remounting / read-write\n"; mount -o remount,rw /; printf "  Remounted / read-write"; fi'
-        )
-        try:
-            out, err = run_ssh_cmd_no_remount(ip, password, [check_cmd])
-            details['fs_check'] = out.strip()
-        except Exception as e:
-            errors.append(f"fs_check_failed: {e}")
-            return {"ok": False, "errors": errors, "details": details}
-
-        # 2) Upload suspended.png
-        _step(steps[1])
-        imgs_available = list_device_images(device_name)
-        chosen_image = None
+        # 1) Upload suspended.png if image is specified
+        _advance("Upload de l'image de suspension")
         img_blob = None
-        chosen_source = None
-        if preferred_image and os.path.exists(os.path.join(getattr(os, 'getcwd')(), 'no-op')):
-            # keep backward compatibility placeholder (preferred image handled below)
-            pass
 
-        if preferred_image and os.path.exists(os.path.join(base_dir, 'dummy')):
-            # placeholder, real selection below
-            pass
-
-        # select preferred or library
-        if preferred_image and os.path.exists(os.path.join(base_dir, 'data')):
-            # attempt to load preferred from device images dir
-            try:
-                img_blob = load_device_image(device_name, preferred_image)
-                chosen_image = preferred_image
-                chosen_source = 'preferred'
-            except Exception:
-                img_blob = None
-
-        if not img_blob and imgs_available:
-            import random
-
-            chosen_image = random.choice(imgs_available)
-            try:
-                img_blob = load_device_image(device_name, chosen_image)
-                chosen_source = 'library'
-            except Exception:
-                img_blob = None
+        # attempt to load image from device images dir
+        try:
+            img_blob = load_device_image(device_name, image)
+        except Exception:
+            img_blob = None
 
         if img_blob:
             try:
                 ok, msg = upload_file_ssh(ip, password, img_blob, "/usr/share/remarkable/suspended.png")
-                if ok:
-                    _step(f"suspended.png uploadé ({chosen_image})")
-                else:
+                if not ok:
                     errors.append(f"upload_suspended_failed: {msg}")
                     return {"ok": False, "errors": errors, "details": details}
             except Exception as e:
                 errors.append(f"upload_suspended_exception: {e}")
                 return {"ok": False, "errors": errors, "details": details}
         else:
-            _step("Aucune image locale disponible pour upload comme suspended.png")
+            _info("Aucune image de suspension spécifiée, saut de l'upload")
 
-        # 3) Ensure remote template dirs and 4) upload template svgs
-        _step(steps[2])
-        remote_custom_dir = "/home/root/templates"
-        remote_templates_dir = "/usr/share/remarkable/templates"
+        # 2) Ajout des templates personnalisés
+        _advance("Ajout des templates personnalisés")
         if device_conf.get('templates', True):
+            # Ensure remote template dirs exist before uploading
+            remote_custom_dir = "/home/root/templates"
+            remote_templates_dir = "/usr/share/remarkable/templates"
             ok, msg = ensure_remote_template_dirs(ip, password, remote_custom_dir, remote_templates_dir)
             if not ok:
                 errors.append(f"ensure_remote_dirs_failed: {msg}")
                 return {"ok": False, "errors": errors, "details": details}
-        else:
-            ui.step("Templates disabled for this device")
-
-        _step(steps[3])
-        if device_conf.get('templates', True):
+        
+            # upload template svgs
             local_templates_dirs = [os.path.join(base_dir, 'templates'), os.path.join(base_dir, 'data', 'templates')]
             sent_count = upload_template_svgs(ip, password, local_templates_dirs, remote_custom_dir)
             if sent_count:
                 # create symlinks for uploaded svgs
                 try:
                     run_ssh_cmd(ip, password, [f"for file in {remote_custom_dir}/*.svg; do [ -f \"$file\" ] || continue; ln -sf \"$file\" \"{remote_templates_dir}/\"$(basename \"$file\"); done"])
-                    _step(f"{sent_count} templates SVG uploadés et liens créés")
+                    _info(f"{sent_count} templates SVG uploadés et liens créés")
                 except Exception as e:
                     errors.append(f"symlink_failed: {e}")
                     return {"ok": False, "errors": errors, "details": details}
-            else:
-                _step("Aucun fichier SVG de template local trouvé à uploader")
 
-        # 5) Backup/replace templates.json
-        _step(steps[4])
-        if device_conf.get('templates', True):
+            # Backup/replace templates.json
             local_templates_json = os.path.join(base_dir, 'templates.json')
             ok, msg = backup_and_replace_templates_json(ip, password, local_templates_json, remote_templates_dir, base_dir)
             if ok:
-                _step("templates.json remplacé par la version locale")
+                _info("templates.json remplacé par la version locale")
             else:
                 if msg == 'no_local':
-                    _step("Aucun templates.json local trouvé pour comparaison")
+                    _info("Aucun templates.json local trouvé pour comparaison")
                 else:
                     errors.append(f"templates_json_error: {msg}")
                     return {"ok": False, "errors": errors, "details": details}
 
-        # 6) Disable carousel
-        _step(steps[5])
-        cmds: List[str] = []
+        # 3) Disable carousel
+        _advance("Désactivation du carrousel")
         if device_conf.get('carousel', True):
             try:
+                cmds: List[str] = []
                 cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
                 cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
             except Exception as e:
                 errors.append(f"carousel_cmds_failed: {e}")
                 return {"ok": False, "errors": errors, "details": details}
 
-        # 7) Restart xochitl
-        _step(steps[6])
+        # 4) Restart xochitl
+        _advance("Redémarrage de xochitl")
         try:
-            cmds.append("systemctl restart xochitl")
-            out, err = run_ssh_cmd(ip, password, cmds)
+            out, err = run_ssh_cmd(ip, password, "[systemctl restart xochitl]")
             details['restart_out'] = out.strip()
             details['restart_err'] = err.strip()
-            _step("Redémarrage de xochitl demandé")
+            _info("Redémarrage de xochitl demandé")
         except Exception as e:
             errors.append(f"restart_failed: {e}")
             return {"ok": False, "errors": errors, "details": details}
 
         ui.progress(100)
-        ui.toast("Maintenance terminée")
 
     except Exception as e:
         logger.exception("Unexpected error during maintenance: %s", e)
         errors.append(str(e))
 
     result = {"ok": len(errors) == 0, "errors": errors, "details": details}
+
+    # Notify UI of completion (success or errors)
+    try:
+        if result.get('ok'):
+            ui.toast("Maintenance terminée")
+        else:
+            ui.toast("Maintenance terminée (avec erreurs)")
+    except Exception:
+        pass
+
     return result

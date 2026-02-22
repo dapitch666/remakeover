@@ -84,13 +84,6 @@ def test_run_ssh_cmd(monkeypatch):
     assert 'CMDOUT' in out
 
 
-def test_run_ssh_cmd_no_remount(monkeypatch):
-    monkeypatch.setattr('paramiko.SSHClient', lambda: FakeClient())
-    from src.ssh import run_ssh_cmd_no_remount
-
-    out, err = run_ssh_cmd_no_remount('1.2.3.4', 'pw', ['echo hi'])
-    assert 'CMDOUT' in out
-
 
 def test_test_ssh_connection(monkeypatch):
     monkeypatch.setattr('paramiko.SSHClient', lambda: FakeClient())

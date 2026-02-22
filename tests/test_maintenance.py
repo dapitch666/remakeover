@@ -25,14 +25,16 @@ def test_run_maintenance_success(monkeypatch, tmp_path):
     device = {'ip': '1.2.3.4', 'password': 'pw', 'templates': True, 'carousel': True}
 
     # Monkeypatch external calls used by run_maintenance
-    monkeypatch.setattr('src.maintenance.run_ssh_cmd_no_remount', lambda ip, pw, cmds: ("ok", ""))
     monkeypatch.setattr('src.maintenance.upload_file_ssh', lambda ip, pw, content, path: (True, 'OK'))
     monkeypatch.setattr('src.maintenance.ensure_remote_template_dirs', lambda ip, pw, a, b: (True, 'ok'))
     monkeypatch.setattr('src.maintenance.upload_template_svgs', lambda ip, pw, dirs, remote: 1)
     monkeypatch.setattr('src.maintenance.backup_and_replace_templates_json', lambda ip, pw, local_path, remote_dir, base_dir: (True, 'OK'))
     monkeypatch.setattr('src.maintenance.list_device_images', lambda name: [])
     monkeypatch.setattr('src.maintenance.load_device_image', lambda name, fname: b'img')
-    monkeypatch.setattr('src.maintenance.run_ssh_cmd', lambda ip, pw, cmds: ("", ""))
+    def fake_run_ssh_cmd(ip, pw, cmds):
+        return ("ok", "")
+
+    monkeypatch.setattr('src.maintenance.run_ssh_cmd', fake_run_ssh_cmd)
 
     ui = DummyUI()
     from src.maintenance import run_maintenance
@@ -45,7 +47,7 @@ def test_run_maintenance_success(monkeypatch, tmp_path):
 def test_run_maintenance_upload_failure(monkeypatch, tmp_path):
     device = {'ip': '1.2.3.4', 'password': 'pw', 'templates': True, 'carousel': True}
 
-    monkeypatch.setattr('src.maintenance.run_ssh_cmd_no_remount', lambda ip, pw, cmds: ("ok", ""))
+    # Monkeypatch external calls used by run_maintenance
     # Simulate upload failure for suspended.png
     monkeypatch.setattr('src.maintenance.upload_file_ssh', lambda ip, pw, content, path: (False, 'err'))
     monkeypatch.setattr('src.maintenance.ensure_remote_template_dirs', lambda ip, pw, a, b: (True, 'ok'))
@@ -53,7 +55,10 @@ def test_run_maintenance_upload_failure(monkeypatch, tmp_path):
     monkeypatch.setattr('src.maintenance.backup_and_replace_templates_json', lambda ip, pw, local_path, remote_dir, base_dir: (False, 'no_local'))
     monkeypatch.setattr('src.maintenance.list_device_images', lambda name: ['img.png'])
     monkeypatch.setattr('src.maintenance.load_device_image', lambda name, fname: b'img')
-    monkeypatch.setattr('src.maintenance.run_ssh_cmd', lambda ip, pw, cmds: ("", ""))
+    def fake_run_ssh_cmd(ip, pw, cmds):
+        return ("ok", "")
+
+    monkeypatch.setattr('src.maintenance.run_ssh_cmd', fake_run_ssh_cmd)
 
     ui = DummyUI()
     from src.maintenance import run_maintenance

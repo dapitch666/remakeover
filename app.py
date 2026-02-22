@@ -70,7 +70,6 @@ def save_config(config):
 
 from src.ssh import (
     run_ssh_cmd,
-    run_ssh_cmd_no_remount,
     upload_file_ssh,
     download_file_ssh,
     test_ssh_connection,
@@ -283,7 +282,7 @@ if page == ":material/settings: Configuration":
                 st.session_state.pop("pending_delete_device", None)
                 st.rerun()
 
-else:  # Page principale de gestion
+else: # Main management page
     st.title("reMarkable Manager")
     
     if not DEVICES:
@@ -303,8 +302,10 @@ else:  # Page principale de gestion
             ok, err = test_ssh_connection(device['ip'], device.get('password', ''))
             if ok:
                 st.toast("Connexion SSH OK", icon=":material/task_alt:")
+                add_log(f"SSH connection successful to '{selected_name}'")
             else:
                 st.toast(f"Connexion SSH impossible : {err}", icon=":material/error:")
+                add_log(f"SSH connection failed to '{selected_name}': {err}")
 
     st.space()
 
@@ -463,11 +464,12 @@ else:  # Page principale de gestion
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"{timestamp}.png"
                 save_device_image(selected_name, img_data, filename)
-                add_log(f"Downloaded suspended.png from '{selected_name}' as {filename}")
+                add_log(f"suspended.png from téléchargé de '{selected_name}' sous {filename}")
                 st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
                 st.rerun()
             except Exception as e:
                 st.error(f"Erreur : {str(e)}", icon=":material/error:")
+                add_log(f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}")
     
     with col2:
         # Upload new image
@@ -512,22 +514,33 @@ else:  # Page principale de gestion
     # gather local image/library info for later
     imgs_available = list_device_images(selected_name)
     has_images = bool(imgs_available)
+    image = None
     
     # Expliquer les actions qui seront effectuées par le script de maintenance
+    steps = []
     with st.expander("Ce que le script va faire : (cliquer pour développer)", expanded=False):
         st.markdown("**Ce script va :**")
         st.markdown("- Vérifier que le système de fichiers est writable et le remonter en lecture-écriture si nécessaire")
+        
         if device.get('preferred_image'):
-            st.markdown(f"- Uploader l'image préférée (`{device.get('preferred_image')}`) comme `suspended.png` sur la tablette")
+            image = device.get('preferred_image')
+            st.markdown(f"- Téléverser l'image préférée (`{image}`) comme `suspended.png` sur la tablette")
         elif has_images:
-            st.markdown("- Uploader une image de la bibliothèque locale comme `suspended.png` sur la tablette")
+            import random
+            image = random.choice(imgs_available)
+            st.markdown(f"- Téléverser `{image}` de la bibliothèque locale comme `suspended.png` sur la tablette (aucune image préférée définie)")
+        if image:
+            steps.append(f"Upload de l'image de suspension")
         if device.get('template'):
-             st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
-             st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
-             st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
+            st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
+            st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
+            st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
+            steps.append("Ajout des templates personnalisés")
         if device.get('carousel'):
-            st.markdown("- Désactiver le carousel en déplaçant les illustrations actuelles dans un dossier de backup")
+            st.markdown("- Désactiver le carrousel en déplaçant les illustrations actuelles dans un dossier de backup")
+            steps.append("Désactivation du carrousel")
         st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
+        steps.append("Redémarrage de xochitl")
 
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
@@ -536,105 +549,37 @@ else:  # Page principale de gestion
                      help="Exécuter les actions de maintenance post-mise à jour",
                      type="primary",
                      width='stretch'):
-            # Prefer using the context manager so the status shows a "complete" state
-            # when the `with` block exits. Fall back to the previous approach if
-            # the context manager isn't available.
-            try:
-                try:
-                    with st.status("Démarrage de la maintenance...") as status:
-                        progress = st.progress(0)
+            with st.status("Démarrage de la maintenance...") as status:
+                progress = st.progress(0)
 
-                        class UIAdapter:
-                            def __init__(self, status_obj, progress_obj):
-                                self._status = status_obj
-                                self._progress = progress_obj
+                class UIAdapter:
+                    def __init__(self, status_obj, progress_obj):
+                        self._status = status_obj
+                        self._progress = progress_obj
 
-                            def step(self, msg: str):
-                                try:
-                                    self._status.text(msg)
-                                except Exception:
-                                    try:
-                                        self._status.markdown(f"**{msg}**")
-                                    except Exception:
-                                        pass
-                                add_log(msg)
+                    def step(self, msg: str):
+                        self._status.text(msg)
+                        add_log(msg)
 
-                            def progress(self, pct: int):
-                                try:
-                                    self._progress.progress(pct)
-                                except Exception:
-                                    pass
+                    def progress(self, pct: int):
+                        self._progress.progress(pct)
 
-                            def toast(self, msg: str):
-                                try:
-                                    st.toast(msg, icon=":material/task_alt:")
-                                except Exception:
-                                    pass
+                    def toast(self, msg: str):
+                        st.toast(msg, icon=":material/task_alt:")
 
-                        ui = UIAdapter(status, progress)
-                        result = run_maintenance(selected_name, device, BASE_DIR, preferred_image, ui)
-                except Exception:
-                    # Fallback if `st.status` as context manager is not supported
-                    status = st.empty()
-                    status.text("Démarrage de la maintenance...")
-                    progress = st.progress(0)
+                ui = UIAdapter(status, progress)
+                result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
 
-                    class UIAdapter:
-                        def __init__(self, status_obj, progress_obj):
-                            self._status = status_obj
-                            self._progress = progress_obj
-
-                        def step(self, msg: str):
-                            try:
-                                self._status.text(msg)
-                            except Exception:
-                                try:
-                                    self._status.markdown(f"**{msg}**")
-                                except Exception:
-                                    pass
-                            add_log(msg)
-
-                        def progress(self, pct: int):
-                            try:
-                                self._progress.progress(pct)
-                            except Exception:
-                                pass
-
-                        def toast(self, msg: str):
-                            try:
-                                st.toast(msg, icon=":material/task_alt:")
-                            except Exception:
-                                pass
-
-                    ui = UIAdapter(status, progress)
-                    result = run_maintenance(selected_name, device, BASE_DIR, preferred_image, ui)
-
-                # Handle result after the status context (or fallback) finishes
-                if result.get("ok"):
-                    try:
-                        ui.step("Maintenance terminée")
-                        ui.progress(100)
-                        ui.toast("Maintenance terminée")
-                    except Exception:
-                        pass
-                else:
-                    try:
-                        ui.step("Maintenance terminée (avec erreurs)")
-                        ui.toast("Maintenance terminée (avec erreurs)")
-                        for e in result.get('errors', []):
-                            add_log(f"Maintenance error: {e}")
-                    except Exception:
-                        pass
-            except Exception as e:
-                add_log(f"Unexpected error during maintenance invocation: {e}")
-                try:
-                    status = st.empty()
-                    status.text(f"Erreur inattendue: {e}")
-                except Exception:
-                    try:
-                        status.markdown(f"**Erreur inattendue: {e}**")
-                    except Exception:
-                        pass
+            # after exiting the status context manager
+            if result.get("ok"):
+                ui.step("Maintenance terminée")
+                ui.progress(100)
+                ui.toast("Maintenance terminée")
+            else:
+                ui.step("Maintenance terminée (avec erreurs)")
+                ui.toast("Maintenance terminée (avec erreurs)")
+                for e in result.get('errors', []):
+                    add_log(f"Maintenance error: {e}")
 
 
 # Display the image version at the bottom of the sidebar via CSS (fixed position)

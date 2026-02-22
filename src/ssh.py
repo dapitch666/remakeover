@@ -65,23 +65,7 @@ def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
         return "", str(e)
 
 
-def run_ssh_cmd_no_remount(ip: str, password: str, commands) -> Tuple[str, str]:
-    """Execute commands over SSH without attempting to remount '/'."""
-    logger.info("SSH (no remount) connect to %s (commands=%d)", ip, len(commands))
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        full_cmd = " && ".join(commands) if commands else ""
-        stdin, stdout, stderr = client.exec_command(full_cmd)
-        output = stdout.read().decode()
-        error = stderr.read().decode()
-        client.close()
-        logger.info("SSH (no remount) exec on %s (out_len=%d, err_len=%d)", ip, len(output), len(error))
-        return output, error
-    except Exception as e:
-        logger.error("SSH (no remount) error on %s: %s", ip, e)
-        return "", str(e)
+# Note: `run_ssh_cmd_no_remount` removed — use `run_ssh_cmd` for all cases.
 
 
 def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
