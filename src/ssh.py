@@ -65,9 +65,6 @@ def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
         return "", str(e)
 
 
-# Note: `run_ssh_cmd_no_remount` removed — use `run_ssh_cmd` for all cases.
-
-
 def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
     """Test simple SSH connectivity without modifying the device."""
     logger.info("SSH connectivity test start for %s", ip)

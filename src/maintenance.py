@@ -180,10 +180,16 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: L
         # 3) Disable carousel
         _advance("Désactivation du carrousel")
         if device_conf.get('carousel', True):
+            cmds: List[str] = []
+            cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
+            cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
+        
             try:
-                cmds: List[str] = []
-                cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
-                cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
+                out, err = run_ssh_cmd(ip, password, cmds)
+                details['carousel_out'] = out.strip()
+                details['carousel_err'] = err.strip()
+                _info("Commandes de désactivation du carrousel exécutées")
+
             except Exception as e:
                 errors.append(f"carousel_cmds_failed: {e}")
                 return {"ok": False, "errors": errors, "details": details}

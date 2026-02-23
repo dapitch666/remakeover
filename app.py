@@ -1,8 +1,5 @@
 import streamlit as st
 
-import paramiko
-from PIL import Image
-import io
 import os
 import json
 from datetime import datetime
@@ -41,26 +38,28 @@ def load_config():
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    else:
+    elif BASE_DIR != "/app":
         # Default configuration if the file doesn't exist
         return {
             "devices": {
                 "Anne (rM Paper Pro)": {
                     "ip": "192.168.1.174",
-                    "password": "",
+                    "password": "a5g7du9FkY",
                     "device_type": "reMarkable Paper Pro",
                     "templates": False,
                     "carousel": True
                 },
                 "Benoît (rM Move)": {
                     "ip": "192.168.1.144",
-                    "password": "",
+                    "password": "3JRpokPWbA",
                     "device_type": "reMarkable Paper Pro Move",
                     "templates": False,
                     "carousel": True
                 }
             }
         }
+    else:
+        return {"devices": {}}
 
 def save_config(config):
     """Save configuration to the JSON file."""
@@ -84,17 +83,12 @@ from src.images import (
     rename_device_image,
 )
 from src.maintenance import run_maintenance
+from src.dialog import confirm
 
 def resolve_device_type(device):
     device_type = device.get("device_type")
     if device_type in DEVICE_SIZES:
         return device_type
-
-    width = device.get("suspended_width")
-    height = device.get("suspended_height")
-    for name, (w, h) in DEVICE_SIZES.items():
-        if width == w and height == h:
-            return name
 
     return DEFAULT_DEVICE_TYPE
 
@@ -152,6 +146,7 @@ def submit_rename_factory(img, device_name):
 # Navigation
 page = st.sidebar.radio("Navigation", [":material/mobile_gear: Gestion des tablettes", ":material/settings: Configuration", ":material/description: Logs"])
 
+# --- PAGE: Logs ---
 if page == ":material/description: Logs":
     st.title(":material/description: Logs de session")
     if not st.session_state['logs']:
@@ -159,15 +154,18 @@ if page == ":material/description: Logs":
     else:
         for entry in reversed(st.session_state['logs']):
             st.text(entry)
+        if st.button("Effacer les logs de cette session", icon=":material/delete:", help="Efface les logs stockés dans la session en cours"):
+            res = confirm("Effacer les logs", "Effacer les logs de cette session ?", key="clear_logs")
+            if res is True:
+                st.session_state['logs'] = []
+                st.success("Logs effacés.", icon=":material/task_alt:")
+                st.rerun()
+            elif res is False:
+                st.info("Suppression des logs annulée")
+                st.rerun()
 
-    if st.button("Effacer les logs de cette session", icon=":material/delete:", help="Efface les logs stockés dans la session en cours"):
-        st.session_state['logs'] = []
-        st.success("Logs effacés.", icon=":material/task_alt:")
-        st.rerun()
-
-    st.stop()
-
-if page == ":material/settings: Configuration":
+# --- PAGE: Configuration ---
+elif page == ":material/settings: Configuration":
     st.title(":material/settings: Configuration des appareils")
 
     if st.session_state.get("config_saved_name"):
@@ -255,34 +253,36 @@ if page == ":material/settings: Configuration":
 
     # If a device deletion is pending, ask for confirmation
     if st.session_state.get("pending_delete_device") == device_name:
-        st.warning(f"Confirmez-vous la suppression de l'appareil '{device_name}' ? Cette action supprimera aussi ses images locales.")
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button("Confirmer la suppression", key=f"confirm_delete_{device_name}", help="Confirme la suppression définitive de cet appareil"):
-                # Remove associated images
-                device_images_dir = get_device_images_dir(device_name)
-                if os.path.exists(device_images_dir):
-                    for f in os.listdir(device_images_dir):
-                        os.remove(os.path.join(device_images_dir, f))
-                        add_log(f"Image '{f}' deleted for '{device_name}'")
-                    try:
-                        os.rmdir(device_images_dir)
-                    except OSError:
-                        pass
-                # Remove configuration
-                if device_name in config.get("devices", {}):
-                    del config["devices"][device_name]
-                    save_config(config)
-                add_log(f"Configuration deleted for '{device_name}'")
-                st.session_state["config_deleted_name"] = device_name
-                st.session_state.pop("pending_delete_device", None)
-                st.rerun()
-        with c2:
-            if st.button("Annuler", key=f"cancel_delete_{device_name}", help="Annuler la suppression de cet appareil"):
-                st.session_state.pop("pending_delete_device", None)
-                st.rerun()
+        res = confirm(
+            "Confirmer la suppression",
+            f"Confirmez-vous la suppression de l'appareil '{device_name}' ? Cette action supprimera aussi ses images locales.",
+            key=f"del_device_{device_name}",
+        )
+        if res is True:
+            # Remove associated images
+            device_images_dir = get_device_images_dir(device_name)
+            if os.path.exists(device_images_dir):
+                for f in os.listdir(device_images_dir):
+                    os.remove(os.path.join(device_images_dir, f))
+                    add_log(f"Image '{f}' deleted for '{device_name}'")
+                try:
+                    os.rmdir(device_images_dir)
+                except OSError:
+                    pass
+            # Remove configuration
+            if device_name in config.get("devices", {}):
+                del config["devices"][device_name]
+                save_config(config)
+            add_log(f"Configuration deleted for '{device_name}'")
+            st.session_state["config_deleted_name"] = device_name
+            st.session_state.pop("pending_delete_device", None)
+            st.rerun()
+        elif res is False:
+            st.session_state.pop("pending_delete_device", None)
+            st.rerun()
 
-else: # Main management page
+# PAGE: Main management page
+else:
     st.title("reMarkable Manager")
     
     if not DEVICES:
@@ -362,22 +362,23 @@ else: # Main management page
                 if not st.session_state.get(edit_key):
                     pending_key = f"pending_delete_image_{img_name}"
                     if st.session_state.get(pending_key):
-                        st.warning(f"Confirmez-vous la suppression de {img_name} ?")
-                        c1, c2 = st.columns([1, 1])
-                        with c1:
-                            if st.button("Oui", key=f"confirm_del_{img_name}", help="Confirmer la suppression", width='stretch', type="primary"):
-                                delete_device_image(selected_name, img_name)
-                                if preferred_image == img_name:
-                                    config["devices"][selected_name].pop("preferred_image", None)
-                                    save_config(config)
-                                    add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
-                                add_log(f"Deleted {img_name} from '{selected_name}'")
-                                st.session_state.pop(pending_key, None)
-                                st.rerun()
-                        with c2:
-                            if st.button("Non", key=f"cancel_del_{img_name}", help="Annuler la suppression", width='stretch'):
-                                st.session_state.pop(pending_key, None)
-                                st.rerun()
+                        res = confirm(
+                            "Confirmer la suppression",
+                            f"Confirmez-vous la suppression de {img_name} ?",
+                            key=f"del_img_{img_name}",
+                        )
+                        if res is True:
+                            delete_device_image(selected_name, img_name)
+                            if preferred_image == img_name:
+                                config["devices"][selected_name].pop("preferred_image", None)
+                                save_config(config)
+                                add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
+                            add_log(f"Deleted {img_name} from '{selected_name}'")
+                            st.session_state.pop(pending_key, None)
+                            st.rerun()
+                        elif res is False:
+                            st.session_state.pop(pending_key, None)
+                            st.rerun()
                     else:
                         # Compact segmented control under each image using icons
                         action_key = f"action_{img_name}"
@@ -603,3 +604,34 @@ def _display_image_version_bottom(version_text: str):
 
 
 _display_image_version_bottom(IMAGE_VERSION)
+
+# Debug overlay: show `st.session_state` in a small corner when running locally or when
+# the `DEBUG` env var is set. Uses BASE_DIR detection (if not in /app assume local).
+try:
+    debug_mode = (BASE_DIR != "/app") or os.environ.get("DEBUG", "") .lower() in ("1", "true", "yes")
+except Exception:
+    debug_mode = False
+
+if debug_mode:
+    try:
+        import html as _pyhtml
+        state_snapshot = {k: v for k, v in st.session_state.items()}
+        state_json = json.dumps(state_snapshot, default=str, indent=2)
+        safe_json = _pyhtml.escape(state_json)
+        debug_html = f"""
+        <div style="position:fixed; right:8px; top:8px; max-width:420px; max-height:45vh; overflow:auto; background:rgba(255,255,255,0.95); border:1px solid rgba(0,0,0,0.12); padding:8px; font-size:12px; z-index:99999; font-family:monospace; box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+          <details style="margin:0"><summary style="font-weight:600; cursor:pointer">session_state (debug)</summary>
+          <pre style="white-space:pre-wrap; margin:6px 0 0 0;">{safe_json}</pre>
+          </details>
+        </div>
+        """
+        st.markdown(debug_html, unsafe_allow_html=True)
+    except Exception:
+        # If HTML injection fails, fall back to sidebar expander (guaranteed).
+        st.sidebar.expander("session_state (debug)", expanded=False).write(dict(st.session_state))
+    else:
+        # Also show a sidebar expander as a robust fallback/visible area for debugging.
+        try:
+            st.sidebar.expander("session_state (debug)", expanded=False).write(dict(st.session_state))
+        except Exception:
+            pass
