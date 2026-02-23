@@ -40,7 +40,7 @@ def load_config():
             return json.load(f)
     elif BASE_DIR != "/app":
         # Default configuration if the file doesn't exist
-        return {
+        default_config = {
             "devices": {
                 "Anne (rM Paper Pro)": {
                     "ip": "192.168.1.174",
@@ -58,6 +58,8 @@ def load_config():
                 }
             }
         }
+        save_config(default_config)
+        return default_config
     else:
         return {"devices": {}}
 
