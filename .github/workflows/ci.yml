@@ -18,7 +18,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
-      - name: "Sanity: show Python and packages"
+      - name: Show Python and packages versions
         run: |
           python --version
           pip --version
