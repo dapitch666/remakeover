@@ -44,7 +44,7 @@ class _DefaultUI:
         logger.info("toast: %s", msg)
 
 
-def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
+def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
     """Run post-update maintenance routine for a device.
 
     device_conf: the device dict from config (must contain 'ip' and optionally 'password', 'templates', 'carousel')
@@ -81,9 +81,20 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: L
                 imgs = []
             if image or imgs:
                 steps.append("Upload de l'image de suspension")
-            if device_conf.get('templates', True):
+            # Support either dict-like device_conf or Device-like object
+            try:
+                templates_enabled = getattr(device_conf, 'templates')
+            except Exception:
+                templates_enabled = device_conf.get('templates', True)
+
+            try:
+                carousel_enabled = getattr(device_conf, 'carousel')
+            except Exception:
+                carousel_enabled = device_conf.get('carousel', True)
+
+            if templates_enabled:
                 steps.append("Ajout des templates personnalisés")
-            if device_conf.get('carousel', True):
+            if carousel_enabled:
                 steps.append("Désactivation du carrousel")
             steps.append("Redémarrage de xochitl")
 
@@ -117,8 +128,15 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: L
             except Exception:
                 pass
 
-        ip = device_conf.get('ip')
-        password = device_conf.get('password', '')
+        try:
+            ip = getattr(device_conf, 'ip')
+        except Exception:
+            ip = device_conf.get('ip')
+
+        try:
+            password = getattr(device_conf, 'password') or ''
+        except Exception:
+            password = device_conf.get('password', '')
 
         # 1) Upload suspended.png if image is specified
         _advance("Upload de l'image de suspension")
@@ -144,7 +162,12 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: L
 
         # 2) Ajout des templates personnalisés
         _advance("Ajout des templates personnalisés")
-        if device_conf.get('templates', True):
+        try:
+            templates_enabled = getattr(device_conf, 'templates')
+        except Exception:
+            templates_enabled = device_conf.get('templates', True)
+
+        if templates_enabled:
             # Ensure remote template dirs exist before uploading
             remote_custom_dir = "/home/root/templates"
             remote_templates_dir = "/usr/share/remarkable/templates"
@@ -179,7 +202,12 @@ def run_maintenance(device_name: str, device_conf: dict, base_dir: str, steps: L
 
         # 3) Disable carousel
         _advance("Désactivation du carrousel")
-        if device_conf.get('carousel', True):
+        try:
+            carousel_enabled = getattr(device_conf, 'carousel')
+        except Exception:
+            carousel_enabled = device_conf.get('carousel', True)
+
+        if carousel_enabled:
             cmds: List[str] = []
             cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
             cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")

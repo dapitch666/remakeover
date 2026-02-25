@@ -3,7 +3,6 @@ import streamlit as st
 import os
 import json
 from datetime import datetime
-from src.dialog import confirm
 
 # --- CONFIGURATION ---
 # Detect environment (Docker or local)
@@ -88,7 +87,13 @@ from src.images import (
 from src.maintenance import run_maintenance
 
 def resolve_device_type(device):
-    device_type = device.get("device_type")
+    # Accept either a dict-like device or a Device dataclass
+    try:
+        device_type = device.get("device_type")
+    except Exception:
+        # assume dataclass-like
+        device_type = getattr(device, "device_type", None)
+
     if device_type in DEVICE_SIZES:
         return device_type
 
@@ -189,17 +194,20 @@ def main():
     # Navigation
     # Load UI module dynamically from src/ui.py to avoid package import issues
     import importlib.util
+    import sys
     ui_path = os.path.join(BASE_DIR, "src", "ui.py")
+    # Load the UI module by file path but register it as `src.ui` so
+    # internal imports like `from src.models import Device` resolve
     try:
-        spec = importlib.util.spec_from_file_location("rm_manager_ui", ui_path)
+        spec = importlib.util.spec_from_file_location("src.ui", ui_path)
         ui = importlib.util.module_from_spec(spec)
+        # register early so imports within the module that import `src.*`
+        # can resolve to the expected package name
+        sys.modules["src.ui"] = ui
         spec.loader.exec_module(ui)
     except Exception:
-        # Fallback to package import if dynamic load fails
-        try:
-            import src.ui as ui  # type: ignore
-        except Exception:
-            raise
+        # If loading fails, re-raise so test harness can see the original error
+        raise
 
     page = st.sidebar.radio("Navigation", [":material/mobile_gear: Gestion des tablettes", ":material/settings: Configuration", ":material/description: Logs"])
 

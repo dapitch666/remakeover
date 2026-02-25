@@ -19,6 +19,20 @@ from src.images import (
 )
 from src.maintenance import run_maintenance
 
+# Import Device robustly: prefer package import, but fall back to loading by file path
+try:
+    from src.models import Device
+except Exception:
+    import importlib.util as _il
+    import sys as _sys
+    _models_path = os.path.join(os.path.dirname(__file__), "models.py")
+    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
+    _models = _il.module_from_spec(_spec)
+    # register before execution so decorators like @dataclass can resolve
+    _sys.modules[_spec.name] = _models
+    _spec.loader.exec_module(_models)
+    Device = _models.Device
+
 
 def render_logs_page():
     st.title(":material/description: Logs de session")
@@ -155,14 +169,15 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
     col1, col2 = st.columns([2, 1], vertical_alignment="bottom")
     with col1:
         selected_name = st.selectbox("Choisir la tablette", list(DEVICES.keys()))
-        device = DEVICES[selected_name]
+        device_dict = DEVICES[selected_name]
+        device = Device.from_dict(selected_name, device_dict)
         device_type = resolve_device_type(device)
         width, height = (1620, 2160)  # fallback; caller can pass constants if needed
-        preferred_image = device.get("preferred_image")
+        preferred_image = device.preferred_image
 
     with col2:
         if st.button("Tester la connectivité", key=f"ui_test_ssh_{selected_name}", icon=":material/wifi:", width='stretch', help="Vérifier la connexion SSH vers la tablette"):
-            ok, err = test_ssh_connection(device['ip'], device.get('password', ''))
+            ok, err = test_ssh_connection(device.ip, device.password or '')
             if ok:
                 st.toast("Connexion SSH OK", icon=":material/task_alt:")
                 add_log(f"SSH connection successful to '{selected_name}'")
@@ -188,7 +203,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
             with cols[col_index]:
                 img_data = load_device_image(selected_name, img_name)
                 edit_key = f"edit_{img_name}"
-                star_prefix = ":material/star:" if img_name == preferred_image else None
+                star_prefix = ":material/star:" if device.is_preferred(img_name) else None
                 if st.session_state.get(edit_key):
                     st.text_input(
                         "Renommer l'image",
@@ -215,8 +230,9 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                         )
                         if st.session_state.get(f"del_img_{img_name}") is True:
                             delete_device_image(selected_name, img_name)
-                            if preferred_image == img_name:
-                                config["devices"][selected_name].pop("preferred_image", None)
+                            if device.is_preferred(img_name):
+                                device.set_preferred(None)
+                                config["devices"][selected_name] = device.to_dict()
                                 save_config(config)
                                 add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
                             add_log(f"Deleted {img_name} from '{selected_name}'")
@@ -239,9 +255,9 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                             return
                         try:
                             if selection == 0:
-                                success, msg = upload_file_ssh(device['ip'], device.get('password', ''), img_data, "/usr/share/remarkable/suspended.png")
+                                success, msg = upload_file_ssh(device.ip, device.password or '', img_data, "/usr/share/remarkable/suspended.png")
                                 if success:
-                                    run_ssh_cmd(device['ip'], device.get('password', ''), ["systemctl restart xochitl"])
+                                    run_ssh_cmd(device.ip, device.password or '', ["systemctl restart xochitl"])
                                     add_log(f"Sent {img_name} to '{selected_name}'")
                                     try:
                                         st.toast("Envoyée !", icon=":material/task_alt:")
@@ -250,13 +266,14 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                                 else:
                                     add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
                             elif selection == 1:
-                                current_pref = config.get("devices", {}).get(selected_name, {}).get("preferred_image")
-                                if current_pref == img_name:
-                                    config["devices"][selected_name].pop("preferred_image", None)
+                                # update Device and persist
+                                if device.is_preferred(img_name):
+                                    device.set_preferred(None)
                                     add_log(f"Preferred image removed for '{selected_name}'")
                                 else:
-                                    config["devices"][selected_name]["preferred_image"] = img_name
+                                    device.set_preferred(img_name)
                                     add_log(f"Preferred image set: {img_name} for '{selected_name}'")
+                                config["devices"][selected_name] = device.to_dict()
                                 save_config(config)
                             elif selection == 2:
                                 st.session_state[pending_key] = True
@@ -274,7 +291,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         st.subheader("Récupérer l'image actuelle", divider="rainbow")
         if st.button("Importer depuis la tablette", key=f"ui_import_from_tablet_{selected_name}", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):
             try:
-                img_data = download_file_ssh(device['ip'], device.get('password', ''), "/usr/share/remarkable/suspended.png")
+                img_data = download_file_ssh(device.ip, device.password or '', "/usr/share/remarkable/suspended.png")
                 timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"{timestamp}.png"
                 save_device_image(selected_name, img_data, filename)
@@ -307,9 +324,9 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                     if not filename.endswith('.png'):
                         filename = os.path.splitext(filename)[0] + '.png'
                     save_device_image(selected_name, img_data, filename)
-                    success, msg = upload_file_ssh(device['ip'], device.get('password', ''), img_data, "/usr/share/remarkable/suspended.png")
+                    success, msg = upload_file_ssh(device.ip, device.password or '', img_data, "/usr/share/remarkable/suspended.png")
                     if success:
-                        run_ssh_cmd(device['ip'], device.get('password', ''), ["systemctl restart xochitl"])
+                        run_ssh_cmd(device.ip, device.password or '', ["systemctl restart xochitl"])
                         add_log(f"Image {filename} sent and saved on '{selected_name}'")
                         st.toast(f"{filename} envoyée et sauvegardée !", icon=":material/task_alt:")
                         st.rerun()
@@ -325,20 +342,20 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
     with st.expander("Ce que le script va faire : (cliquer pour développer)", expanded=False):
         st.markdown("**Ce script va :**")
         st.markdown("- Vérifier que le système de fichiers est writable et le remonter en lecture-écriture si nécessaire")
-        if device.get('preferred_image'):
-            image = device.get('preferred_image')
+        if device.preferred_image:
+            image = device.preferred_image
             st.markdown(f"- Téléverser l'image préférée (`{image}`) comme `suspended.png` sur la tablette")
         elif has_images:
             image = random.choice(imgs_available)
             st.markdown(f"- Téléverser `{image}` de la bibliothèque locale comme `suspended.png` sur la tablette (aucune image préférée définie)")
         if image:
             steps.append(f"Upload de l'image de suspension")
-        if device.get('template'):
+        if getattr(device, 'templates', False):
             st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
             st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
             st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
             steps.append("Ajout des templates personnalisés")
-        if device.get('carousel'):
+        if getattr(device, 'carousel', False):
             st.markdown("- Désactiver le carrousel en déplaçant les illustrations actuelles dans un dossier de backup")
             steps.append("Désactivation du carrousel")
         st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
@@ -376,7 +393,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                                 pass
                     ui = _LocalAdapter(status, progress)
 
-                result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
+                result = run_maintenance(selected_name, device.to_dict(), BASE_DIR, steps, image, ui)
 
             if result.get("ok"):
                 ui.step("Maintenance terminée")
