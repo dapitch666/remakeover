@@ -310,6 +310,10 @@ def render_config_page(config, save_config, add_log, resolve_device_type, DEFAUL
             st.rerun()
 
 
+_TABLET_QUERY_PARAM = "tablet"
+
+
+
 def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR):
     st.title("reMarkable Manager")
 
@@ -318,9 +322,24 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         st.warning("Aucun appareil configuré. Ajoutez-en un dans Configuration.")
         return
 
+    device_names = list(DEVICES.keys())
+
+    # Restore selection from URL query param on fresh page loads.
+    # st.query_params is set into the URL so it survives browser reloads.
+    if "selected_tablet_select" not in st.session_state:
+        saved = st.query_params.get(_TABLET_QUERY_PARAM)
+        if saved and saved in device_names:
+            st.session_state["selected_tablet_select"] = saved
+
     col1, col2 = st.columns([2, 1], vertical_alignment="bottom")
     with col1:
-        selected_name = st.selectbox("Choisir la tablette", list(DEVICES.keys()))
+        selected_name = st.selectbox(
+            "Choisir la tablette",
+            device_names,
+            key="selected_tablet_select",
+        )
+        # Persist selection in the URL so reloads restore the right tablet.
+        st.query_params[_TABLET_QUERY_PARAM] = selected_name
         device_dict = DEVICES[selected_name]
         device = Device.from_dict(selected_name, device_dict)
         width, height = (1620, 2160)  # fallback; caller can pass constants if needed
