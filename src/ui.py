@@ -314,7 +314,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
     DEVICES = config.get("devices", {})
     if not DEVICES:
         st.warning("Aucun appareil configuré. Ajoutez-en un dans Configuration.")
-        st.stop()
+        return
 
     col1, col2 = st.columns([2, 1], vertical_alignment="bottom")
     with col1:
@@ -335,8 +335,23 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
 
     st.space()
 
-    st.subheader("Bibliothèque d'images suspended.png", divider="rainbow")
+    tab_images, tab_templates, tab_maintenance = st.tabs([
+        ":material/image: Images",
+        ":material/description: Templates",
+        ":material/build: Maintenance",
+    ])
 
+    with tab_images:
+        _render_tab_images(selected_name, device, width, height, config, save_config, add_log)
+
+    with tab_templates:
+        st.info(":material/construction: Gestion des templates — à venir.", icon=":material/info:")
+
+    with tab_maintenance:
+        _render_tab_maintenance(selected_name, device, add_log, BASE_DIR)
+
+
+def _render_tab_images(selected_name, device, width, height, config, save_config, add_log):
     stored_images = list_device_images(selected_name)
 
     if stored_images:
@@ -369,7 +384,8 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
     with col2:
         _render_upload_section(selected_name, device, width, height, config, save_config, add_log)
 
-    st.subheader(":material/build: Maintenance après mise à jour", divider="rainbow")
+
+def _render_tab_maintenance(selected_name, device, add_log, BASE_DIR):
     imgs_available = list_device_images(selected_name)
     has_images = bool(imgs_available)
     image = None
@@ -384,7 +400,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
             image = random.choice(imgs_available)
             st.markdown(f"- Téléverser `{image}` de la bibliothèque locale comme `suspended.png` sur la tablette (aucune image préférée définie)")
         if image:
-            steps.append(f"Upload de l'image de suspension")
+            steps.append(f"Upload de l'image de veille ({image})")
         if getattr(device, 'templates', False):
             st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
             st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
@@ -396,8 +412,8 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
         steps.append("Redémarrage de xochitl")
 
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col2:
+    _, col, _ = st.columns([1, 3, 1])
+    with col:
         if st.button("Lancer le script complet", key=f"ui_launch_maintenance_{selected_name}", icon=":material/autorenew:", help="Exécuter les actions de maintenance post-mise à jour", type="primary", width='stretch'):
             with st.status("Démarrage de la maintenance...") as status:
                 progress = st.progress(0)
