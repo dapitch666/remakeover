@@ -11,15 +11,6 @@ def test_main_title_present():
 
 def test_configuration_save_requires_name():
     """Switch to Configuration and click Save without name."""
-    # Create an empty config so the app renders the Configuration form (no devices)
-    # import os, json
-    # os.makedirs("data", exist_ok=True)
-    # cfg_path = os.path.join(os.path.dirname(__file__), "..", "data", "config.json")
-    # cfg_path = os.path.abspath(cfg_path)
-    # os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
-    # with open(cfg_path, "w", encoding="utf-8") as f:
-    #     json.dump({"devices": {}}, f)
-
     at = AppTest.from_file("app.py")
     # Initial run to populate the element tree and imports
     at.run()

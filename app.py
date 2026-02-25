@@ -3,6 +3,7 @@ import streamlit as st
 import os
 import json
 from datetime import datetime
+from src.dialog import confirm
 
 # --- CONFIGURATION ---
 # Detect environment (Docker or local)
@@ -85,7 +86,6 @@ from src.images import (
     rename_device_image,
 )
 from src.maintenance import run_maintenance
-from src.dialog import confirm
 
 def resolve_device_type(device):
     device_type = device.get("device_type")
@@ -157,14 +157,14 @@ if page == ":material/description: Logs":
         for entry in reversed(st.session_state['logs']):
             st.text(entry)
         if st.button("Effacer les logs de cette session", icon=":material/delete:", help="Efface les logs stockés dans la session en cours"):
-            res = confirm("Effacer les logs", "Effacer les logs de cette session ?", key="clear_logs")
-            if res is True:
-                st.session_state['logs'] = []
-                st.success("Logs effacés.", icon=":material/task_alt:")
-                st.rerun()
-            elif res is False:
-                st.info("Suppression des logs annulée")
-                st.rerun()
+            st.session_state.clear_logs = None
+            confirm("Effacer les logs", "Effacer les logs de cette session ?", key="clear_logs")
+        if st.session_state.get("clear_logs") is True:
+            st.session_state['logs'] = []
+            st.success("Logs effacés.", icon=":material/task_alt:")
+            del st.session_state.clear_logs
+            st.rerun()
+        
 
 # --- PAGE: Configuration ---
 elif page == ":material/settings: Configuration":
@@ -255,12 +255,12 @@ elif page == ":material/settings: Configuration":
 
     # If a device deletion is pending, ask for confirmation
     if st.session_state.get("pending_delete_device") == device_name:
-        res = confirm(
+        confirm(
             "Confirmer la suppression",
             f"Confirmez-vous la suppression de l'appareil '{device_name}' ? Cette action supprimera aussi ses images locales.",
             key=f"del_device_{device_name}",
         )
-        if res is True:
+        if st.session_state.get(f"del_device_{device_name}") is True:
             # Remove associated images
             device_images_dir = get_device_images_dir(device_name)
             if os.path.exists(device_images_dir):
@@ -277,11 +277,14 @@ elif page == ":material/settings: Configuration":
                 save_config(config)
             add_log(f"Configuration deleted for '{device_name}'")
             st.session_state["config_deleted_name"] = device_name
-            st.session_state.pop("pending_delete_device", None)
+            del st.session_state["pending_delete_device"]
+            del st.session_state[f"del_device_{device_name}"]
             st.rerun()
-        elif res is False:
-            st.session_state.pop("pending_delete_device", None)
+        elif st.session_state.get(f"del_device_{device_name}") is False:
+            del st.session_state[f"del_device_{device_name}"]
+            del st.session_state["pending_delete_device"]
             st.rerun()
+
 
 # PAGE: Main management page
 else:
@@ -364,97 +367,99 @@ else:
                 if not st.session_state.get(edit_key):
                     pending_key = f"pending_delete_image_{img_name}"
                     if st.session_state.get(pending_key):
-                        res = confirm(
+                        confirm(
                             "Confirmer la suppression",
                             f"Confirmez-vous la suppression de {img_name} ?",
                             key=f"del_img_{img_name}",
                         )
-                        if res is True:
+                        if st.session_state.get(f"del_img_{img_name}") is True:
                             delete_device_image(selected_name, img_name)
                             if preferred_image == img_name:
                                 config["devices"][selected_name].pop("preferred_image", None)
                                 save_config(config)
                                 add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
                             add_log(f"Deleted {img_name} from '{selected_name}'")
-                            st.session_state.pop(pending_key, None)
+                            del st.session_state[f"del_img_{img_name}"]
+                            del st.session_state[pending_key]
                             st.rerun()
-                        elif res is False:
-                            st.session_state.pop(pending_key, None)
+                        elif st.session_state.get(f"del_img_{img_name}") is False:
+                            del st.session_state[f"del_img_{img_name}"]
+                            del st.session_state[pending_key]
                             st.rerun()
-                    else:
-                        # Compact segmented control under each image using icons
-                        action_key = f"action_{img_name}"
-                        option_map = {
-                            0: ":material/cloud_upload:",
-                            1: ":material/star:",
-                            2: ":material/delete:",
-                        }
+                    
+                    # Compact segmented control under each image using icons
+                    action_key = f"action_{img_name}"
+                    option_map = {
+                        0: ":material/cloud_upload:",
+                        1: ":material/star:",
+                        2: ":material/delete:",
+                    }
 
-                        # Ensure session state key exists so the on_change handler can reset it
-                        if action_key not in st.session_state:
-                            st.session_state[action_key] = None
+                    # Ensure session state key exists so the on_change handler can reset it
+                    if action_key not in st.session_state:
+                        st.session_state[action_key] = None
 
-                        # Handler factory binds values to avoid closure loop issues
-                        def make_action_handler(img_local=img_name, sel_key=action_key, pending_k=pending_key, sel_name=selected_name, dev=device, img_blob=img_data, pref=preferred_image):
-                            def _handler():
-                                selection = st.session_state.get(sel_key)
-                                if selection is None:
-                                    return
+                    # Handler factory binds values to avoid closure loop issues
+                    def make_action_handler(img_local=img_name, sel_key=action_key, pending_k=pending_key, sel_name=selected_name, dev=device, img_blob=img_data, pref=preferred_image):
+                        def _handler():
+                            selection = st.session_state.get(sel_key)
+                            if selection is None:
+                                return
+                            try:
+                                if selection == 0:
+                                    success, msg = upload_file_ssh(dev['ip'], dev.get('password', ''), img_blob, "/usr/share/remarkable/suspended.png")
+                                    if success:
+                                        run_ssh_cmd(dev['ip'], dev.get('password', ''), ["systemctl restart xochitl"])
+                                        add_log(f"Sent {img_local} to '{sel_name}'")
+                                        try:
+                                            st.toast("Envoyée !", icon=":material/task_alt:")
+                                        except Exception:
+                                            pass
+                                    else:
+                                        add_log(f"Error sending {img_local} to '{sel_name}': {msg}")
+                                        try:
+                                            st.toast(f"Erreur", icon=":material/error:")
+                                        except Exception:
+                                            pass
+                                elif selection == 1:
+                                    # Toggle preferred image
+                                    current_pref = config.get("devices", {}).get(sel_name, {}).get("preferred_image")
+                                    if current_pref == img_local:
+                                        config["devices"][sel_name].pop("preferred_image", None)
+                                        add_log(f"Preferred image removed for '{sel_name}'")
+                                        try:
+                                            st.toast("Favori supprimé", icon=":material/task_alt:")
+                                        except Exception:
+                                            pass
+                                    else:
+                                        config["devices"][sel_name]["preferred_image"] = img_local
+                                        add_log(f"Preferred image set: {img_local} for '{sel_name}'")
+                                        try:
+                                            st.toast("Favori défini", icon=":material/task_alt:")
+                                        except Exception:
+                                            pass
+                                    save_config(config)
+                                elif selection == 2:
+                                    st.session_state[pending_k] = True
+                                    st.rerun()
+                            finally:
+                                # Deselect the control so it appears unselected for the user
                                 try:
-                                    if selection == 0:
-                                        success, msg = upload_file_ssh(dev['ip'], dev.get('password', ''), img_blob, "/usr/share/remarkable/suspended.png")
-                                        if success:
-                                            run_ssh_cmd(dev['ip'], dev.get('password', ''), ["systemctl restart xochitl"])
-                                            add_log(f"Sent {img_local} to '{sel_name}'")
-                                            try:
-                                                st.toast("Envoyée !", icon=":material/task_alt:")
-                                            except Exception:
-                                                pass
-                                        else:
-                                            add_log(f"Error sending {img_local} to '{sel_name}': {msg}")
-                                            try:
-                                                st.toast(f"Erreur", icon=":material/error:")
-                                            except Exception:
-                                                pass
-                                    elif selection == 1:
-                                        # Toggle preferred image
-                                        current_pref = config.get("devices", {}).get(sel_name, {}).get("preferred_image")
-                                        if current_pref == img_local:
-                                            config["devices"][sel_name].pop("preferred_image", None)
-                                            add_log(f"Preferred image removed for '{sel_name}'")
-                                            try:
-                                                st.toast("Favori supprimé", icon=":material/task_alt:")
-                                            except Exception:
-                                                pass
-                                        else:
-                                            config["devices"][sel_name]["preferred_image"] = img_local
-                                            add_log(f"Preferred image set: {img_local} for '{sel_name}'")
-                                            try:
-                                                st.toast("Favori défini", icon=":material/task_alt:")
-                                            except Exception:
-                                                pass
-                                        save_config(config)
-                                    elif selection == 2:
-                                        st.session_state[pending_k] = True
-                                        st.rerun()
-                                finally:
-                                    # Deselect the control so it appears unselected for the user
-                                    try:
-                                        st.session_state[sel_key] = None
-                                    except Exception:
-                                        pass
+                                    st.session_state[sel_key] = None
+                                except Exception:
+                                    pass
 
-                            return _handler
+                        return _handler
 
-                        st.segmented_control(
-                            "Actions",
-                            options=list(option_map.keys()),
-                            format_func=lambda option: option_map[option],
-                            key=action_key,
-                            selection_mode="single",
-                            label_visibility="hidden",
-                            on_change=make_action_handler(),
-                        )
+                    st.segmented_control(
+                        "Actions",
+                        options=list(option_map.keys()),
+                        format_func=lambda option: option_map[option],
+                        key=action_key,
+                        selection_mode="single",
+                        label_visibility="hidden",
+                        on_change=make_action_handler(),
+                    )
     
     col1, col2 = st.columns(2)
     with col1:
