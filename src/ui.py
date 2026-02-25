@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import random
+from datetime import datetime
 from src.dialog import confirm
 from src.ssh import (
     run_ssh_cmd,
@@ -18,20 +19,193 @@ from src.images import (
     rename_device_image,
 )
 from src.maintenance import run_maintenance
+from src.models import Device
 
-# Import Device robustly: prefer package import, but fall back to loading by file path
-try:
-    from src.models import Device
-except Exception:
-    import importlib.util as _il
-    import sys as _sys
-    _models_path = os.path.join(os.path.dirname(__file__), "models.py")
-    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
-    _models = _il.module_from_spec(_spec)
-    # register before execution so decorators like @dataclass can resolve
-    _sys.modules[_spec.name] = _models
-    _spec.loader.exec_module(_models)
-    Device = _models.Device
+_SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
+
+
+class _UIAdapter:
+    """Minimal UI adapter used as fallback when AppUIAdapter is unavailable."""
+
+    def __init__(self, status_obj, progress_obj):
+        self._status = status_obj
+        self._progress = progress_obj
+
+    def step(self, m):
+        try:
+            self._status.text(m)
+        except Exception:
+            pass
+
+    def progress(self, p):
+        try:
+            self._progress.progress(p)
+        except Exception:
+            pass
+
+    def toast(self, m):
+        try:
+            st.toast(m, icon=":material/task_alt:")
+        except Exception:
+            pass
+
+
+def _normalise_png_name(filename: str) -> str:
+    """Sanitise a filename and ensure it ends with .png."""
+    filename = filename.replace(" ", "_")
+    if not filename.endswith(".png"):
+        filename = os.path.splitext(filename)[0] + ".png"
+    return filename
+
+
+def _send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
+    """Upload *img_data* as suspended.png and restart xochitl. Returns True on success."""
+    success, msg = upload_file_ssh(device.ip, device.password or "", img_data, _SUSPENDED_PNG_PATH)
+    if success:
+        run_ssh_cmd(device.ip, device.password or "", ["systemctl restart xochitl"])
+        add_log(f"Sent {img_name} to '{selected_name}'")
+        return True
+    add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
+    return False
+
+
+def _render_image_card(img_name, selected_name, device, config, save_config, add_log):
+    """Render one image card: name/rename button, thumbnail, and action controls."""
+    img_data = load_device_image(selected_name, img_name)
+    star_icon = ":material/star:" if device.is_preferred(img_name) else None
+
+    # ── name / inline rename ──────────────────────────────────────────────────
+    if st.session_state.get("img_renaming") == img_name:
+        def do_rename(_old=img_name):
+            raw = st.session_state.get(f"rename_input_{_old}", "").strip()
+            new_name = _normalise_png_name(raw) if raw else _old
+            if new_name != _old:
+                rename_device_image(selected_name, _old, new_name)
+                if device.is_preferred(_old):
+                    device.set_preferred(new_name)
+                    config["devices"][selected_name] = device.to_dict()
+                    save_config(config)
+                    add_log(f"Preferred image renamed '{_old}' → '{new_name}' for '{selected_name}'")
+                add_log(f"Renamed image '{_old}' to '{new_name}' for '{selected_name}'")
+            st.session_state["img_renaming"] = None
+
+        st.text_input(
+            "Renommer l'image",
+            value=img_name,
+            key=f"rename_input_{img_name}",
+            label_visibility="collapsed",
+            on_change=do_rename,
+        )
+    else:
+        display_name = img_name if len(img_name) <= 13 else img_name[:10] + "..."
+        if st.button(
+            f"**{display_name}**",
+            key=f"name_{img_name}",
+            help="Cliquez pour renommer",
+            icon=star_icon,
+            type="tertiary",
+            width="stretch",
+        ):
+            st.session_state["img_renaming"] = img_name
+            st.rerun()
+
+    st.image(img_data, width="stretch")
+
+    # ── actions (hidden while renaming) ──────────────────────────────────────
+    if st.session_state.get("img_renaming") == img_name:
+        return
+
+    # Deletion confirmation
+    if st.session_state.get("img_pending_delete") == img_name:
+        confirm(
+            "Confirmer la suppression",
+            f"Confirmez-vous la suppression de {img_name} ?",
+            key="confirm_del_img",
+        )
+        result = st.session_state.get("confirm_del_img")
+        if result is True:
+            delete_device_image(selected_name, img_name)
+            if device.is_preferred(img_name):
+                device.set_preferred(None)
+                config["devices"][selected_name] = device.to_dict()
+                save_config(config)
+                add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
+            add_log(f"Deleted {img_name} from '{selected_name}'")
+            st.session_state.pop("confirm_del_img", None)
+            st.session_state["img_pending_delete"] = None
+            st.rerun()
+        elif result is False:
+            st.session_state.pop("confirm_del_img", None)
+            st.session_state["img_pending_delete"] = None
+            st.rerun()
+
+    # Segmented control
+    action_key = f"action_{img_name}"
+    option_map = {0: ":material/cloud_upload:", 1: ":material/star:", 2: ":material/delete:"}
+
+    def on_action(_img_name=img_name, _action_key=action_key, _img_data=img_data):
+        selection = st.session_state.get(_action_key)
+        if selection is None:
+            return
+        try:
+            if selection == 0:
+                if _send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
+                    st.toast("Envoyée !", icon=":material/task_alt:")
+            elif selection == 1:
+                if device.is_preferred(_img_name):
+                    device.set_preferred(None)
+                    add_log(f"Preferred image removed for '{selected_name}'")
+                else:
+                    device.set_preferred(_img_name)
+                    add_log(f"Preferred image set: {_img_name} for '{selected_name}'")
+                config["devices"][selected_name] = device.to_dict()
+                save_config(config)
+            elif selection == 2:
+                st.session_state["img_pending_delete"] = _img_name
+        finally:
+            st.session_state[_action_key] = None
+
+    st.segmented_control(
+        "Actions",
+        options=list(option_map.keys()),
+        format_func=lambda o: option_map[o],
+        key=action_key,
+        selection_mode="single",
+        label_visibility="hidden",
+        on_change=on_action,
+    )
+
+
+def _render_upload_section(selected_name, device, width, height, config, save_config, add_log):
+    """Render the 'add an image' column: file uploader with save / send buttons."""
+    st.subheader("Ajouter une image", divider="rainbow")
+    uploaded_file = st.file_uploader(
+        f"Glisser une image ici (sera convertie en PNG {width}x{height})",
+        type=["png", "jpg", "jpeg"],
+    )
+    if not uploaded_file:
+        return
+
+    col_save, col_send = st.columns(2)
+    with col_save:
+        if st.button("Sauvegarder", key=f"ui_save_uploaded_{selected_name}", icon=":material/save:", help="Sauvegarder l'image localement"):
+            img_data = process_image(uploaded_file, width, height)
+            filename = _normalise_png_name(uploaded_file.name)
+            save_device_image(selected_name, img_data, filename)
+            add_log(f"Image uploaded and saved: {filename} for '{selected_name}'")
+            st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
+            st.rerun()
+
+    with col_send:
+        if st.button(f"Envoyer sur {selected_name}", key=f"ui_send_uploaded_{selected_name}", icon=":material/cloud_upload:", help=f"Envoyer l'image sur {selected_name} et la sauvegarder localement"):
+            img_data = process_image(uploaded_file, width, height)
+            filename = _normalise_png_name(uploaded_file.name)
+            save_device_image(selected_name, img_data, filename)
+            if _send_suspended_png(device, img_data, filename, selected_name, add_log):
+                st.toast(f"{filename} envoyée et sauvegardée !", icon=":material/task_alt:")
+                st.rerun()
+            else:
+                st.toast("Erreur lors de l'envoi", icon=":material/error:")
 
 
 def render_logs_page():
@@ -171,9 +345,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         selected_name = st.selectbox("Choisir la tablette", list(DEVICES.keys()))
         device_dict = DEVICES[selected_name]
         device = Device.from_dict(selected_name, device_dict)
-        device_type = resolve_device_type(device)
         width, height = (1620, 2160)  # fallback; caller can pass constants if needed
-        preferred_image = device.preferred_image
 
     with col2:
         if st.button("Tester la connectivité", key=f"ui_test_ssh_{selected_name}", icon=":material/wifi:", width='stretch', help="Vérifier la connexion SSH vers la tablette"):
@@ -199,100 +371,16 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
 
         cols = st.columns(4, gap="medium")
         for idx, img_name in enumerate(stored_images):
-            col_index = idx % 4
-            with cols[col_index]:
-                img_data = load_device_image(selected_name, img_name)
-                edit_key = f"edit_{img_name}"
-                star_prefix = ":material/star:" if device.is_preferred(img_name) else None
-                if st.session_state.get(edit_key):
-                    st.text_input(
-                        "Renommer l'image",
-                        value=img_name,
-                        key=f"rename_input_{img_name}",
-                        label_visibility="collapsed",
-                        on_change=lambda: None,
-                    )
-                else:
-                    display_name = img_name if len(img_name) <= 13 else img_name[:10] + "..."
-                    if st.button(f"**{display_name}**", key=f"name_{img_name}", help="Cliquez pour renommer", icon=star_prefix, type="tertiary", width='stretch'):
-                        st.session_state[edit_key] = True
-                        st.rerun()
-
-                st.image(img_data, width='stretch')
-
-                if not st.session_state.get(edit_key):
-                    pending_key = f"pending_delete_image_{img_name}"
-                    if st.session_state.get(pending_key):
-                        confirm(
-                            "Confirmer la suppression",
-                            f"Confirmez-vous la suppression de {img_name} ?",
-                            key=f"del_img_{img_name}",
-                        )
-                        if st.session_state.get(f"del_img_{img_name}") is True:
-                            delete_device_image(selected_name, img_name)
-                            if device.is_preferred(img_name):
-                                device.set_preferred(None)
-                                config["devices"][selected_name] = device.to_dict()
-                                save_config(config)
-                                add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
-                            add_log(f"Deleted {img_name} from '{selected_name}'")
-                            del st.session_state[f"del_img_{img_name}"]
-                            del st.session_state[pending_key]
-                            st.rerun()
-                        elif st.session_state.get(f"del_img_{img_name}") is False:
-                            del st.session_state[f"del_img_{img_name}"]
-                            del st.session_state[pending_key]
-                            st.rerun()
-
-                    action_key = f"action_{img_name}"
-                    option_map = {0: ":material/cloud_upload:", 1: ":material/star:", 2: ":material/delete:"}
-                    if action_key not in st.session_state:
-                        st.session_state[action_key] = None
-
-                    def make_action_handler():
-                        selection = st.session_state.get(action_key)
-                        if selection is None:
-                            return
-                        try:
-                            if selection == 0:
-                                success, msg = upload_file_ssh(device.ip, device.password or '', img_data, "/usr/share/remarkable/suspended.png")
-                                if success:
-                                    run_ssh_cmd(device.ip, device.password or '', ["systemctl restart xochitl"])
-                                    add_log(f"Sent {img_name} to '{selected_name}'")
-                                    try:
-                                        st.toast("Envoyée !", icon=":material/task_alt:")
-                                    except Exception:
-                                        pass
-                                else:
-                                    add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
-                            elif selection == 1:
-                                # update Device and persist
-                                if device.is_preferred(img_name):
-                                    device.set_preferred(None)
-                                    add_log(f"Preferred image removed for '{selected_name}'")
-                                else:
-                                    device.set_preferred(img_name)
-                                    add_log(f"Preferred image set: {img_name} for '{selected_name}'")
-                                config["devices"][selected_name] = device.to_dict()
-                                save_config(config)
-                            elif selection == 2:
-                                st.session_state[pending_key] = True
-                                st.rerun()
-                        finally:
-                            try:
-                                st.session_state[action_key] = None
-                            except Exception:
-                                pass
-
-                    st.segmented_control("Actions", options=list(option_map.keys()), format_func=lambda option: option_map[option], key=action_key, selection_mode="single", label_visibility="hidden", on_change=make_action_handler)
+            with cols[idx % 4]:
+                _render_image_card(img_name, selected_name, device, config, save_config, add_log)
 
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Récupérer l'image actuelle", divider="rainbow")
         if st.button("Importer depuis la tablette", key=f"ui_import_from_tablet_{selected_name}", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):
             try:
-                img_data = download_file_ssh(device.ip, device.password or '', "/usr/share/remarkable/suspended.png")
-                timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+                img_data = download_file_ssh(device.ip, device.password or '', _SUSPENDED_PNG_PATH)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"{timestamp}.png"
                 save_device_image(selected_name, img_data, filename)
                 add_log(f"suspended.png from téléchargé de '{selected_name}' sous {filename}")
@@ -303,36 +391,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                 add_log(f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}")
 
     with col2:
-        st.subheader("Ajouter une image", divider="rainbow")
-        uploaded_file = st.file_uploader(f"Glisser une image ici (sera convertie en PNG {width}x{height})", type=["png", "jpg", "jpeg"])
-        if uploaded_file:
-            col_save, col_send = st.columns(2)
-            with col_save:
-                if st.button("Sauvegarder", key=f"ui_save_uploaded_{selected_name}", icon=":material/save:", help="Sauvegarder l'image localement"):
-                    img_data = process_image(uploaded_file, width, height)
-                    filename = uploaded_file.name.replace(" ", "_")
-                    if not filename.endswith('.png'):
-                        filename = os.path.splitext(filename)[0] + '.png'
-                    save_device_image(selected_name, img_data, filename)
-                    add_log(f"Image uploaded and saved: {filename} for '{selected_name}'")
-                    st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
-                    st.rerun()
-            with col_send:
-                if st.button(f"Envoyer sur {selected_name}", key=f"ui_send_uploaded_{selected_name}", icon=":material/cloud_upload:", help=f"Envoyer l'image sur {selected_name} et la sauvegarder localement"):
-                    img_data = process_image(uploaded_file, width, height)
-                    filename = uploaded_file.name.replace(" ", "_")
-                    if not filename.endswith('.png'):
-                        filename = os.path.splitext(filename)[0] + '.png'
-                    save_device_image(selected_name, img_data, filename)
-                    success, msg = upload_file_ssh(device.ip, device.password or '', img_data, "/usr/share/remarkable/suspended.png")
-                    if success:
-                        run_ssh_cmd(device.ip, device.password or '', ["systemctl restart xochitl"])
-                        add_log(f"Image {filename} sent and saved on '{selected_name}'")
-                        st.toast(f"{filename} envoyée et sauvegardée !", icon=":material/task_alt:")
-                        st.rerun()
-                    else:
-                        add_log(f"Error sending {filename} to '{selected_name}': {msg}")
-                        st.toast(f"Erreur lors de l'envoi : {msg}", icon=":material/error:")
+        _render_upload_section(selected_name, device, width, height, config, save_config, add_log)
 
     st.subheader(":material/build: Maintenance après mise à jour", divider="rainbow")
     imgs_available = list_device_images(selected_name)
@@ -366,32 +425,11 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         if st.button("Lancer le script complet", key=f"ui_launch_maintenance_{selected_name}", icon=":material/autorenew:", help="Exécuter les actions de maintenance post-mise à jour", type="primary", width='stretch'):
             with st.status("Démarrage de la maintenance...") as status:
                 progress = st.progress(0)
-                ui = None
                 try:
                     from app import UIAdapter as AppUIAdapter
                     ui = AppUIAdapter(status, progress)
                 except Exception:
-                    # fallback to a simple adapter
-                    class _LocalAdapter:
-                        def __init__(self, status_obj, progress_obj):
-                            self._status = status_obj
-                            self._progress = progress_obj
-                        def step(self, m):
-                            try:
-                                self._status.text(m)
-                            except Exception:
-                                pass
-                        def progress(self, p):
-                            try:
-                                self._progress.progress(p)
-                            except Exception:
-                                pass
-                        def toast(self, m):
-                            try:
-                                st.toast(m, icon=":material/task_alt:")
-                            except Exception:
-                                pass
-                    ui = _LocalAdapter(status, progress)
+                    ui = _UIAdapter(status, progress)
 
                 result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
 
