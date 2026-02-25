@@ -37,12 +37,14 @@ def test_truncate_display_name_non_string():
 
 
 def test_resolve_device_type_known():
-    dev = {"device_type": "reMarkable 2"}
+    from src.models import Device
+    dev = Device.from_dict("X", {"device_type": "reMarkable 2"})
     assert ns["resolve_device_type"](dev) == "reMarkable 2"
 
 
 def test_resolve_device_type_unknown():
-    dev = {"device_type": "Unknown Device"}
+    from src.models import Device
+    dev = Device.from_dict("X", {"device_type": "Unknown Device"})
     assert ns["resolve_device_type"](dev) == ns["DEFAULT_DEVICE_TYPE"]
 
 

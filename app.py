@@ -98,16 +98,10 @@ except Exception:
     Device = _models.Device
 
 def resolve_device_type(device):
-    # Accept either a dict-like device or a Device dataclass
-    try:
-        device_type = device.get("device_type")
-    except Exception:
-        # assume dataclass-like
-        device_type = getattr(device, "device_type", None)
-
+    # Expect a `Device` instance
+    device_type = getattr(device, "device_type", None)
     if device_type in DEVICE_SIZES:
         return device_type
-
     return DEFAULT_DEVICE_TYPE
 
 # --- STREAMLIT INTERFACE ---

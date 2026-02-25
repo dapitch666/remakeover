@@ -19,6 +19,16 @@ import os
 import logging
 
 from src.ssh import run_ssh_cmd, upload_file_ssh
+try:
+    from src.models import Device
+except Exception:
+    import importlib.util as _il, sys as _sys, os as _os
+    _models_path = os.path.join(os.path.dirname(__file__), "models.py")
+    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
+    _models = _il.module_from_spec(_spec)
+    _sys.modules[_spec.name] = _models
+    _spec.loader.exec_module(_models)
+    Device = _models.Device
 from src.images import list_device_images, load_device_image
 from src.templates import (
     ensure_remote_template_dirs,
@@ -44,10 +54,10 @@ class _DefaultUI:
         logger.info("toast: %s", msg)
 
 
-def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
+def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
     """Run post-update maintenance routine for a device.
 
-    device_conf: the device dict from config (must contain 'ip' and optionally 'password', 'templates', 'carousel')
+    device: a `Device` instance (must contain `ip`, optional `password`, `templates`, `carousel`)
     base_dir: project base dir used to locate local templates and files
     image: optional image filename for suspended.png
     ui: optional object exposing `step(text)`, `progress(pct)` and `toast(msg)`.
@@ -81,20 +91,10 @@ def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str,
                 imgs = []
             if image or imgs:
                 steps.append("Upload de l'image de suspension")
-            # Support either dict-like device_conf or Device-like object
-            try:
-                templates_enabled = getattr(device_conf, 'templates')
-            except Exception:
-                templates_enabled = device_conf.get('templates', True)
-
-            try:
-                carousel_enabled = getattr(device_conf, 'carousel')
-            except Exception:
-                carousel_enabled = device_conf.get('carousel', True)
-
-            if templates_enabled:
+            # Use Device attributes directly
+            if device.templates:
                 steps.append("Ajout des templates personnalisés")
-            if carousel_enabled:
+            if device.carousel:
                 steps.append("Désactivation du carrousel")
             steps.append("Redémarrage de xochitl")
 
@@ -128,15 +128,8 @@ def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str,
             except Exception:
                 pass
 
-        try:
-            ip = getattr(device_conf, 'ip')
-        except Exception:
-            ip = device_conf.get('ip')
-
-        try:
-            password = getattr(device_conf, 'password') or ''
-        except Exception:
-            password = device_conf.get('password', '')
+        ip = device.ip
+        password = device.password or ''
 
         # 1) Upload suspended.png if image is specified
         _advance("Upload de l'image de suspension")
@@ -162,12 +155,7 @@ def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str,
 
         # 2) Ajout des templates personnalisés
         _advance("Ajout des templates personnalisés")
-        try:
-            templates_enabled = getattr(device_conf, 'templates')
-        except Exception:
-            templates_enabled = device_conf.get('templates', True)
-
-        if templates_enabled:
+        if device.templates:
             # Ensure remote template dirs exist before uploading
             remote_custom_dir = "/home/root/templates"
             remote_templates_dir = "/usr/share/remarkable/templates"
@@ -202,12 +190,7 @@ def run_maintenance(device_name: str, device_conf: dict | object, base_dir: str,
 
         # 3) Disable carousel
         _advance("Désactivation du carrousel")
-        try:
-            carousel_enabled = getattr(device_conf, 'carousel')
-        except Exception:
-            carousel_enabled = device_conf.get('carousel', True)
-
-        if carousel_enabled:
+        if device.carousel:
             cmds: List[str] = []
             cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
             cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")

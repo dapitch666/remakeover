@@ -393,7 +393,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
                                 pass
                     ui = _LocalAdapter(status, progress)
 
-                result = run_maintenance(selected_name, device.to_dict(), BASE_DIR, steps, image, ui)
+                result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
 
             if result.get("ok"):
                 ui.step("Maintenance terminée")
