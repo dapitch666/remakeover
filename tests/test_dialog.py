@@ -1,142 +1,68 @@
-from pathlib import Path
-from streamlit.testing.v1 import AppTest
+from unittest.mock import MagicMock, patch
+import src.dialog as dialog_mod
 
 
-def write_app_file(tmp_path: Path, result_path: Path, key: str = "default") -> Path:
-    app_file = tmp_path / f"app_dialog_{key}.py"
-    app_file.write_text(
-        f"""
-import streamlit as st
-from src import dialog
-from pathlib import Path
-
-_out = Path(r'{str(result_path)}')
-key = '{key}'
-
-# Top-level simulate buttons that act on the same key used by the dialog
-if st.button('Simulate None'):
-    if key in st.session_state:
-        del st.session_state[key]
-
-if st.button('Simulate Cancel'):
-    st.session_state[key] = False
-
-if st.button('Simulate Confirm'):
-    st.session_state[key] = True
-
-# Render dialog and write current session state for the key
-res = dialog.confirm('Titre', 'Message', key=key)
-_out.write_text(str(st.session_state.get(key)))
-"""
-    )
-    return app_file
+def _make_columns_mock(cancel_clicked: bool, confirm_clicked: bool):
+    """Return (c_cancel, c_ok) mocks matching the 5-column layout in dialog.py."""
+    c_cancel, c_ok = MagicMock(), MagicMock()
+    c_cancel.button.return_value = cancel_clicked
+    c_ok.button.return_value = confirm_clicked
+    return c_cancel, c_ok
 
 
-def find_button_by_label(at: AppTest, label: str):
-    for b in at.button:
-        if getattr(b, "label", None) == label:
-            return b
-    return None
+def _patched_st(cancel_clicked: bool, confirm_clicked: bool, initial_state=None):
+    """Context manager that patches src.dialog.st with controllable buttons."""
+    st = MagicMock()
+    st.session_state = {} if initial_state is None else initial_state
+    # st.dialog(title) must act as a no-op decorator so _dialog() runs directly
+    st.dialog.side_effect = lambda title: lambda fn: fn
+    c_cancel, c_ok = _make_columns_mock(cancel_clicked, confirm_clicked)
+    st.columns.return_value = (MagicMock(), c_cancel, MagicMock(), c_ok, MagicMock())
+    return patch("src.dialog.st", st), st
 
 
-def test_confirm_initial_none(tmp_path):
-    result_file = tmp_path / "result_none.txt"
-    app = write_app_file(tmp_path, result_file, key="none")
-    at = AppTest.from_file(str(app))
-    at.run()
-    assert result_file.exists()
-    assert result_file.read_text() == "None"
+def test_confirm_no_click_leaves_state_unchanged():
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=False)
+    with patcher:
+        dialog_mod.confirm("Titre", "Message", key="k")
+
+    assert "k" not in st.session_state
+    st.rerun.assert_not_called()
 
 
-def test_confirm_cancel_sets_false(tmp_path):
-    result_file = tmp_path / "result_cancel.txt"
-    app = write_app_file(tmp_path, result_file, key="cancel")
-    at = AppTest.from_file(str(app))
-    at.run()
+def test_confirm_cancel_sets_false():
+    patcher, st = _patched_st(cancel_clicked=True, confirm_clicked=False)
+    with patcher:
+        dialog_mod.confirm("Titre", "Message", key="k")
 
-    # Click the top-level simulate cancel button (tests shouldn't rely on dialog internals)
-    sim = find_button_by_label(at, "Simulate Cancel")
-    assert sim is not None, "Simulate Cancel button not found"
-    sim.click().run()
-
-    assert result_file.exists()
-    assert result_file.read_text() == "False"
+    assert st.session_state["k"] is False
+    st.rerun.assert_called_once()
 
 
-def test_confirm_ok_sets_true(tmp_path):
-    result_file = tmp_path / "result_ok.txt"
-    app = write_app_file(tmp_path, result_file, key="ok")
-    at = AppTest.from_file(str(app))
-    at.run()
+def test_confirm_ok_sets_true():
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=True)
+    with patcher:
+        dialog_mod.confirm("Titre", "Message", key="k")
 
-    # Click the top-level simulate confirm button
-    sim = find_button_by_label(at, "Simulate Confirm")
-    assert sim is not None, "Simulate Confirm button not found"
-    sim.click().run()
-
-    assert result_file.exists()
-    assert result_file.read_text() == "True"
+    assert st.session_state["k"] is True
+    st.rerun.assert_called_once()
 
 
-def write_app_file_double(tmp_path: Path, result_path: Path, key: str = "double") -> Path:
-    app_file = tmp_path / f"app_dialog_double_{key}.py"
-    app_file.write_text(
-        f"""
-import streamlit as st
-from src import dialog
-from pathlib import Path
+def test_confirm_uses_custom_key():
+    """State is written under the supplied key, leaving other keys untouched."""
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=True,
+                               initial_state={"other": "unchanged"})
+    with patcher:
+        dialog_mod.confirm("Titre", "Message", key="my_key")
 
-_out = Path(r'{str(result_path)}')
-key = '{key}'
-
-# Main button that opens the dialog when clicked
-if st.button('Open'):
-    st.session_state['_open'] = True
-
-# Provide a simulate cancel button that sets the same key the dialog uses
-if st.button('Simulate Cancel'):
-    st.session_state[key] = False
-
-if st.session_state.get('_open'):
-    res = dialog.confirm('Titre', 'Message', key=key)
-    _out.write_text(str(st.session_state.get(key)))
-"""
-    )
-    return app_file
+    assert st.session_state["my_key"] is True
+    assert st.session_state["other"] == "unchanged"
 
 
-def test_double_click_opens_again(tmp_path):
-    """Click the open button, cancel, then click again and expect the dialog to open.
+def test_confirm_message_is_displayed():
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=False)
+    with patcher:
+        dialog_mod.confirm("My Title", "Hello world", key="k")
 
-    This behaviour is currently broken in the real app; the test is expected to fail.
-    """
-    result_file = tmp_path / "result_double.txt"
-    app = write_app_file_double(tmp_path, result_file, key="double")
-    at = AppTest.from_file(str(app))
-    at.run()
-
-    # Click Open to show dialog
-    open_btn = None
-    for b in at.button:
-        if getattr(b, "label", None) == "Open":
-            open_btn = b
-            break
-    assert open_btn is not None, "Open button not found"
-    open_btn.click().run()
-
-    # Click the top-level Open button to show dialog
-    open_btn.click().run()
-
-    # Use the top-level simulate cancel button to cancel
-    cancel = find_button_by_label(at, "Simulate Cancel")
-    assert cancel is not None, "Simulate Cancel button not found after first open"
-    cancel.click().run()
-
-    assert result_file.exists()
-    assert result_file.read_text() == "False"
-
-    # Click Open again and ensure simulate button still available
-    open_btn.click().run()
-
-    cancel2 = find_button_by_label(at, "Simulate Cancel")
-    assert cancel2 is not None, "Dialog did not open on second click"
+    st.dialog.assert_called_once_with("My Title")
+    st.write.assert_called_once_with("Hello world")

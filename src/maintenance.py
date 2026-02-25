@@ -19,22 +19,13 @@ import os
 import logging
 
 from src.ssh import run_ssh_cmd, upload_file_ssh
-try:
-    from src.models import Device
-except Exception:
-    import importlib.util as _il, sys as _sys, os as _os
-    _models_path = os.path.join(os.path.dirname(__file__), "models.py")
-    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
-    _models = _il.module_from_spec(_spec)
-    _sys.modules[_spec.name] = _models
-    _spec.loader.exec_module(_models)
-    Device = _models.Device
 from src.images import list_device_images, load_device_image
 from src.templates import (
     ensure_remote_template_dirs,
     upload_template_svgs,
     backup_and_replace_templates_json,
 )
+from src.models import Device
 
 logger = logging.getLogger(__name__)
 

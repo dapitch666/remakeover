@@ -1,25 +1,32 @@
+import os
+import json
+from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 
-def test_main_title_present():
+def _empty_config(tmp_path):
+    """Write a minimal empty-devices config and return the path."""
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text(json.dumps({"devices": {}}), encoding="utf-8")
+    return cfg_file
+
+
+def test_main_title_present(tmp_path):
     """App shows the main title on initial load."""
-    at = AppTest.from_file("app.py")
-    at.run()
-    # The app defines the main title as 'reMarkable Manager'
+    cfg_file = _empty_config(tmp_path)
+    with patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}):
+        at = AppTest.from_file("app.py")
+        at.run()
     assert at.title and any(t.value == "reMarkable Manager" for t in at.title)
 
 
-def test_configuration_save_requires_name():
-    """Switch to Configuration and click Save without name."""
-    at = AppTest.from_file("app.py")
-    # Initial run to populate the element tree and imports
-    at.run()
+def test_configuration_save_requires_name(tmp_path):
+    """Switch to Configuration and click Save without a device name."""
+    cfg_file = _empty_config(tmp_path)
+    with patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.sidebar.radio[0].set_value(":material/settings: Configuration").run()
+        at.button[0].click().run()
 
-    # Select the Configuration page from the sidebar and re-run
-    at.sidebar.radio[0].set_value(":material/settings: Configuration").run()
-
-    # Click the first "Sauvegarder" button (create-new-device path) and run
-    at.button[0].click().run()
-
-    # An error should be shown asking for a device name
     assert at.error and any("Veuillez donner un nom" in e.value for e in at.error)

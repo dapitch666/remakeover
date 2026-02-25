@@ -1,110 +1,15 @@
 import streamlit as st
-
 import os
 import json
 from datetime import datetime
 
-# --- CONFIGURATION ---
-# Detect environment (Docker or local)
-if os.path.exists("/app"):
-    # Docker mode
-    BASE_DIR = "/app"
-else:
-    # Local development mode
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-CONFIG_PATH = os.path.join(BASE_DIR, "data", "config.json")
-IMAGES_DIR = os.path.join(BASE_DIR, "data", "images")
-
-DEVICE_SIZES = {
-    "reMarkable 2": (1404, 1872),
-    "reMarkable Paper Pro": (1620, 2160),
-    "reMarkable Paper Pro Move": (954, 1696),
-}
-DEFAULT_DEVICE_TYPE = "reMarkable Paper Pro"
-
-
-def truncate_display_name(name: str, max_len: int = 13) -> str:
-    """Return a truncated version of the name for display (adds '...' when truncated)."""
-    if not isinstance(name, str):
-        return str(name)
-    if len(name) <= max_len:
-        return name
-    # Keep a bit of room for an extension indicator if present
-    return name[: max_len - 3] + "..."
-
-def load_config():
-    """Load configuration from the JSON file."""
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    elif BASE_DIR != "/app":
-        # Default configuration if the file doesn't exist
-        default_config = {
-            "devices": {
-                "Anne (rM Paper Pro)": {
-                    "ip": "192.168.1.174",
-                    "password": "a5g7du9FkY",
-                    "device_type": "reMarkable Paper Pro",
-                    "templates": False,
-                    "carousel": True
-                },
-                "Benoît (rM Move)": {
-                    "ip": "192.168.1.144",
-                    "password": "3JRpokPWbA",
-                    "device_type": "reMarkable Paper Pro Move",
-                    "templates": False,
-                    "carousel": True
-                }
-            }
-        }
-        save_config(default_config)
-        return default_config
-    else:
-        return {"devices": {}}
-
-def save_config(config):
-    """Save configuration to the JSON file."""
-    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-
-from src.ssh import (
-    run_ssh_cmd,
-    upload_file_ssh,
-    download_file_ssh,
-    test_ssh_connection,
+from src.config import (
+    BASE_DIR,
+    DEFAULT_DEVICE_TYPE,
+    load_config,
+    save_config,
+    resolve_device_type,
 )
-from src.images import (
-    process_image,
-    get_device_images_dir,
-    list_device_images,
-    save_device_image,
-    load_device_image,
-    delete_device_image,
-    rename_device_image,
-)
-from src.maintenance import run_maintenance
-# Import Device robustly for environments where `src` may not be a package.
-try:
-    from src.models import Device
-except Exception:
-    import importlib.util as _il, sys as _sys
-    _models_path = os.path.join(BASE_DIR, "src", "models.py")
-    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
-    _models = _il.module_from_spec(_spec)
-    _sys.modules[_spec.name] = _models
-    _spec.loader.exec_module(_models)
-    Device = _models.Device
-
-def resolve_device_type(device):
-    # Expect a `Device` instance
-    device_type = getattr(device, "device_type", None)
-    if device_type in DEVICE_SIZES:
-        return device_type
-    return DEFAULT_DEVICE_TYPE
-
-# --- STREAMLIT INTERFACE ---
 
 
 # Session logging helper (module-level so UI and non-UI code can use it)
@@ -168,44 +73,6 @@ def main():
 
     # Load configuration
     config = load_config()
-    DEVICES = config.get("devices", {})
-
-
-    def submit_rename_factory(img, device_name):
-        def _cb():
-            key = f"rename_input_{img}"
-            new_name = st.session_state.get(key, "")
-            if new_name and new_name != img:
-                try:
-                    if rename_device_image(device_name, img, new_name):
-                        # Update preferred image if needed
-                        dev = config.get("devices", {}).get(device_name)
-                        if dev:
-                            try:
-                                # prefer Device object usage when available
-                                dobj = Device.from_dict(device_name, dev)
-                                if dobj.is_preferred(img):
-                                    dobj.set_preferred(new_name)
-                                    config["devices"][device_name] = dobj.to_dict()
-                                    save_config(config)
-                                    add_log(f"Preferred image updated: {img} -> {new_name} for '{device_name}'")
-                            except Exception:
-                                # fallback to dict manipulation
-                                if dev.get("preferred_image") == img:
-                                    config["devices"][device_name]["preferred_image"] = new_name
-                                    save_config(config)
-                                    add_log(f"Preferred image updated: {img} -> {new_name} for '{device_name}'")
-                        add_log(f"Renamed {img} to {new_name} for '{device_name}'")
-                        try:
-                            st.toast(f"Renommé : {new_name}", icon=":material/task_alt:")
-                        except Exception:
-                            pass
-                except Exception as e:
-                    add_log(f"Error renaming {img} -> {new_name}: {e}")
-            # exit edit mode (no st.rerun() — Streamlit will refresh on next interaction)
-            st.session_state.pop(f"edit_{img}", None)
-
-        return _cb
 
     # Navigation
     # Load UI module dynamically from src/ui.py to avoid package import issues
