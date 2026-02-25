@@ -23,31 +23,7 @@ from src.models import Device
 
 _SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
 
-
-class _UIAdapter:
-    """Minimal UI adapter used as fallback when AppUIAdapter is unavailable."""
-
-    def __init__(self, status_obj, progress_obj):
-        self._status = status_obj
-        self._progress = progress_obj
-
-    def step(self, m):
-        try:
-            self._status.text(m)
-        except Exception:
-            pass
-
-    def progress(self, p):
-        try:
-            self._progress.progress(p)
-        except Exception:
-            pass
-
-    def toast(self, m):
-        try:
-            st.toast(m, icon=":material/task_alt:")
-        except Exception:
-            pass
+from src.ui_adapter import UIAdapter as _UIAdapter
 
 
 def _normalise_png_name(filename: str) -> str:
@@ -425,11 +401,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         if st.button("Lancer le script complet", key=f"ui_launch_maintenance_{selected_name}", icon=":material/autorenew:", help="Exécuter les actions de maintenance post-mise à jour", type="primary", width='stretch'):
             with st.status("Démarrage de la maintenance...") as status:
                 progress = st.progress(0)
-                try:
-                    from app import UIAdapter as AppUIAdapter
-                    ui = AppUIAdapter(status, progress)
-                except Exception:
-                    ui = _UIAdapter(status, progress)
+                ui = _UIAdapter(status, progress, add_log)
 
                 result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
 

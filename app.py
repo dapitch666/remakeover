@@ -23,32 +23,6 @@ def add_log(message: str):
         print(entry)
 
 
-# UI adapter used by `run_maintenance` to update Streamlit UI elements.
-class UIAdapter:
-    def __init__(self, status_obj, progress_obj):
-        self._status = status_obj
-        self._progress = progress_obj
-
-    def step(self, msg: str):
-        try:
-            self._status.text(msg)
-        except Exception:
-            pass
-        add_log(msg)
-
-    def progress(self, pct: int):
-        try:
-            self._progress.progress(pct)
-        except Exception:
-            pass
-
-    def toast(self, msg: str):
-        try:
-            st.toast(msg, icon=":material/task_alt:")
-        except Exception:
-            pass
-
-
 def _read_version():
     version = os.environ.get("IMAGE_VERSION")
     if version:
