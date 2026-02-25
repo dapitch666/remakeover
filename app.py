@@ -85,6 +85,17 @@ from src.images import (
     rename_device_image,
 )
 from src.maintenance import run_maintenance
+# Import Device robustly for environments where `src` may not be a package.
+try:
+    from src.models import Device
+except Exception:
+    import importlib.util as _il, sys as _sys
+    _models_path = os.path.join(BASE_DIR, "src", "models.py")
+    _spec = _il.spec_from_file_location("rm_manager_models", _models_path)
+    _models = _il.module_from_spec(_spec)
+    _sys.modules[_spec.name] = _models
+    _spec.loader.exec_module(_models)
+    Device = _models.Device
 
 def resolve_device_type(device):
     # Accept either a dict-like device or a Device dataclass
@@ -175,10 +186,21 @@ def main():
                     if rename_device_image(device_name, img, new_name):
                         # Update preferred image if needed
                         dev = config.get("devices", {}).get(device_name)
-                        if dev and dev.get("preferred_image") == img:
-                            config["devices"][device_name]["preferred_image"] = new_name
-                            save_config(config)
-                            add_log(f"Preferred image updated: {img} -> {new_name} for '{device_name}'")
+                        if dev:
+                            try:
+                                # prefer Device object usage when available
+                                dobj = Device.from_dict(device_name, dev)
+                                if dobj.is_preferred(img):
+                                    dobj.set_preferred(new_name)
+                                    config["devices"][device_name] = dobj.to_dict()
+                                    save_config(config)
+                                    add_log(f"Preferred image updated: {img} -> {new_name} for '{device_name}'")
+                            except Exception:
+                                # fallback to dict manipulation
+                                if dev.get("preferred_image") == img:
+                                    config["devices"][device_name]["preferred_image"] = new_name
+                                    save_config(config)
+                                    add_log(f"Preferred image updated: {img} -> {new_name} for '{device_name}'")
                         add_log(f"Renamed {img} to {new_name} for '{device_name}'")
                         try:
                             st.toast(f"Renommé : {new_name}", icon=":material/task_alt:")
