@@ -1,8 +1,8 @@
 """SSH helpers scaffold.
 
 This module should implement SSH operations used by the app:
+- ensure_rw_filesystem(ip, password) -> (ok, msg)
 - run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
-- run_ssh_cmd_no_remount(ip, password, commands) -> (stdout, stderr)
 - upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
 - download_file_ssh(ip, password, remote_path) -> bytes
 
@@ -14,55 +14,100 @@ from typing import Tuple
 import paramiko
 import logging
 
+from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW
+
 logger = logging.getLogger(__name__)
 
 
-def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
-    """Execute commands over SSH, ensuring filesystem writable when needed.
 
-    This mirrors the behavior previously in `app.py`: checks whether `/` is
-    already mounted read-write and only performs `mount -o remount,rw /` when
-    necessary before running the provided commands.
+def _ensure_rw(client: paramiko.SSHClient) -> Tuple[bool, str]:
+    """Check if `/` is mounted read-write on an open *client* and remount if not.
+
+    Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
+    Reuses the provided open connection — no extra TCP round-trip.
     """
+    try:
+        _, stdout, _ = client.exec_command(CMD_CHECK_RW)
+        status = stdout.read().decode().strip()
+    except Exception as e:
+        logger.warning("RW check failed, assuming read-only: %s", e)
+        status = "readonly"
+
+    if status == "writable":
+        logger.debug("Filesystem already read-write, skipping remount")
+        return True, "already_rw"
+
+    logger.info("Filesystem is read-only, remounting read-write")
+    try:
+        _, stdout, stderr = client.exec_command(CMD_REMOUNT_RW)
+        stdout.read()
+        err = stderr.read().decode().strip()
+        if err:
+            logger.warning("remount stderr: %s", err)
+        return True, "remounted"
+    except Exception as e:
+        logger.error("remount failed: %s", e)
+        return False, str(e)
+
+
+def ensure_rw_filesystem(ip: str, password: str) -> Tuple[bool, str]:
+    """Open a fresh SSH connection, check if `/` is RW, remount if needed.
+
+    Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
+    Use this when you need to guarantee a writable filesystem before a sequence
+    of operations (e.g. before opening an SFTP session).
+    """
+    logger.info("ensure_rw_filesystem: connecting to %s", ip)
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(ip, username="root", password=password, timeout=10)
+        ok, msg = _ensure_rw(client)
+        return ok, msg
+    except Exception as e:
+        logger.error("ensure_rw_filesystem connect error on %s: %s", ip, e)
+        return False, str(e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
+
+
+def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
+    """Execute commands over SSH, ensuring filesystem is writable first."""
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username='root', password=password, timeout=10)
+        client.connect(ip, username="root", password=password, timeout=10)
 
-        check_cmd = (
-            'if mount | grep "on / " | grep -q "(rw,"; then printf "writable"; else printf "readonly"; fi'
-        )
-        try:
-            stdin, stdout, stderr = client.exec_command(check_cmd)
-            check_out = stdout.read().decode().strip()
-            check_err = stderr.read().decode().strip()
-        except Exception as e:
-            logger.warning("SSH check command failed on %s: %s", ip, e)
-            check_out = "readonly"
+        ok, rw_msg = _ensure_rw(client)
+        if not ok:
+            return "", f"remount failed: {rw_msg}"
 
-        if check_out == "writable":
-            full_cmd = " && ".join(commands) if commands else ""
-        else:
-            full_cmd = ("mount -o remount,rw / && " + " && ".join(commands)) if commands else "mount -o remount,rw /"
+        full_cmd = " && ".join(commands) if commands else ""
+        if not full_cmd:
+            return "", ""
 
         try:
-            stdin, stdout, stderr = client.exec_command(full_cmd)
+            _, stdout, stderr = client.exec_command(full_cmd)
             output = stdout.read().decode()
             error = stderr.read().decode()
         except Exception as e:
             logger.error("SSH exec failed on %s: %s", ip, e)
-            client.close()
             return "", str(e)
 
-        client.close()
-        logger.info(
-            "SSH exec on %s (check=%s, out_len=%d, err_len=%d)", ip, check_out, len(output), len(error)
-        )
+        logger.info("SSH exec on %s (rw=%s, out_len=%d, err_len=%d)", ip, rw_msg, len(output), len(error))
         return output, error
     except Exception as e:
         logger.error("SSH error on %s: %s", ip, e)
         return "", str(e)
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
@@ -84,36 +129,42 @@ def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
 
 
 def upload_file_ssh(ip: str, password: str, file_content: bytes, remote_path: str) -> Tuple[bool, str]:
+    """Ensure filesystem is writable, then upload *file_content* to *remote_path* via SFTP.
+
+    Uses a single SSH connection for both the RW check/remount and the SFTP transfer.
+    """
     logger.info("SSH prepare upload to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        stdin, stdout, stderr = client.exec_command("mount -o remount,rw /")
-        stdout.read()
-        client.close()
-    except Exception as e:
-        logger.error("SSH RW mount failed on %s: %s", ip, e)
-        return False, str(e)
+        client.connect(ip, username="root", password=password, timeout=10)
 
-    transport = paramiko.Transport((ip, 22))
-    transport.connect(username='root', password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    try:
-        with sftp.file(remote_path, 'wb') as f:
-            f.write(file_content)
-        sftp.close()
-        transport.close()
-        logger.info("SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
-        return True, "OK"
-    except Exception as e:
+        ok, msg = _ensure_rw(client)
+        if not ok:
+            return False, f"remount failed: {msg}"
+
+        sftp = client.open_sftp()
         try:
-            sftp.close()
+            with sftp.file(remote_path, "wb") as f:
+                f.write(file_content)
+            logger.info("SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
+            return True, "OK"
+        except Exception as e:
+            logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
+            return False, str(e)
+        finally:
+            try:
+                sftp.close()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error("SSH upload connect error on %s: %s", ip, e)
+        return False, str(e)
+    finally:
+        try:
+            client.close()
         except Exception:
             pass
-        transport.close()
-        logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
-        return False, str(e)
 
 
 def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:

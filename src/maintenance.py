@@ -26,6 +26,14 @@ from src.templates import (
     backup_and_replace_templates_json,
 )
 from src.models import Device
+from src.constants import (
+    SUSPENDED_PNG_PATH,
+    REMOTE_TEMPLATES_DIR,
+    REMOTE_CUSTOM_TEMPLATES_DIR,
+    CMD_RESTART_XOCHITL,
+    CMD_CAROUSEL_BACKUP_DIR,
+    CMD_CAROUSEL_DISABLE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +142,7 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
 
         if img_blob:
             try:
-                ok, msg = upload_file_ssh(ip, password, img_blob, "/usr/share/remarkable/suspended.png")
+                ok, msg = upload_file_ssh(ip, password, img_blob, SUSPENDED_PNG_PATH)
                 if not ok:
                     errors.append(f"upload_suspended_failed: {msg}")
                     return {"ok": False, "errors": errors, "details": details}
@@ -148,20 +156,18 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
         _advance("Ajout des templates personnalisés")
         if device.templates:
             # Ensure remote template dirs exist before uploading
-            remote_custom_dir = "/home/root/templates"
-            remote_templates_dir = "/usr/share/remarkable/templates"
-            ok, msg = ensure_remote_template_dirs(ip, password, remote_custom_dir, remote_templates_dir)
+            ok, msg = ensure_remote_template_dirs(ip, password, REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR)
             if not ok:
                 errors.append(f"ensure_remote_dirs_failed: {msg}")
                 return {"ok": False, "errors": errors, "details": details}
         
             # upload template svgs
             local_templates_dirs = [os.path.join(base_dir, 'templates'), os.path.join(base_dir, 'data', 'templates')]
-            sent_count = upload_template_svgs(ip, password, local_templates_dirs, remote_custom_dir)
+            sent_count = upload_template_svgs(ip, password, local_templates_dirs, REMOTE_CUSTOM_TEMPLATES_DIR)
             if sent_count:
                 # create symlinks for uploaded svgs
                 try:
-                    run_ssh_cmd(ip, password, [f"for file in {remote_custom_dir}/*.svg; do [ -f \"$file\" ] || continue; ln -sf \"$file\" \"{remote_templates_dir}/\"$(basename \"$file\"); done"])
+                    run_ssh_cmd(ip, password, [f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg; do [ -f \"$file\" ] || continue; ln -sf \"$file\" \"{REMOTE_TEMPLATES_DIR}/\"$(basename \"$file\"); done"])
                     _info(f"{sent_count} templates SVG uploadés et liens créés")
                 except Exception as e:
                     errors.append(f"symlink_failed: {e}")
@@ -169,7 +175,7 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
 
             # Backup/replace templates.json
             local_templates_json = os.path.join(base_dir, 'templates.json')
-            ok, msg = backup_and_replace_templates_json(ip, password, local_templates_json, remote_templates_dir, base_dir)
+            ok, msg = backup_and_replace_templates_json(ip, password, local_templates_json, REMOTE_TEMPLATES_DIR, base_dir)
             if ok:
                 _info("templates.json remplacé par la version locale")
             else:
@@ -182,9 +188,10 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
         # 3) Disable carousel
         _advance("Désactivation du carrousel")
         if device.carousel:
-            cmds: List[str] = []
-            cmds.append("mkdir -p /usr/share/remarkable/carousel/backupIllustrations")
-            cmds.append("mv /usr/share/remarkable/carousel/*.png /usr/share/remarkable/carousel/backupIllustrations/ 2>/dev/null || true")
+            cmds: List[str] = [
+                CMD_CAROUSEL_BACKUP_DIR,
+                CMD_CAROUSEL_DISABLE,
+            ]
         
             try:
                 out, err = run_ssh_cmd(ip, password, cmds)
@@ -199,7 +206,7 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
         # 4) Restart xochitl
         _advance("Redémarrage de xochitl")
         try:
-            out, err = run_ssh_cmd(ip, password, "[systemctl restart xochitl]")
+            out, err = run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
             details['restart_out'] = out.strip()
             details['restart_err'] = err.strip()
             _info("Redémarrage de xochitl demandé")

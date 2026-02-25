@@ -20,8 +20,10 @@ from src.images import (
 )
 from src.maintenance import run_maintenance
 from src.models import Device
-
-_SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
+from src.constants import (
+    SUSPENDED_PNG_PATH,
+    CMD_RESTART_XOCHITL,
+)
 
 from src.ui_adapter import UIAdapter as _UIAdapter
 
@@ -36,9 +38,9 @@ def _normalise_png_name(filename: str) -> str:
 
 def _send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
     """Upload *img_data* as suspended.png and restart xochitl. Returns True on success."""
-    success, msg = upload_file_ssh(device.ip, device.password or "", img_data, _SUSPENDED_PNG_PATH)
+    success, msg = upload_file_ssh(device.ip, device.password or "", img_data, SUSPENDED_PNG_PATH)
     if success:
-        run_ssh_cmd(device.ip, device.password or "", ["systemctl restart xochitl"])
+        run_ssh_cmd(device.ip, device.password or "", [CMD_RESTART_XOCHITL])
         add_log(f"Sent {img_name} to '{selected_name}'")
         return True
     add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
@@ -126,7 +128,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
         try:
             if selection == 0:
                 if _send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
-                    st.toast("Envoyée !", icon=":material/task_alt:")
+                    st.toast(f"{_img_name} envoyée à {selected_name} !", icon=":material/task_alt:")
             elif selection == 1:
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
@@ -370,7 +372,7 @@ def _render_tab_images(selected_name, device, width, height, config, save_config
         st.subheader("Récupérer l'image actuelle", divider="rainbow")
         if st.button("Importer depuis la tablette", key=f"ui_import_from_tablet_{selected_name}", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):
             try:
-                img_data = download_file_ssh(device.ip, device.password or '', _SUSPENDED_PNG_PATH)
+                img_data = download_file_ssh(device.ip, device.password or '', SUSPENDED_PNG_PATH)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"{timestamp}.png"
                 save_device_image(selected_name, img_data, filename)

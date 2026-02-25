@@ -9,6 +9,7 @@ import os
 import logging
 
 from src.ssh import run_ssh_cmd, upload_file_ssh, download_file_ssh
+from src.constants import REMOTE_TEMPLATES_JSON
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +53,8 @@ def backup_and_replace_templates_json(ip: str, password: str, local_templates_js
 
     Returns (ok, message).
     """
-    remote_templates_json = f"{remote_templates_dir}/templates.json"
     try:
-        remote_content = download_file_ssh(ip, password, remote_templates_json)
+        remote_content = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
     except Exception as e:
         logger.info("No remote templates.json found or download failed: %s", e)
         return False, f"download_failed: {e}"
@@ -78,5 +78,5 @@ def backup_and_replace_templates_json(ip: str, password: str, local_templates_js
         logger.warning("Failed to write backup templates.json: %s", e)
 
     # replace remote with local
-    ok, msg = upload_file_ssh(ip, password, local_content, remote_templates_json)
+    ok, msg = upload_file_ssh(ip, password, local_content, REMOTE_TEMPLATES_JSON)
     return ok, msg
