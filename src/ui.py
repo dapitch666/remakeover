@@ -50,7 +50,6 @@ from src.constants import (
 
 from src.ui_adapter import UIAdapter as _UIAdapter
 
-
 def _normalise_filename(filename: str, ext: str = ".png") -> str:
     """Sanitise a filename and ensure it ends with the specified extension."""
     filename = filename.replace(" ", "_")
@@ -79,24 +78,33 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
     if st.session_state.get("img_renaming") == img_name:
         def do_rename(_old=img_name):
             raw = st.session_state.get(f"rename_input_{_old}", "").strip()
-            new_name = _normalise_filename(raw) if raw else _old
-            if new_name != _old:
+            new_name = _normalise_filename(raw) if raw else None
+            if new_name and new_name != _old:
                 rename_device_image(selected_name, _old, new_name)
                 if device.is_preferred(_old):
                     device.set_preferred(new_name)
                     config["devices"][selected_name] = device.to_dict()
                     save_config(config)
-                    add_log(f"Preferred image renamed '{_old}' → '{new_name}' for '{selected_name}'")
+                    add_log(f"Preferred image renamed '{_old}' \u2192 '{new_name}' for '{selected_name}'")
                 add_log(f"Renamed image '{_old}' to '{new_name}' for '{selected_name}'")
             st.session_state["img_renaming"] = None
 
-        st.text_input(
-            "Renommer l'image",
-            value=img_name,
-            key=f"rename_input_{img_name}",
-            label_visibility="collapsed",
-            on_change=do_rename,
-        )
+        with st.form(key=f"img_rename_form_{img_name}", border=False):
+            col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
+            with col_in:
+                st.text_input(
+                    "Renommer l'image",
+                    value="",
+                    placeholder=os.path.splitext(img_name)[0],
+                    key=f"rename_input_{img_name}",
+                    label_visibility="collapsed",
+                )
+            with col_btn:
+                st.form_submit_button(
+                    ":material/check:",
+                    on_click=do_rename,
+                    width="stretch",
+                )
     else:
         bare = os.path.splitext(img_name)[0]
         display_name = bare if len(bare) <= 13 else bare[:10] + "..."
@@ -112,10 +120,6 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             st.rerun()
 
     st.image(img_data, width="stretch")
-
-    # ── actions (hidden while renaming) ──────────────────────────────────────
-    if st.session_state.get("img_renaming") == img_name:
-        return
 
     # Deletion confirmation
     if st.session_state.get("img_pending_delete") == img_name:
@@ -257,20 +261,29 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     if renaming:
         def do_rename(_old=tpl_name):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
-            new_name = _normalise_filename(raw, ext=".svg") if raw else _old
-            if new_name != _old:
+            new_name = _normalise_filename(raw, ext=".svg") if raw else None
+            if new_name and new_name != _old:
                 rename_device_template(selected_name, _old, new_name)
                 rename_template_entry(selected_name, _old, new_name)
                 add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
             st.session_state["tpl_renaming"] = None
 
-        st.text_input(
-            "Renommer le template",
-            value=tpl_name,
-            key=f"tpl_rename_input_{tpl_name}",
-            label_visibility="collapsed",
-            on_change=do_rename,
-        )
+        with st.form(key=f"tpl_rename_form_{tpl_name}", border=False):
+            col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
+            with col_in:
+                st.text_input(
+                    "Renommer le template",
+                    value="",
+                    placeholder=os.path.splitext(tpl_name)[0],
+                    key=f"tpl_rename_input_{tpl_name}",
+                    label_visibility="collapsed",
+                )
+            with col_btn:
+                st.form_submit_button(
+                    ":material/check:",
+                    on_click=do_rename,
+                    width="stretch",
+                )
     else:
         bare = os.path.splitext(tpl_name)[0]
         display_name = bare if len(bare) <= 20 else bare[:17] + "..."
@@ -299,10 +312,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         width="stretch",
     ):
         _show_category_dialog(selected_name, tpl_name, add_log)
-
-    # ── actions (hidden while renaming) ──────────────────────────────────
-    if renaming:
-        return
 
     # Local delete confirmation
     if st.session_state.get("tpl_pending_delete_local") == tpl_name:
