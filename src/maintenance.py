@@ -15,7 +15,6 @@ The routine includes:
 """
 
 from typing import Optional, Dict, List
-import os
 import logging
 
 from src.ssh import run_ssh_cmd, upload_file_ssh
@@ -23,7 +22,8 @@ from src.images import list_device_images, load_device_image
 from src.templates import (
     ensure_remote_template_dirs,
     upload_template_svgs,
-    backup_and_replace_templates_json,
+    compare_and_backup_templates_json,
+    get_device_templates_dir,
 )
 from src.models import Device
 from src.constants import (
@@ -161,9 +161,9 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
                 errors.append(f"ensure_remote_dirs_failed: {msg}")
                 return {"ok": False, "errors": errors, "details": details}
         
-            # upload template svgs
-            local_templates_dirs = [os.path.join(base_dir, 'templates'), os.path.join(base_dir, 'data', 'templates')]
-            sent_count = upload_template_svgs(ip, password, local_templates_dirs, REMOTE_CUSTOM_TEMPLATES_DIR)
+            # upload template svgs from the device-specific local directory
+            device_templates_dir = get_device_templates_dir(device_name)
+            sent_count = upload_template_svgs(ip, password, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR)
             if sent_count:
                 # create symlinks for uploaded svgs
                 try:
@@ -173,17 +173,17 @@ def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List
                     errors.append(f"symlink_failed: {e}")
                     return {"ok": False, "errors": errors, "details": details}
 
-            # Backup/replace templates.json
-            local_templates_json = os.path.join(base_dir, 'templates.json')
-            ok, msg = backup_and_replace_templates_json(ip, password, local_templates_json, REMOTE_TEMPLATES_DIR, base_dir)
-            if ok:
-                _info("templates.json remplacé par la version locale")
-            else:
-                if msg == 'no_local':
-                    _info("Aucun templates.json local trouvé pour comparaison")
-                else:
-                    errors.append(f"templates_json_error: {msg}")
-                    return {"ok": False, "errors": errors, "details": details}
+            # Compare remote templates.json with local copy; backup + upload if different
+            ok, msg = compare_and_backup_templates_json(ip, password, device_name)
+            if msg == "identical":
+                _info("templates.json identique sur la tablette, rien à faire")
+            elif msg == "uploaded":
+                _info("templates.json local uploadé sur la tablette (ancien sauvegardé dans templates.backup.json)")
+            elif msg == "no_local":
+                _info("Aucun templates.json local trouvé pour comparaison")
+            elif not ok:
+                errors.append(f"templates_json_error: {msg}")
+                return {"ok": False, "errors": errors, "details": details}
 
         # 3) Disable carousel
         _advance("Désactivation du carrousel")

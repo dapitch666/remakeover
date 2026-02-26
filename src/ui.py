@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import base64
 import random
 from datetime import datetime
 from src.dialog import confirm
@@ -18,6 +19,23 @@ from src.images import (
     delete_device_image,
     rename_device_image,
 )
+from src.templates import (
+    list_device_templates,
+    save_device_template,
+    load_device_template,
+    delete_device_template,
+    rename_device_template,
+    rename_template_entry,
+    get_device_templates_dir,
+    get_template_entry,
+    get_all_categories,
+    add_template_entry,
+    remove_template_entry,
+    update_template_categories,
+    upload_template_to_tablet,
+    remove_template_from_tablet,
+)
+from src.config import get_device_data_dir
 from src.maintenance import run_maintenance
 from src.models import Device
 from src.constants import (
@@ -33,6 +51,14 @@ def _normalise_png_name(filename: str) -> str:
     filename = filename.replace(" ", "_")
     if not filename.endswith(".png"):
         filename = os.path.splitext(filename)[0] + ".png"
+    return filename
+
+
+def _normalise_svg_name(filename: str) -> str:
+    """Sanitise a filename and ensure it ends with .svg."""
+    filename = filename.replace(" ", "_")
+    if not filename.lower().endswith(".svg"):
+        filename = os.path.splitext(filename)[0] + ".svg"
     return filename
 
 
@@ -186,6 +212,252 @@ def _render_upload_section(selected_name, device, width, height, config, save_co
                 st.toast("Erreur lors de l'envoi", icon=":material/error:")
 
 
+# ---------------------------------------------------------------------------
+# Templates tab
+# ---------------------------------------------------------------------------
+
+def _render_template_card(tpl_name, selected_name, device, add_log):
+    """Render one template card: name/rename, SVG preview, categories, upload & delete actions."""
+    tpl_data = load_device_template(selected_name, tpl_name)
+    renaming = st.session_state.get("tpl_renaming") == tpl_name
+    editing_cats = st.session_state.get("tpl_editing_cats") == tpl_name
+
+    # ── name / inline rename ──────────────────────────────────────────────
+    if renaming:
+        def do_rename(_old=tpl_name):
+            raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
+            new_name = _normalise_svg_name(raw) if raw else _old
+            if new_name != _old:
+                rename_device_template(selected_name, _old, new_name)
+                rename_template_entry(selected_name, _old, new_name)
+                add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
+            st.session_state["tpl_renaming"] = None
+
+        st.text_input(
+            "Renommer le template",
+            value=tpl_name,
+            key=f"tpl_rename_input_{tpl_name}",
+            label_visibility="collapsed",
+            on_change=do_rename,
+        )
+    else:
+        display_name = tpl_name if len(tpl_name) <= 20 else tpl_name[:17] + "..."
+        if st.button(
+            f"**{display_name}**",
+            key=f"tpl_name_{tpl_name}",
+            help="Cliquez pour renommer",
+            type="tertiary",
+            width="stretch",
+        ):
+            st.session_state["tpl_renaming"] = tpl_name
+            st.rerun()
+
+    # ── SVG preview ───────────────────────────────────────────────────────
+    svg_b64 = base64.b64encode(tpl_data).decode()
+    st.html(
+        f'<img src="data:image/svg+xml;base64,{svg_b64}" '
+        f'style="width:100%;height:auto;border-radius:4px;" />'
+    )
+
+
+    # ── categories display / inline edit ────────────────────────────────
+    entry = get_template_entry(selected_name, tpl_name)
+    current_cats = entry.get("categories", []) if entry else []
+
+    if editing_cats:
+        all_cats = get_all_categories(selected_name)
+        st.multiselect(
+            "Cat\u00e9gories",
+            options=sorted(set(all_cats) | set(current_cats)),
+            default=current_cats,
+            key=f"tpl_cats_select_{tpl_name}",
+            label_visibility="collapsed",
+        )
+        st.text_input(
+            "Nouvelles cat\u00e9gories",
+            key=f"tpl_cats_extra_{tpl_name}",
+            label_visibility="collapsed",
+            placeholder="NouvelleCategorie, ...",
+        )
+        if st.button("\u2713 Valider", key=f"tpl_cats_ok_{tpl_name}", width="stretch"):
+            new_cats = list(st.session_state.get(f"tpl_cats_select_{tpl_name}", []))
+            extra = st.session_state.get(f"tpl_cats_extra_{tpl_name}", "").strip()
+            if extra:
+                new_cats += [c.strip() for c in extra.split(",") if c.strip()]
+            update_template_categories(selected_name, tpl_name, new_cats)
+            add_log(f"Cat\u00e9gories mises \u00e0 jour pour '{tpl_name}' ({selected_name})")
+            st.session_state["tpl_editing_cats"] = None
+            st.rerun()
+    else:
+        cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
+        if st.button(
+            cats_str,
+            key=f"tpl_cats_btn_{tpl_name}",
+            type="tertiary",
+            help="Modifier les cat\u00e9gories",
+            width="stretch",
+        ):
+            st.session_state["tpl_editing_cats"] = tpl_name
+            st.rerun()
+
+    # ── actions (hidden while renaming or editing categories) ───────────────
+    if renaming or editing_cats:
+        return
+
+    # Local delete confirmation
+    if st.session_state.get("tpl_pending_delete_local") == tpl_name:
+        confirm(
+            "Supprimer localement",
+            f"Supprimer {tpl_name} localement ?",
+            key="confirm_del_tpl_local",
+        )
+        result = st.session_state.get("confirm_del_tpl_local")
+        if result is True:
+            delete_device_template(selected_name, tpl_name)
+            remove_template_entry(selected_name, tpl_name)
+            add_log(f"Template {tpl_name} supprim\u00e9 localement de '{selected_name}'")
+            st.session_state.pop("confirm_del_tpl_local", None)
+            st.session_state["tpl_pending_delete_local"] = None
+            st.rerun()
+        elif result is False:
+            st.session_state.pop("confirm_del_tpl_local", None)
+            st.session_state["tpl_pending_delete_local"] = None
+            st.rerun()
+
+    # Remote delete confirmation
+    if st.session_state.get("tpl_pending_delete_remote") == tpl_name:
+        confirm(
+            "Supprimer de la tablette",
+            f"Supprimer {tpl_name} de la tablette ?",
+            key="confirm_del_tpl_remote",
+        )
+        result = st.session_state.get("confirm_del_tpl_remote")
+        if result is True:
+            ok, msg = remove_template_from_tablet(
+                device.ip, device.password or "", selected_name, tpl_name
+            )
+            if ok:
+                add_log(f"Template {tpl_name} supprim\u00e9 de la tablette '{selected_name}'")
+                st.toast(f"{tpl_name} supprim\u00e9 de la tablette", icon=":material/task_alt:")
+            else:
+                add_log(f"Erreur suppression distante {tpl_name}: {msg}")
+                st.toast("Erreur lors de la suppression", icon=":material/error:")
+            st.session_state.pop("confirm_del_tpl_remote", None)
+            st.session_state["tpl_pending_delete_remote"] = None
+            st.rerun()
+        elif result is False:
+            st.session_state.pop("confirm_del_tpl_remote", None)
+            st.session_state["tpl_pending_delete_remote"] = None
+            st.rerun()
+
+    action_key = f"tpl_action_{tpl_name}"
+    option_map = {
+        0: ":material/cloud_upload:",
+        1: ":material/cloud_off:",
+        2: ":material/delete:",
+    }
+
+    def on_action(_tpl_name=tpl_name, _action_key=action_key):
+        selection = st.session_state.get(_action_key)
+        if selection is None:
+            return
+        try:
+            if selection == 0:
+                ok, msg = upload_template_to_tablet(
+                    device.ip, device.password or "", selected_name, _tpl_name
+                )
+                if ok:
+                    add_log(f"Template {_tpl_name} envoy\u00e9 sur '{selected_name}'")
+                    st.toast(f"{_tpl_name} envoy\u00e9 sur {selected_name} !", icon=":material/task_alt:")
+                else:
+                    add_log(f"Erreur envoi template {_tpl_name}: {msg}")
+                    st.toast("Erreur lors de l'envoi", icon=":material/error:")
+            elif selection == 1:
+                st.session_state["tpl_pending_delete_remote"] = _tpl_name
+            elif selection == 2:
+                st.session_state["tpl_pending_delete_local"] = _tpl_name
+        finally:
+            st.session_state[_action_key] = None
+
+    st.segmented_control(
+        "Actions",
+        options=list(option_map.keys()),
+        format_func=lambda o: option_map[o],
+        key=action_key,
+        selection_mode="single",
+        label_visibility="hidden",
+        on_change=on_action,
+    )
+
+
+def _render_template_upload_section(selected_name, add_log):
+    """Section: upload a local SVG file as a new template."""
+    st.subheader("Ajouter un template", divider="rainbow")
+    uploaded_file = st.file_uploader(
+        "Glisser un fichier SVG ici",
+        type=["svg"],
+        key=f"tpl_uploader_{selected_name}",
+    )
+    if not uploaded_file:
+        return
+
+    all_cats = get_all_categories(selected_name)
+    sel_cats = st.multiselect(
+        "Cat\u00e9gories existantes",
+        options=all_cats,
+        key=f"tpl_new_cats_{selected_name}",
+    )
+    extra_cats_input = st.text_input(
+        "Nouvelles cat\u00e9gories (s\u00e9par\u00e9es par virgule)",
+        key=f"tpl_new_extra_cats_{selected_name}",
+        placeholder="Color, Perso, ...",
+    )
+
+    if st.button(
+        "Sauvegarder",
+        key=f"ui_tpl_save_{selected_name}",
+        icon=":material/save:",
+        help="Sauvegarder le template localement",
+        width="stretch",
+    ):
+        content = uploaded_file.read()
+        filename = _normalise_svg_name(uploaded_file.name)
+        extra_list = [c.strip() for c in extra_cats_input.split(",") if c.strip()] if extra_cats_input else []
+        categories = list(sel_cats) + extra_list
+        save_device_template(selected_name, content, filename)
+        add_template_entry(selected_name, filename, categories)
+        add_log(f"Template {filename} sauvegard\u00e9 pour '{selected_name}'")
+        st.toast(f"Template sauvegard\u00e9\u00a0: {filename}", icon=":material/task_alt:")
+        st.rerun()
+
+
+def _render_tab_templates(selected_name, device, add_log):
+    """Full templates management tab."""
+    stored_templates = list_device_templates(selected_name)
+
+    if stored_templates:
+        with st.expander(
+            "Aide \u2014 Actions des templates (cliquer pour d\u00e9velopper)",
+            expanded=False,
+        ):
+            st.markdown(
+                ":material/cloud_upload: **Envoyer** \u2014 Uploader le SVG, cr\u00e9er le symlink et pousser templates.json sur la tablette  "
+            )
+            st.markdown(
+                ":material/cloud_off: **Supprimer de la tablette** \u2014 Retirer le SVG et le symlink, puis mettre \u00e0 jour templates.json  "
+            )
+            st.markdown(
+                ":material/delete: **Supprimer localement** \u2014 Effacer le SVG et l'entr\u00e9e dans templates.json local  "
+            )
+
+        cols = st.columns(4, gap="medium")
+        for idx, tpl_name in enumerate(stored_templates):
+            with cols[idx % 4]:
+                _render_template_card(tpl_name, selected_name, device, add_log)
+
+    _render_template_upload_section(selected_name, add_log)
+
+
 def render_logs_page():
     st.title(":material/description: Logs de session")
     if not st.session_state.get('logs'):
@@ -287,15 +559,14 @@ def render_config_page(config, save_config, add_log, resolve_device_type, DEFAUL
             key=f"del_device_{device_name}",
         )
         if st.session_state.get(f"del_device_{device_name}") is True:
-            device_images_dir = get_device_images_dir(device_name)
-            if os.path.exists(device_images_dir):
-                for f in os.listdir(device_images_dir):
-                    os.remove(os.path.join(device_images_dir, f))
-                    add_log(f"Image '{f}' deleted for '{device_name}'")
+            import shutil
+            device_data_dir = get_device_data_dir(device_name)
+            if os.path.exists(device_data_dir):
                 try:
-                    os.rmdir(device_images_dir)
-                except OSError:
-                    pass
+                    shutil.rmtree(device_data_dir)
+                    add_log(f"Device data directory removed for '{device_name}'")
+                except OSError as e:
+                    add_log(f"Could not fully remove data dir for '{device_name}': {e}")
             if device_name in config.get("devices", {}):
                 del config["devices"][device_name]
                 save_config(config)
@@ -366,7 +637,7 @@ def render_main_page(config, save_config, add_log, resolve_device_type, BASE_DIR
         _render_tab_images(selected_name, device, width, height, config, save_config, add_log)
 
     with tab_templates:
-        st.info(":material/construction: Gestion des templates — à venir.", icon=":material/info:")
+        _render_tab_templates(selected_name, device, add_log)
 
     with tab_maintenance:
         _render_tab_maintenance(selected_name, device, add_log, BASE_DIR)

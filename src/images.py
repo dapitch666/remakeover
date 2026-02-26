@@ -10,17 +10,13 @@ from PIL import Image
 import io
 import logging
 
+from src.config import get_device_data_dir
+
 logger = logging.getLogger(__name__)
 
 
-def _base_dir() -> str:
-    if os.path.exists("/app"):
-        return "/app"
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
 def get_device_images_dir(device_name: str) -> str:
-    device_dir = os.path.join(_base_dir(), "data", "images", device_name.replace("/", "_").replace(" ", "_"))
+    device_dir = os.path.join(get_device_data_dir(device_name), "images")
     os.makedirs(device_dir, exist_ok=True)
     return device_dir
 

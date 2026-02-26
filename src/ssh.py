@@ -10,7 +10,7 @@ Current file contains function signatures and docs; implementations
 should be moved here from `app.py` incrementally.
 """
 
-from typing import Tuple
+from typing import List, Tuple
 import paramiko
 import logging
 
@@ -178,4 +178,35 @@ def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:
     transport.close()
     logger.info("SFTP download OK from %s:%s (bytes=%d)", ip, remote_path, len(content))
     return content
+
+
+def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> Tuple[List[str], str]:
+    """Return a sorted list of filenames in *remote_dir* via SFTP.
+
+    Returns (filenames, error_message). On success *error_message* is empty.
+    """
+    logger.info("SFTP listdir start from %s:%s", ip, remote_dir)
+    transport = None
+    try:
+        transport = paramiko.Transport((ip, 22))
+        transport.connect(username="root", password=password)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+        try:
+            entries = sftp.listdir(remote_dir)
+        except Exception as e:
+            logger.error("SFTP listdir error on %s:%s: %s", ip, remote_dir, e)
+            return [], str(e)
+        finally:
+            sftp.close()
+        logger.info("SFTP listdir OK from %s:%s (%d entries)", ip, remote_dir, len(entries))
+        return sorted(entries), ""
+    except Exception as e:
+        logger.error("SFTP listdir connect error on %s: %s", ip, e)
+        return [], str(e)
+    finally:
+        if transport:
+            try:
+                transport.close()
+            except Exception:
+                pass
 

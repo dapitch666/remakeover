@@ -22,7 +22,14 @@ def _repo_root() -> str:
 BASE_DIR = _repo_root()
 # Default path — can be overridden at call time via the RM_CONFIG_PATH env var.
 CONFIG_PATH: str = os.path.join(BASE_DIR, "data", "config.json")
-IMAGES_DIR: str = os.path.join(BASE_DIR, "data", "images")
+
+
+def get_device_data_dir(device_name: str) -> str:
+    """Return (and create) the per-device data directory: data/{device}/"""
+    safe = device_name.replace("/", "_").replace(" ", "_")
+    path = os.path.join(BASE_DIR, "data", safe)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def _active_config_path() -> str:
