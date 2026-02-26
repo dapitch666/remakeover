@@ -1,6 +1,5 @@
 import streamlit as st
 import os
-import base64
 import random
 from datetime import datetime
 from src.dialog import confirm
@@ -22,7 +21,6 @@ from src.images import (
 from src.templates import (
     list_device_templates,
     save_device_template,
-    load_device_template,
     delete_device_template,
     rename_device_template,
     rename_template_entry,
@@ -218,7 +216,7 @@ def _render_upload_section(selected_name, device, width, height, config, save_co
 
 def _render_template_card(tpl_name, selected_name, device, add_log):
     """Render one template card: name/rename, SVG preview, categories, upload & delete actions."""
-    tpl_data = load_device_template(selected_name, tpl_name)
+    tpl_path = os.path.join(get_device_templates_dir(selected_name), tpl_name)
     renaming = st.session_state.get("tpl_renaming") == tpl_name
     editing_cats = st.session_state.get("tpl_editing_cats") == tpl_name
 
@@ -253,11 +251,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             st.rerun()
 
     # ── SVG preview ───────────────────────────────────────────────────────
-    svg_b64 = base64.b64encode(tpl_data).decode()
-    st.html(
-        f'<img src="data:image/svg+xml;base64,{svg_b64}" '
-        f'style="width:100%;height:auto;border-radius:4px;" />'
-    )
+    st.image(tpl_path, width="stretch")
 
 
     # ── categories display / inline edit ────────────────────────────────

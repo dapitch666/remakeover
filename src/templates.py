@@ -103,6 +103,7 @@ def load_templates_json(device_name: str) -> Dict[str, Any]:
 def save_templates_json(device_name: str, data: Dict[str, Any]) -> None:
     """Persist *data* as data/{{device}}/templates.json."""
     path = get_device_templates_json_path(device_name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
