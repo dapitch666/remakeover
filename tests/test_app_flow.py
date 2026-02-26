@@ -98,7 +98,7 @@ def test_run_maintenance_flow(tmp_path):
     patches = _flow_patches(images_dir, upload_calls, run_cmds, saved_files)
     patches[11] = patch(
         "src.maintenance.run_maintenance",
-        side_effect=lambda name, dev, base_dir, steps, image, ui:
+        side_effect=lambda name, dev, steps, image, ui:
             maintenance_calls.append((name, dev)) or {"ok": True},
     )
 

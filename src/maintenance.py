@@ -53,11 +53,10 @@ class _DefaultUI:
         logger.info("toast: %s", msg)
 
 
-def run_maintenance(device_name: str, device: Device, base_dir: str, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
+def run_maintenance(device_name: str, device: Device, steps: List[str], image: str = None, ui: Optional[object] = None) -> Dict:
     """Run post-update maintenance routine for a device.
 
     device: a `Device` instance (must contain `ip`, optional `password`, `templates`, `carousel`)
-    base_dir: project base dir used to locate local templates and files
     image: optional image filename for suspended.png
     ui: optional object exposing `step(text)`, `progress(pct)` and `toast(msg)`.
 

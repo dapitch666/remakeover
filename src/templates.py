@@ -102,11 +102,16 @@ def load_templates_json(device_name: str) -> Dict[str, Any]:
 
 
 def save_templates_json(device_name: str, data: Dict[str, Any]) -> None:
-    """Persist *data* as data/{{device}}/templates.json."""
+    """Persist *data* as data/{{device}}/templates.json.
+
+    Uses ensure_ascii=True so Private Use Area icon codes (e.g. \\ue9fd) are
+    written as JSON \\uXXXX escape sequences rather than the bare glyph, which
+    matches the format shipped by reMarkable and avoids rendering as empty squares.
+    """
     path = get_device_templates_json_path(device_name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=2, ensure_ascii=True)
 
 
 def get_all_categories(device_name: str) -> List[str]:
@@ -256,6 +261,66 @@ def compare_and_backup_templates_json(ip: str, password: str, device_name: str) 
 
     logger.info("Local templates.json uploaded to tablet (%s)", REMOTE_TEMPLATES_JSON)
     return True, "uploaded"
+
+
+def fetch_and_init_templates(ip: str, password: str, device_name: str) -> Tuple[bool, str]:
+    """Download the tablet's templates.json, save it as templates.backup.json,
+    then compose the local templates.json by appending entries for any locally
+    stored SVG files that are not already listed in the backup.
+
+    Each newly discovered SVG gets the "Perso" category by default.
+
+    Returns (ok, message).
+    """
+    # 1 — Download remote templates.json
+    try:
+        remote_content = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
+    except Exception as e:
+        logger.error("fetch_and_init_templates — download failed: %s", e)
+        return False, f"download_failed: {e}"
+
+    # 2 — Save as backup
+    backup_path = get_device_templates_backup_path(device_name)
+    try:
+        with open(backup_path, "wb") as f:
+            f.write(remote_content)
+    except Exception as e:
+        return False, f"backup_write_failed: {e}"
+
+    # 3 — Parse backup
+    try:
+        backup_data: Dict[str, Any] = json.loads(remote_content.decode("utf-8"))
+    except Exception as e:
+        return False, f"backup_parse_failed: {e}"
+
+    # 4 — Append entries for local SVGs not already present in the backup
+    templates_dir = get_device_templates_dir(device_name)
+    existing_stems = {t.get("filename") for t in backup_data.get("templates", [])}
+    appended = 0
+    if os.path.exists(templates_dir):
+        for svg in sorted(os.listdir(templates_dir)):
+            if not svg.lower().endswith(".svg"):
+                continue
+            stem = _stem(svg)
+            if stem not in existing_stems:
+                backup_data.setdefault("templates", []).append(
+                    {
+                        "name": stem,
+                        "filename": stem,
+                        "iconCode": "\ue9fd",
+                        "categories": ["Perso"],
+                    }
+                )
+                existing_stems.add(stem)
+                appended += 1
+
+    # 5 — Persist as local templates.json
+    save_templates_json(device_name, backup_data)
+    logger.info(
+        "fetch_and_init_templates: backup saved, %d local SVG(s) appended for '%s'",
+        appended, device_name,
+    )
+    return True, f"fetched ({appended} local SVG(s) appended)"
 
 
 def upload_template_to_tablet(

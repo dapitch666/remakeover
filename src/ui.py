@@ -11,7 +11,6 @@ from src.ssh import (
 )
 from src.images import (
     process_image,
-    get_device_images_dir,
     list_device_images,
     save_device_image,
     load_device_image,
@@ -25,6 +24,7 @@ from src.templates import (
     rename_device_template,
     rename_template_entry,
     get_device_templates_dir,
+    get_device_templates_backup_path,
     get_template_entry,
     get_all_categories,
     add_template_entry,
@@ -32,7 +32,8 @@ from src.templates import (
     update_template_categories,
     ensure_remote_template_dirs,
     upload_template_svgs,
-    compare_and_backup_templates_json,
+    get_device_templates_json_path,
+    fetch_and_init_templates,
     is_templates_dirty,
     mark_templates_synced,
 )
@@ -44,24 +45,17 @@ from src.constants import (
     CMD_RESTART_XOCHITL,
     REMOTE_CUSTOM_TEMPLATES_DIR,
     REMOTE_TEMPLATES_DIR,
+    REMOTE_TEMPLATES_JSON,
 )
 
 from src.ui_adapter import UIAdapter as _UIAdapter
 
 
-def _normalise_png_name(filename: str) -> str:
-    """Sanitise a filename and ensure it ends with .png."""
+def _normalise_filename(filename: str, ext: str = ".png") -> str:
+    """Sanitise a filename and ensure it ends with the specified extension."""
     filename = filename.replace(" ", "_")
-    if not filename.endswith(".png"):
-        filename = os.path.splitext(filename)[0] + ".png"
-    return filename
-
-
-def _normalise_svg_name(filename: str) -> str:
-    """Sanitise a filename and ensure it ends with .svg."""
-    filename = filename.replace(" ", "_")
-    if not filename.lower().endswith(".svg"):
-        filename = os.path.splitext(filename)[0] + ".svg"
+    if not filename.endswith(ext):
+        filename = os.path.splitext(filename)[0] + ext
     return filename
 
 
@@ -85,7 +79,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
     if st.session_state.get("img_renaming") == img_name:
         def do_rename(_old=img_name):
             raw = st.session_state.get(f"rename_input_{_old}", "").strip()
-            new_name = _normalise_png_name(raw) if raw else _old
+            new_name = _normalise_filename(raw) if raw else _old
             if new_name != _old:
                 rename_device_image(selected_name, _old, new_name)
                 if device.is_preferred(_old):
@@ -104,7 +98,8 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             on_change=do_rename,
         )
     else:
-        display_name = img_name if len(img_name) <= 13 else img_name[:10] + "..."
+        bare = os.path.splitext(img_name)[0]
+        display_name = bare if len(bare) <= 13 else bare[:10] + "..."
         if st.button(
             f"**{display_name}**",
             key=f"name_{img_name}",
@@ -197,7 +192,7 @@ def _render_upload_section(selected_name, device, width, height, config, save_co
     with col_save:
         if st.button("Sauvegarder", key=f"ui_save_uploaded_{selected_name}", icon=":material/save:", help="Sauvegarder l'image localement"):
             img_data = process_image(uploaded_file, width, height)
-            filename = _normalise_png_name(uploaded_file.name)
+            filename = _normalise_filename(uploaded_file.name)
             save_device_image(selected_name, img_data, filename)
             add_log(f"Image uploaded and saved: {filename} for '{selected_name}'")
             st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
@@ -206,7 +201,7 @@ def _render_upload_section(selected_name, device, width, height, config, save_co
     with col_send:
         if st.button(f"Envoyer sur {selected_name}", key=f"ui_send_uploaded_{selected_name}", icon=":material/cloud_upload:", help=f"Envoyer l'image sur {selected_name} et la sauvegarder localement"):
             img_data = process_image(uploaded_file, width, height)
-            filename = _normalise_png_name(uploaded_file.name)
+            filename = _normalise_filename(uploaded_file.name)
             save_device_image(selected_name, img_data, filename)
             if _send_suspended_png(device, img_data, filename, selected_name, add_log):
                 st.toast(f"{filename} envoyée et sauvegardée !", icon=":material/task_alt:")
@@ -262,7 +257,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     if renaming:
         def do_rename(_old=tpl_name):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
-            new_name = _normalise_svg_name(raw) if raw else _old
+            new_name = _normalise_filename(raw, ext=".svg") if raw else _old
             if new_name != _old:
                 rename_device_template(selected_name, _old, new_name)
                 rename_template_entry(selected_name, _old, new_name)
@@ -277,7 +272,8 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             on_change=do_rename,
         )
     else:
-        display_name = tpl_name if len(tpl_name) <= 20 else tpl_name[:17] + "..."
+        bare = os.path.splitext(tpl_name)[0]
+        display_name = bare if len(bare) <= 20 else bare[:17] + "..."
         if st.button(
             f"**{display_name}**",
             key=f"tpl_name_{tpl_name}",
@@ -348,41 +344,53 @@ def _render_template_upload_section(selected_name, add_log):
     # save, avoiding stale values in the uploader / multiselect / text_input.
     gen = st.session_state.get(f"tpl_upload_gen_{selected_name}", 0)
 
-    uploaded_file = st.file_uploader(
-        "Glisser un fichier SVG ici",
+    # Show pending toast from the previous run (st.toast before st.rerun is not visible).
+    pending_toast = st.session_state.pop(f"tpl_saved_toast_{selected_name}", None)
+    if pending_toast:
+        st.toast(pending_toast, icon=":material/task_alt:")
+
+    uploaded_files = st.file_uploader(
+        "Glisser un ou plusieurs fichiers SVG ici",
         type=["svg"],
+        accept_multiple_files=True,
         key=f"tpl_uploader_{selected_name}_{gen}",
     )
-    if not uploaded_file:
+    if not uploaded_files:
         return
 
     all_cats = get_all_categories(selected_name)
     sel_cats = st.multiselect(
-        "Cat\u00e9gories existantes",
+        "Catégories existantes",
         options=all_cats,
         key=f"tpl_new_cats_{selected_name}_{gen}",
     )
     extra_cats_input = st.text_input(
-        "Nouvelles cat\u00e9gories (s\u00e9par\u00e9es par virgule)",
+        "Nouvelles catégories (séparées par virgule)",
         key=f"tpl_new_extra_cats_{selected_name}_{gen}",
         placeholder="Color, Perso, ...",
     )
 
     if st.button(
-        "Sauvegarder",
+        f"Sauvegarder ({len(uploaded_files)} fichier(s))",
         key=f"ui_tpl_save_{selected_name}_{gen}",
         icon=":material/save:",
-        help="Sauvegarder le template localement",
+        help="Sauvegarder les templates localement",
         width="stretch",
     ):
-        content = uploaded_file.read()
-        filename = _normalise_svg_name(uploaded_file.name)
         extra_list = [c.strip() for c in extra_cats_input.split(",") if c.strip()] if extra_cats_input else []
         categories = list(sel_cats) + extra_list
-        save_device_template(selected_name, content, filename)
-        add_template_entry(selected_name, filename, categories)
-        add_log(f"Template {filename} sauvegard\u00e9 pour '{selected_name}'")
-        st.toast(f"Template sauvegard\u00e9\u00a0: {filename}", icon=":material/task_alt:")
+        saved = []
+        for uf in uploaded_files:
+            content = uf.read()
+            filename = _normalise_filename(uf.name, ext=".svg")
+            save_device_template(selected_name, content, filename)
+            add_template_entry(selected_name, filename, categories)
+            add_log(f"{filename} template saved for '{selected_name}'")
+            saved.append(filename)
+        if len(saved) == 1:
+            st.session_state[f"tpl_saved_toast_{selected_name}"] = f"Template saved\u00a0: {saved[0]}"
+        else:
+            st.session_state[f"tpl_saved_toast_{selected_name}"] = f"{len(saved)} templates saved!"
         # Bump the generation to reset the form on the next render.
         st.session_state[f"tpl_upload_gen_{selected_name}"] = gen + 1
         st.rerun()
@@ -418,10 +426,14 @@ def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
             add_log(f"Sync templates — symlinks: {e}")
             return False
 
-    ok, msg = compare_and_backup_templates_json(ip, pw, selected_name)
-    if not ok and msg not in ("identical", "no_local"):
-        add_log(f"Sync templates — templates.json: {msg}")
-        return False
+    local_json_path = get_device_templates_json_path(selected_name)
+    if os.path.exists(local_json_path):
+        with open(local_json_path, "rb") as f:
+            json_content = f.read()
+        ok, msg = upload_file_ssh(ip, pw, json_content, REMOTE_TEMPLATES_JSON)
+        if not ok:
+            add_log(f"Sync templates — templates.json upload: {msg}")
+            return False
 
     try:
         run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
@@ -431,14 +443,43 @@ def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
 
     mark_templates_synced(selected_name)
     add_log(
-        f"Templates synchronisés sur '{selected_name}' "
-        f"({sent} SVG(s) uploadé(s), templates.json : {msg})"
+        f"Templates synced on '{selected_name}' "
+        f"({sent} SVG(s) uploaded, templates.json {'uploaded' if os.path.exists(local_json_path) else 'not found locally'})"
     )
     return True
 
 
 def _render_tab_templates(selected_name, device, add_log):
     """Full templates management tab."""
+
+    # ── Guard: require templates.backup.json before doing anything ────────────
+    backup_path = get_device_templates_backup_path(selected_name)
+    if not os.path.exists(backup_path):
+        st.warning(
+            "Aucun fichier de référence (`templates.backup.json`) n'a été trouvé. "
+            "Veuillez d'abord récupérer le fichier `templates.json` depuis la tablette. "
+            "Il servira de base pour composer la liste locale des templates.",
+            icon=":material/backup:",
+        )
+        if st.button(
+            "Récupérer les templates depuis la tablette",
+            key=f"tpl_fetch_backup_{selected_name}",
+            type="primary",
+            icon=":material/download:",
+        ):
+            with st.spinner("Téléchargement de templates.json depuis la tablette…"):
+                ok, msg = fetch_and_init_templates(
+                    device.ip, device.password or "", selected_name
+                )
+            if ok:
+                add_log(f"Templates initialisés pour '{selected_name}' : {msg}")
+                st.toast("Templates récupérés et initialisés !", icon=":material/task_alt:")
+                st.rerun()
+            else:
+                add_log(f"Erreur init templates pour '{selected_name}' : {msg}")
+                st.error(f"Erreur : {msg}", icon=":material/error:")
+        return
+
     stored_templates = list_device_templates(selected_name)
 
     # ── sync banner (shown only when local state diverges from last sync) ──
@@ -466,7 +507,26 @@ def _render_tab_templates(selected_name, device, add_log):
                 st.rerun()
 
     if stored_templates:
-        st.subheader("Templates enregistrés", divider="rainbow")
+        col_title, col_sort = st.columns([2, 2], vertical_alignment="center")
+        with col_title:
+            st.subheader("Templates enregistrés", divider="rainbow")
+        with col_sort:
+            sort_by = st.segmented_control(
+                "Trier par",
+                options=["Date", "A → Z", "Catégories"],
+                default="Date",
+                key=f"tpl_sort_{selected_name}",
+            )
+
+        if sort_by == "A → Z":
+            stored_templates = sorted(stored_templates, key=lambda f: f.lower())
+        elif sort_by == "Catégories":
+            def _cat_key(f):
+                entry = get_template_entry(selected_name, f)
+                cats = entry.get("categories", []) if entry else []
+                return (cats[0].lower() if cats else "\xff", f.lower())
+            stored_templates = sorted(stored_templates, key=_cat_key)
+        # "Date" keeps the default mtime-desc order from list_device_templates
 
         ncols = 4
         for row_start in range(0, len(stored_templates), ncols):
@@ -737,7 +797,7 @@ def _render_tab_maintenance(selected_name, device, add_log, BASE_DIR):
                 progress = st.progress(0)
                 ui = _UIAdapter(status, progress, add_log)
 
-                result = run_maintenance(selected_name, device, BASE_DIR, steps, image, ui)
+                result = run_maintenance(selected_name, device, steps, image, ui)
 
             if result.get("ok"):
                 ui.step("Maintenance terminée")
