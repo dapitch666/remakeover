@@ -5,6 +5,7 @@ and remote helpers (upload, backup/replace templates.json).
 """
 
 from typing import Any, Dict, List, Optional, Tuple
+import hashlib
 import json
 import os
 import logging
@@ -321,3 +322,47 @@ def remove_template_from_tablet(
         logger.info("templates.json pushed to tablet after removing %s", filename)
 
     return True, "ok"
+
+
+# ---------------------------------------------------------------------------
+# Sync-state helpers
+# ---------------------------------------------------------------------------
+
+def _get_sync_state_path(device_name: str) -> str:
+    """Return the path to the .tpl_sync sentinel file for *device_name*."""
+    return os.path.join(get_device_data_dir(device_name), ".tpl_sync")
+
+
+def is_templates_dirty(device_name: str) -> bool:
+    """Return True if templates.json has changed since the last recorded sync.
+
+    Compares the MD5 of the current templates.json against a hash written by
+    :func:`mark_templates_synced`.  Returns False when there is no local
+    templates.json (nothing to sync yet).
+    """
+    json_path = get_device_templates_json_path(device_name)
+    if not os.path.exists(json_path):
+        return False
+    with open(json_path, "rb") as f:
+        current_hash = hashlib.md5(f.read()).hexdigest()
+    sync_path = _get_sync_state_path(device_name)
+    if not os.path.exists(sync_path):
+        # Never synced: consider dirty only if there is at least one entry.
+        data = load_templates_json(device_name)
+        return bool(data.get("templates"))
+    with open(sync_path, "r", encoding="utf-8") as sf:
+        return sf.read().strip() != current_hash
+
+
+def mark_templates_synced(device_name: str) -> None:
+    """Record the current templates.json MD5 as the last-known-synced hash."""
+    json_path = get_device_templates_json_path(device_name)
+    sync_path = _get_sync_state_path(device_name)
+    if not os.path.exists(json_path):
+        if os.path.exists(sync_path):
+            os.remove(sync_path)
+        return
+    with open(json_path, "rb") as f:
+        current_hash = hashlib.md5(f.read()).hexdigest()
+    with open(sync_path, "w", encoding="utf-8") as sf:
+        sf.write(current_hash)

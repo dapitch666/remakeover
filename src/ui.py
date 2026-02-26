@@ -30,8 +30,11 @@ from src.templates import (
     add_template_entry,
     remove_template_entry,
     update_template_categories,
-    upload_template_to_tablet,
-    remove_template_from_tablet,
+    ensure_remote_template_dirs,
+    upload_template_svgs,
+    compare_and_backup_templates_json,
+    is_templates_dirty,
+    mark_templates_synced,
 )
 from src.config import get_device_data_dir
 from src.maintenance import run_maintenance
@@ -39,6 +42,8 @@ from src.models import Device
 from src.constants import (
     SUSPENDED_PNG_PATH,
     CMD_RESTART_XOCHITL,
+    REMOTE_CUSTOM_TEMPLATES_DIR,
+    REMOTE_TEMPLATES_DIR,
 )
 
 from src.ui_adapter import UIAdapter as _UIAdapter
@@ -214,11 +219,44 @@ def _render_upload_section(selected_name, device, width, height, config, save_co
 # Templates tab
 # ---------------------------------------------------------------------------
 
+
+@st.dialog("Modifier les catégories")
+def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
+    """Modal dialog for editing the categories of a template."""
+    entry = get_template_entry(selected_name, tpl_name)
+    current_cats = entry.get("categories", []) if entry else []
+    all_cats = get_all_categories(selected_name)
+
+    new_sel = st.multiselect(
+        "Catégories existantes",
+        options=sorted(set(all_cats) | set(current_cats)),
+        default=current_cats,
+        key=f"dialog_cats_select_{tpl_name}",
+    )
+    extra = st.text_input(
+        "Nouvelles catégories (séparées par virgule)",
+        key=f"dialog_cats_extra_{tpl_name}",
+        placeholder="NouvelleCategorie, ...",
+    )
+
+    col_ok, col_cancel = st.columns(2)
+    with col_ok:
+        if st.button("Valider", key=f"dialog_cats_ok_{tpl_name}", type="primary", width="stretch"):
+            new_cats = list(new_sel)
+            if extra:
+                new_cats += [c.strip() for c in extra.split(",") if c.strip()]
+            update_template_categories(selected_name, tpl_name, new_cats)
+            add_log(f"Catégories mises à jour pour '{tpl_name}' ({selected_name})")
+            st.rerun()
+    with col_cancel:
+        if st.button("Annuler", key=f"dialog_cats_cancel_{tpl_name}", width="stretch"):
+            st.rerun()
+
+
 def _render_template_card(tpl_name, selected_name, device, add_log):
     """Render one template card: name/rename, SVG preview, categories, upload & delete actions."""
     tpl_path = os.path.join(get_device_templates_dir(selected_name), tpl_name)
     renaming = st.session_state.get("tpl_renaming") == tpl_name
-    editing_cats = st.session_state.get("tpl_editing_cats") == tpl_name
 
     # ── name / inline rename ──────────────────────────────────────────────
     if renaming:
@@ -253,49 +291,21 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     # ── SVG preview ───────────────────────────────────────────────────────
     st.image(tpl_path, width="stretch")
 
-
-    # ── categories display / inline edit ────────────────────────────────
+    # ── categories button → modal ─────────────────────────────────────────
     entry = get_template_entry(selected_name, tpl_name)
     current_cats = entry.get("categories", []) if entry else []
+    cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
+    if st.button(
+        cats_str,
+        key=f"tpl_cats_btn_{tpl_name}",
+        type="tertiary",
+        help="Modifier les cat\u00e9gories",
+        width="stretch",
+    ):
+        _show_category_dialog(selected_name, tpl_name, add_log)
 
-    if editing_cats:
-        all_cats = get_all_categories(selected_name)
-        st.multiselect(
-            "Cat\u00e9gories",
-            options=sorted(set(all_cats) | set(current_cats)),
-            default=current_cats,
-            key=f"tpl_cats_select_{tpl_name}",
-            label_visibility="collapsed",
-        )
-        st.text_input(
-            "Nouvelles cat\u00e9gories",
-            key=f"tpl_cats_extra_{tpl_name}",
-            label_visibility="collapsed",
-            placeholder="NouvelleCategorie, ...",
-        )
-        if st.button("\u2713 Valider", key=f"tpl_cats_ok_{tpl_name}", width="stretch"):
-            new_cats = list(st.session_state.get(f"tpl_cats_select_{tpl_name}", []))
-            extra = st.session_state.get(f"tpl_cats_extra_{tpl_name}", "").strip()
-            if extra:
-                new_cats += [c.strip() for c in extra.split(",") if c.strip()]
-            update_template_categories(selected_name, tpl_name, new_cats)
-            add_log(f"Cat\u00e9gories mises \u00e0 jour pour '{tpl_name}' ({selected_name})")
-            st.session_state["tpl_editing_cats"] = None
-            st.rerun()
-    else:
-        cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
-        if st.button(
-            cats_str,
-            key=f"tpl_cats_btn_{tpl_name}",
-            type="tertiary",
-            help="Modifier les cat\u00e9gories",
-            width="stretch",
-        ):
-            st.session_state["tpl_editing_cats"] = tpl_name
-            st.rerun()
-
-    # ── actions (hidden while renaming or editing categories) ───────────────
-    if renaming or editing_cats:
+    # ── actions (hidden while renaming) ──────────────────────────────────
+    if renaming:
         return
 
     # Local delete confirmation
@@ -317,80 +327,31 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             st.session_state.pop("confirm_del_tpl_local", None)
             st.session_state["tpl_pending_delete_local"] = None
             st.rerun()
+        return
 
-    # Remote delete confirmation
-    if st.session_state.get("tpl_pending_delete_remote") == tpl_name:
-        confirm(
-            "Supprimer de la tablette",
-            f"Supprimer {tpl_name} de la tablette ?",
-            key="confirm_del_tpl_remote",
-        )
-        result = st.session_state.get("confirm_del_tpl_remote")
-        if result is True:
-            ok, msg = remove_template_from_tablet(
-                device.ip, device.password or "", selected_name, tpl_name
-            )
-            if ok:
-                add_log(f"Template {tpl_name} supprim\u00e9 de la tablette '{selected_name}'")
-                st.toast(f"{tpl_name} supprim\u00e9 de la tablette", icon=":material/task_alt:")
-            else:
-                add_log(f"Erreur suppression distante {tpl_name}: {msg}")
-                st.toast("Erreur lors de la suppression", icon=":material/error:")
-            st.session_state.pop("confirm_del_tpl_remote", None)
-            st.session_state["tpl_pending_delete_remote"] = None
-            st.rerun()
-        elif result is False:
-            st.session_state.pop("confirm_del_tpl_remote", None)
-            st.session_state["tpl_pending_delete_remote"] = None
-            st.rerun()
-
-    action_key = f"tpl_action_{tpl_name}"
-    option_map = {
-        0: ":material/cloud_upload:",
-        1: ":material/cloud_off:",
-        2: ":material/delete:",
-    }
-
-    def on_action(_tpl_name=tpl_name, _action_key=action_key):
-        selection = st.session_state.get(_action_key)
-        if selection is None:
-            return
-        try:
-            if selection == 0:
-                ok, msg = upload_template_to_tablet(
-                    device.ip, device.password or "", selected_name, _tpl_name
-                )
-                if ok:
-                    add_log(f"Template {_tpl_name} envoy\u00e9 sur '{selected_name}'")
-                    st.toast(f"{_tpl_name} envoy\u00e9 sur {selected_name} !", icon=":material/task_alt:")
-                else:
-                    add_log(f"Erreur envoi template {_tpl_name}: {msg}")
-                    st.toast("Erreur lors de l'envoi", icon=":material/error:")
-            elif selection == 1:
-                st.session_state["tpl_pending_delete_remote"] = _tpl_name
-            elif selection == 2:
-                st.session_state["tpl_pending_delete_local"] = _tpl_name
-        finally:
-            st.session_state[_action_key] = None
-
-    st.segmented_control(
-        "Actions",
-        options=list(option_map.keys()),
-        format_func=lambda o: option_map[o],
-        key=action_key,
-        selection_mode="single",
-        label_visibility="hidden",
-        on_change=on_action,
-    )
+    # ── delete button ─────────────────────────────────────────────────────
+    if st.button(
+        ":material/delete: Supprimer",
+        key=f"tpl_del_{tpl_name}",
+        help="Supprimer ce template localement",
+        type="tertiary",
+        width="stretch",
+    ):
+        st.session_state["tpl_pending_delete_local"] = tpl_name
+        st.rerun()
 
 
 def _render_template_upload_section(selected_name, add_log):
     """Section: upload a local SVG file as a new template."""
     st.subheader("Ajouter un template", divider="rainbow")
+    # A generation counter is used to reset all form widgets after a successful
+    # save, avoiding stale values in the uploader / multiselect / text_input.
+    gen = st.session_state.get(f"tpl_upload_gen_{selected_name}", 0)
+
     uploaded_file = st.file_uploader(
         "Glisser un fichier SVG ici",
         type=["svg"],
-        key=f"tpl_uploader_{selected_name}",
+        key=f"tpl_uploader_{selected_name}_{gen}",
     )
     if not uploaded_file:
         return
@@ -399,17 +360,17 @@ def _render_template_upload_section(selected_name, add_log):
     sel_cats = st.multiselect(
         "Cat\u00e9gories existantes",
         options=all_cats,
-        key=f"tpl_new_cats_{selected_name}",
+        key=f"tpl_new_cats_{selected_name}_{gen}",
     )
     extra_cats_input = st.text_input(
         "Nouvelles cat\u00e9gories (s\u00e9par\u00e9es par virgule)",
-        key=f"tpl_new_extra_cats_{selected_name}",
+        key=f"tpl_new_extra_cats_{selected_name}_{gen}",
         placeholder="Color, Perso, ...",
     )
 
     if st.button(
         "Sauvegarder",
-        key=f"ui_tpl_save_{selected_name}",
+        key=f"ui_tpl_save_{selected_name}_{gen}",
         icon=":material/save:",
         help="Sauvegarder le template localement",
         width="stretch",
@@ -422,32 +383,103 @@ def _render_template_upload_section(selected_name, add_log):
         add_template_entry(selected_name, filename, categories)
         add_log(f"Template {filename} sauvegard\u00e9 pour '{selected_name}'")
         st.toast(f"Template sauvegard\u00e9\u00a0: {filename}", icon=":material/task_alt:")
+        # Bump the generation to reset the form on the next render.
+        st.session_state[f"tpl_upload_gen_{selected_name}"] = gen + 1
         st.rerun()
+
+
+def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
+    """Push all local SVG templates and templates.json to the tablet, restart xochitl.
+
+    Returns True on success, False if any step fails.
+    """
+    ip = device.ip
+    pw = device.password or ""
+
+    ok, msg = ensure_remote_template_dirs(ip, pw, REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR)
+    if not ok:
+        add_log(f"Sync templates — ensure dirs: {msg}")
+        return False
+
+    device_templates_dir = get_device_templates_dir(selected_name)
+    sent = upload_template_svgs(ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR)
+    if sent:
+        try:
+            run_ssh_cmd(
+                ip, pw,
+                [
+                    f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg; do "
+                    f"[ -f \"$file\" ] || continue; "
+                    f"ln -sf \"$file\" \"{REMOTE_TEMPLATES_DIR}/\"$(basename \"$file\"); "
+                    "done"
+                ],
+            )
+        except Exception as e:
+            add_log(f"Sync templates — symlinks: {e}")
+            return False
+
+    ok, msg = compare_and_backup_templates_json(ip, pw, selected_name)
+    if not ok and msg not in ("identical", "no_local"):
+        add_log(f"Sync templates — templates.json: {msg}")
+        return False
+
+    try:
+        run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
+    except Exception as e:
+        add_log(f"Sync templates — restart xochitl: {e}")
+        return False
+
+    mark_templates_synced(selected_name)
+    add_log(
+        f"Templates synchronisés sur '{selected_name}' "
+        f"({sent} SVG(s) uploadé(s), templates.json : {msg})"
+    )
+    return True
 
 
 def _render_tab_templates(selected_name, device, add_log):
     """Full templates management tab."""
     stored_templates = list_device_templates(selected_name)
 
-    if stored_templates:
-        with st.expander(
-            "Aide \u2014 Actions des templates (cliquer pour d\u00e9velopper)",
-            expanded=False,
-        ):
-            st.markdown(
-                ":material/cloud_upload: **Envoyer** \u2014 Uploader le SVG, cr\u00e9er le symlink et pousser templates.json sur la tablette  "
+    # ── sync banner (shown only when local state diverges from last sync) ──
+    if is_templates_dirty(selected_name):
+        col_warn, col_btn = st.columns([3, 1], vertical_alignment="center")
+        with col_warn:
+            st.warning(
+                "Des modifications locales ne sont pas encore synchronisées avec la tablette.",
+                icon=":material/sync:",
             )
-            st.markdown(
-                ":material/cloud_off: **Supprimer de la tablette** \u2014 Retirer le SVG et le symlink, puis mettre \u00e0 jour templates.json  "
-            )
-            st.markdown(
-                ":material/delete: **Supprimer localement** \u2014 Effacer le SVG et l'entr\u00e9e dans templates.json local  "
-            )
+        with col_btn:
+            if st.button(
+                "Synchroniser",
+                key=f"tpl_sync_{selected_name}",
+                type="primary",
+                icon=":material/sync:",
+                width="stretch",
+            ):
+                with st.spinner("Synchronisation en cours..."):
+                    ok = _sync_templates_to_tablet(selected_name, device, add_log)
+                if ok:
+                    st.toast("Templates synchronisés !", icon=":material/task_alt:")
+                else:
+                    st.toast("Erreur lors de la synchronisation", icon=":material/error:")
+                st.rerun()
 
-        cols = st.columns(4, gap="medium")
-        for idx, tpl_name in enumerate(stored_templates):
-            with cols[idx % 4]:
-                _render_template_card(tpl_name, selected_name, device, add_log)
+    if stored_templates:
+        st.subheader("Templates enregistrés", divider="rainbow")
+
+        ncols = 4
+        for row_start in range(0, len(stored_templates), ncols):
+            row_items = stored_templates[row_start:row_start + ncols]
+            cols = st.columns(ncols, gap="medium")
+            for col_idx, tpl_name in enumerate(row_items):
+                with cols[col_idx]:
+                    _render_template_card(tpl_name, selected_name, device, add_log)
+            if row_start + ncols < len(stored_templates):
+                st.divider()
+
+    else:
+        st.info("Aucun template trouvé pour cet appareil.")
 
     _render_template_upload_section(selected_name, add_log)
 
