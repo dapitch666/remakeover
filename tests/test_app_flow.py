@@ -113,7 +113,7 @@ def test_run_maintenance_flow(tmp_path):
         at.switch_page("pages/deploiement.py").run()
 
         mbtn = next(
-            (b for b in at.button if getattr(b, "label", None) == "Lancer le script complet"),
+            (b for b in at.button if getattr(b, "label", None) == "Déployer la configuration"),
             None,
         )
         assert mbtn is not None, "Maintenance button not found"
