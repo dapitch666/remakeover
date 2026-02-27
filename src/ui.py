@@ -48,7 +48,6 @@ from src.constants import (
     REMOTE_TEMPLATES_JSON,
 )
 
-from src.ui_adapter import UIAdapter as _UIAdapter
 
 def _normalise_filename(filename: str, ext: str = ".png") -> str:
     """Sanitise a filename and ensure it ends with the specified extension."""
@@ -774,46 +773,86 @@ def _render_tab_images(selected_name, device, width, height, config, save_config
 
 def _render_tab_maintenance(selected_name, device, add_log, BASE_DIR):
     imgs_available = list_device_images(selected_name)
-    has_images = bool(imgs_available)
-    image = None
-    steps = []
-    with st.expander("Ce que le script va faire : (cliquer pour développer)", expanded=False):
-        st.markdown("**Ce script va :**")
-        st.markdown("- Vérifier que le système de fichiers est writable et le remonter en lecture-écriture si nécessaire")
-        if device.preferred_image:
-            image = device.preferred_image
-            st.markdown(f"- Téléverser l'image préférée (`{image}`) comme `suspended.png` sur la tablette")
-        elif has_images:
-            image = random.choice(imgs_available)
-            st.markdown(f"- Téléverser `{image}` de la bibliothèque locale comme `suspended.png` sur la tablette (aucune image préférée définie)")
-        if image:
-            steps.append(f"Upload de l'image de veille ({image})")
-        if getattr(device, 'templates', False):
-            st.markdown("- Assurer l'existence des dossiers de templates custom sur la tablette")
-            st.markdown("- Uploader les fichiers SVG de templates locaux vers la tablette et créer les liens nécessaires")
-            st.markdown("- Sauvegarder le `templates.json` distant, le comparer avec une version locale si elle existe, et remplacer le distant par la version locale si elles diffèrent")
-            steps.append("Ajout des templates personnalisés")
-        if getattr(device, 'carousel', False):
-            st.markdown("- Désactiver le carrousel en déplaçant les illustrations actuelles dans un dossier de backup")
-            steps.append("Désactivation du carrousel")
-        st.markdown("- Redémarrer le service `xochitl` pour appliquer les changements")
-        steps.append("Redémarrage de xochitl")
 
+    # Resolve the image that will be uploaded
+    if device.preferred_image:
+        image = device.preferred_image
+        image_desc = f"image préférée (`{os.path.splitext(device.preferred_image)[0]}`)"
+    elif imgs_available:
+        image = random.choice(imgs_available)
+        image_desc = f"`{os.path.splitext(image)[0]}` (choix aléatoire, aucune image préférée)"
+    else:
+        image = None
+        image_desc = None
+
+    # ── Description block ────────────────────────────────────────────────
+    lines = ["**Ce script va :**"]
+    if image_desc:
+        lines.append(f"- Téléverser {image_desc} comme `suspended.png` sur la tablette")
+    else:
+        lines.append("- *(Aucune image locale — étape suspended.png ignorée)*")
+    if getattr(device, "templates", False):
+        lines.append(
+            "- Uploader les templates SVG locaux, créer les liens symboliques "
+            "et pousser `templates.json` sur la tablette"
+        )
+    if getattr(device, "carousel", False):
+        lines.append(
+            "- Désactiver le carrousel en déplaçant les illustrations "
+            "dans un dossier de backup"
+        )
+    lines.append("- Redémarrer `xochitl` pour appliquer les changements")
+    st.info("\n".join(lines))
+
+    # ── Run / result state ───────────────────────────────────────────────
+    result_key = f"maint_result_{selected_name}"
+    result = st.session_state.get(result_key)
+
+    if result is not None:
+        # Show outcome and offer a reset
+        if result.get("ok"):
+            st.success("Maintenance terminée avec succès.", icon=":material/task_alt:")
+        else:
+            st.error("Maintenance terminée avec des erreurs :", icon=":material/error:")
+            for e in result.get("errors", []):
+                st.markdown(f"- `{e}`")
+        if st.button(
+            "Réinitialiser",
+            key=f"maint_reset_{selected_name}",
+            icon=":material/refresh:",
+        ):
+            del st.session_state[result_key]
+            st.rerun()
+        return
+
+    # ── Launch button ────────────────────────────────────────────────────
     _, col, _ = st.columns([1, 3, 1])
     with col:
-        if st.button("Lancer le script complet", key=f"ui_launch_maintenance_{selected_name}", icon=":material/autorenew:", help="Exécuter les actions de maintenance post-mise à jour", type="primary", width='stretch'):
-            with st.status("Démarrage de la maintenance...") as status:
+        if st.button(
+            "Lancer le script complet",
+            key=f"ui_launch_maintenance_{selected_name}",
+            icon=":material/autorenew:",
+            help="Exécuter les actions de maintenance post-mise à jour",
+            type="primary",
+            width="stretch",
+        ):
+            with st.status("Maintenance en cours…", expanded=True) as status:
                 progress = st.progress(0)
-                ui = _UIAdapter(status, progress, add_log)
 
-                result = run_maintenance(selected_name, device, steps, image, ui)
+                def _step(msg: str) -> None:
+                    try:
+                        status.text(msg)
+                    except Exception:
+                        pass
 
-            if result.get("ok"):
-                ui.step("Maintenance terminée")
-                ui.progress(100)
-                ui.toast("Maintenance terminée")
-            else:
-                ui.step("Maintenance terminée (avec erreurs)")
-                ui.toast("Maintenance terminée (avec erreurs)")
-                for e in result.get('errors', []):
-                    add_log(f"Maintenance error: {e}")
+                result = run_maintenance(
+                    selected_name, device, image,
+                    step_fn=_step,
+                    progress_fn=lambda pct: progress.progress(pct),
+                    toast_fn=lambda msg: st.toast(msg, icon=":material/task_alt:"),
+                    log_fn=add_log,
+                )
+
+            st.session_state[result_key] = result
+            st.rerun()
+
