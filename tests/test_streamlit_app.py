@@ -11,13 +11,14 @@ def _empty_config(tmp_path):
     return cfg_file
 
 
-def test_main_title_present(tmp_path):
-    """App shows the main title on initial load."""
+def test_main_page_renders(tmp_path):
+    """App renders without exception on initial load (Images page shown by default)."""
     cfg_file = _empty_config(tmp_path)
     with patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}):
         at = AppTest.from_file("app.py")
         at.run()
-    assert at.title and any(t.value == "reMarkable Manager" for t in at.title)
+    assert not at.exception
+    assert at.title and any("Images" in t.value for t in at.title)
 
 
 def test_configuration_save_requires_name(tmp_path):
@@ -26,7 +27,7 @@ def test_configuration_save_requires_name(tmp_path):
     with patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}):
         at = AppTest.from_file("app.py")
         at.run()
-        at.sidebar.radio[0].set_value(":material/settings: Configuration").run()
+        at.switch_page("pages/configuration.py").run()
         at.button[0].click().run()
 
     assert at.error and any("Veuillez donner un nom" in e.value for e in at.error)

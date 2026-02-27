@@ -67,7 +67,7 @@ def test_upload_and_send_flow(tmp_path):
 
         at = AppTest.from_file("app.py")
         at.run()
-        at.selectbox[0].set_value("D1").run()
+        at.sidebar.selectbox[0].set_value("D1").run()
 
         download_btn = next(
             (b for b in at.button if getattr(b, "label", None) == "Importer depuis la tablette"),
@@ -109,7 +109,8 @@ def test_run_maintenance_flow(tmp_path):
 
         at = AppTest.from_file("app.py")
         at.run()
-        at.selectbox[0].set_value("D1").run()
+        at.sidebar.selectbox[0].set_value("D1").run()
+        at.switch_page("pages/deploiement.py").run()
 
         mbtn = next(
             (b for b in at.button if getattr(b, "label", None) == "Lancer le script complet"),
