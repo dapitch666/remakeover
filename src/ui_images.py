@@ -9,8 +9,8 @@ import src.images as _images
 import src.ssh as _ssh
 import src.dialog as _dialog
 from src.models import Device
-from src.ui_common import _normalise_filename, _send_suspended_png
-from src.constants import SUSPENDED_PNG_PATH
+from src.ui_common import _normalise_filename, _send_suspended_png, deferred_toast
+from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
 
 
 # ── Image card ────────────────────────────────────────────────────────────────
@@ -103,6 +103,8 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             if selection == 0:
                 if _send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
                     st.toast(f"{_img_name} envoyée à {selected_name} !", icon=":material/task_alt:")
+                else:
+                    st.toast(f"Erreur lors de l'envoi de {_img_name}", icon=":material/error:")
             elif selection == 1:
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
@@ -117,6 +119,8 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
         finally:
             st.session_state[_action_key] = None
 
+    #_, col, _ = st.columns([0.1, 3, 0.1])
+    #with col:
     st.segmented_control(
         "Actions",
         options=list(option_map.keys()),
@@ -125,39 +129,62 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
         selection_mode="single",
         label_visibility="hidden",
         on_change=on_action,
+        width="stretch",
     )
 
 
 def _render_upload_section(selected_name, device, width, height, config, save_config, add_log):
-    """Render the 'add an image' column: file uploader with save / send buttons."""
+    """Render the 'add an image' column: auto-save on upload, then ask to send."""
     st.subheader("Ajouter une image", divider="rainbow")
+
+    uploader_key = f"img_uploader_{selected_name}_{st.session_state.get(f'img_uploader_rev_{selected_name}', 0)}"
     uploaded_file = st.file_uploader(
         f"Glisser une image ici (sera convertie en PNG {width}x{height})",
         type=["png", "jpg", "jpeg"],
+        key=uploader_key,
     )
     if not uploaded_file:
         return
 
-    col_save, col_send = st.columns(2)
-    with col_save:
-        if st.button("Sauvegarder", key=f"ui_save_uploaded_{selected_name}", icon=":material/save:", help="Sauvegarder l'image localement"):
-            img_data = _images.process_image(uploaded_file, width, height)
-            filename = _normalise_filename(uploaded_file.name)
-            _images.save_device_image(selected_name, img_data, filename)
-            add_log(f"Image uploaded and saved: {filename} for '{selected_name}'")
-            st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
-            st.rerun()
+    # Auto-save once; guard against re-processing on every rerun with the same file
+    upload_key = f"img_last_upload_{selected_name}"
+    if st.session_state.get(upload_key) != uploaded_file.name:
+        img_data = _images.process_image(uploaded_file, width, height)
+        filename = _normalise_filename(uploaded_file.name)
+        _images.save_device_image(selected_name, img_data, filename)
+        add_log(f"Image saved locally: {filename} for '{selected_name}'")
+        deferred_toast(f"Image sauvegardée : {filename}", ":material/task_alt:")
+        st.session_state[upload_key] = uploaded_file.name
+        st.session_state[f"img_send_data_{selected_name}"] = (img_data, filename)
+        _dialog.confirm(
+            "Envoyer sur la tablette ?",
+            f"L'image a été sauvegardée localement.\nVoulez-vous aussi l'envoyer sur **{selected_name}** ?",
+            key=f"img_send_confirm_{selected_name}",
+        )
 
-    with col_send:
-        if st.button(f"Envoyer sur {selected_name}", key=f"ui_send_uploaded_{selected_name}", icon=":material/cloud_upload:", help=f"Envoyer l'image sur {selected_name} et la sauvegarder localement"):
-            img_data = _images.process_image(uploaded_file, width, height)
-            filename = _normalise_filename(uploaded_file.name)
-            _images.save_device_image(selected_name, img_data, filename)
+    def _reset_uploader():
+        """Bump the revision counter to remount the file_uploader as empty."""
+        rev_key = f"img_uploader_rev_{selected_name}"
+        st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
+        st.session_state.pop(upload_key, None)
+
+    result = st.session_state.get(f"img_send_confirm_{selected_name}")
+    if result is True:
+        img_data, filename = st.session_state.get(f"img_send_data_{selected_name}", (None, None))
+        if img_data and filename:
             if _send_suspended_png(device, img_data, filename, selected_name, add_log):
-                st.toast(f"{filename} envoyée et sauvegardée !", icon=":material/task_alt:")
-                st.rerun()
+                deferred_toast(f"{filename} envoyée sur {selected_name} !", ":material/task_alt:")
             else:
-                st.toast("Erreur lors de l'envoi", icon=":material/error:")
+                deferred_toast("Erreur lors de l'envoi.", ":material/error:")
+        st.session_state.pop(f"img_send_confirm_{selected_name}", None)
+        st.session_state.pop(f"img_send_data_{selected_name}", None)
+        _reset_uploader()
+        st.rerun()
+    elif result is False:
+        st.session_state.pop(f"img_send_confirm_{selected_name}", None)
+        st.session_state.pop(f"img_send_data_{selected_name}", None)
+        _reset_uploader()
+        st.rerun()
 
 
 # ── Page entry point ──────────────────────────────────────────────────────────
@@ -166,17 +193,34 @@ def render_page(selected_name, device, width, height, config, save_config, add_l
     stored_images = _images.list_device_images(selected_name)
 
     if stored_images:
-        with st.expander("Aide — Actions des images (cliquer pour développer)", expanded=False):
-            st.markdown(":material/cloud_upload: **Envoyer** — Mettre l'image comme écran de veille sur la tablette  ")
-            st.markdown(":material/star: **Favori** — Définir ou supprimer l'image préférée  ")
-            st.markdown(":material/delete: **Supprimer** — Effacer l'image localement  ")
+        st.markdown(
+            "Retrouvez ci-dessous toutes les images enregistrées pour cette tablette. "
+            "Cliquez sur le **nom** d'une image pour la renommer. "
+            "Les trois boutons sous chaque image permettent de l'**envoyer comme écran de veille** "
+            "(:material/cloud_upload:), de la définir comme **image préférée** (:material/star:) "
+            "— utilisée en priorité lors d'un déploiement — ou de la **supprimer** (:material/delete:). "
+            "En bas de page, vous pouvez **récupérer l'image actuellement affichée sur la tablette** "
+            "ou **ajouter une nouvelle image depuis votre ordinateur** — elle sera automatiquement "
+            "convertie au bon format et aux bonnes dimensions."
+        )
+        st.divider()
 
-        cols = st.columns(4, gap="medium")
-        for idx, img_name in enumerate(stored_images):
-            with cols[idx % 4]:
-                _render_image_card(img_name, selected_name, device, config, save_config, add_log)
+        for row_start in range(0, len(stored_images), GRID_COLUMNS):
+            row_items = stored_images[row_start:row_start + GRID_COLUMNS]
+            cols = st.columns(GRID_COLUMNS, gap="medium")
+            for col_idx, img_name in enumerate(row_items):
+                with cols[col_idx]:
+                    _render_image_card(img_name, selected_name, device, config, save_config, add_log)
+            if row_start + GRID_COLUMNS < len(stored_images):
+                st.divider()
+    else:
+        st.info(
+            "Aucune image enregistrée pour cette tablette. "
+            "Importez l'image actuellement sur la tablette ou ajoutez-en une depuis votre ordinateur ci-dessous.",
+            icon=":material/image:",
+        )
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2, gap="large")
     with col1:
         st.subheader("Récupérer l'image actuelle", divider="rainbow")
         if st.button("Importer depuis la tablette", key=f"ui_import_from_tablet_{selected_name}", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):

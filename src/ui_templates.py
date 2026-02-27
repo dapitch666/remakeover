@@ -26,9 +26,10 @@ from src.templates import (
     is_templates_dirty,
     mark_templates_synced,
 )
-from src.ui_common import _normalise_filename
+from src.ui_common import _normalise_filename, deferred_toast
 from src.constants import (
     CMD_RESTART_XOCHITL,
+    GRID_COLUMNS,
     REMOTE_CUSTOM_TEMPLATES_DIR,
     REMOTE_TEMPLATES_DIR,
     REMOTE_TEMPLATES_JSON,
@@ -223,10 +224,6 @@ def _render_template_upload_section(selected_name, add_log):
     st.subheader("Ajouter un template", divider="rainbow")
     gen = st.session_state.get(f"tpl_upload_gen_{selected_name}", 0)
 
-    pending_toast = st.session_state.pop(f"tpl_saved_toast_{selected_name}", None)
-    if pending_toast:
-        st.toast(pending_toast, icon=":material/task_alt:")
-
     uploaded_files = st.file_uploader(
         "Glisser un ou plusieurs fichiers SVG ici",
         type=["svg"],
@@ -266,9 +263,9 @@ def _render_template_upload_section(selected_name, add_log):
             add_log(f"{filename} template saved for '{selected_name}'")
             saved.append(filename)
         if len(saved) == 1:
-            st.session_state[f"tpl_saved_toast_{selected_name}"] = f"Template saved\u00a0: {saved[0]}"
+            deferred_toast(f"Template saved\u00a0: {saved[0]}", ":material/task_alt:")
         else:
-            st.session_state[f"tpl_saved_toast_{selected_name}"] = f"{len(saved)} templates saved!"
+            deferred_toast(f"{len(saved)} templates saved!", ":material/task_alt:")
         st.session_state[f"tpl_upload_gen_{selected_name}"] = gen + 1
         st.rerun()
 
@@ -279,24 +276,23 @@ def render_page(selected_name, device, add_log):
     backup_path = get_device_templates_backup_path(selected_name)
     if not os.path.exists(backup_path):
         st.warning(
-            "Aucun fichier de référence (`templates.backup.json`) n'a été trouvé. "
-            "Veuillez d'abord récupérer le fichier `templates.json` depuis la tablette. "
-            "Il servira de base pour composer la liste locale des templates.",
+            "La liste des templates de cette tablette n'a pas encore été importée. "
+            "Allumez la tablette et cliquez sur le bouton ci-dessous pour démarrer.",
             icon=":material/backup:",
         )
         if st.button(
-            "Récupérer les templates depuis la tablette",
+            "Importer les templates depuis la tablette",
             key=f"tpl_fetch_backup_{selected_name}",
             type="primary",
             icon=":material/download:",
         ):
-            with st.spinner("Téléchargement de templates.json depuis la tablette…"):
+            with st.spinner("Importation en cours…"):
                 ok, msg = fetch_and_init_templates(
                     device.ip, device.password or "", selected_name
                 )
             if ok:
                 add_log(f"Templates initialisés pour '{selected_name}' : {msg}")
-                st.toast("Templates récupérés et initialisés !", icon=":material/task_alt:")
+                deferred_toast("Templates importés avec succès !", ":material/task_alt:")
                 st.rerun()
             else:
                 add_log(f"Erreur init templates pour '{selected_name}' : {msg}")
@@ -323,13 +319,13 @@ def render_page(selected_name, device, add_log):
                 with st.spinner("Synchronisation en cours..."):
                     ok = _sync_templates_to_tablet(selected_name, device, add_log)
                 if ok:
-                    st.toast("Templates synchronisés !", icon=":material/task_alt:")
+                    deferred_toast("Templates synchronisés !", ":material/task_alt:")
                 else:
-                    st.toast("Erreur lors de la synchronisation", icon=":material/error:")
+                    deferred_toast("Erreur lors de la synchronisation", ":material/error:")
                 st.rerun()
 
     if stored_templates:
-        col_title, col_sort = st.columns([2, 2], vertical_alignment="center")
+        col_title, col_sort = st.columns([2, 1], vertical_alignment="center")
         with col_title:
             st.subheader("Templates enregistrés", divider="rainbow")
         with col_sort:
@@ -349,14 +345,13 @@ def render_page(selected_name, device, add_log):
                 return (cats[0].lower() if cats else "\xff", f.lower())
             stored_templates = sorted(stored_templates, key=_cat_key)
 
-        ncols = 4
-        for row_start in range(0, len(stored_templates), ncols):
-            row_items = stored_templates[row_start:row_start + ncols]
-            cols = st.columns(ncols, gap="medium")
+        for row_start in range(0, len(stored_templates), GRID_COLUMNS):
+            row_items = stored_templates[row_start:row_start + GRID_COLUMNS]
+            cols = st.columns(GRID_COLUMNS, gap="medium")
             for col_idx, tpl_name in enumerate(row_items):
                 with cols[col_idx]:
                     _render_template_card(tpl_name, selected_name, device, add_log)
-            if row_start + ncols < len(stored_templates):
+            if row_start + GRID_COLUMNS < len(stored_templates):
                 st.divider()
     else:
         st.info("Aucun template trouvé pour cet appareil.")

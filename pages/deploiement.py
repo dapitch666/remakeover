@@ -1,8 +1,10 @@
 import streamlit as st
 from src.models import Device
+from src.ui_common import rainbow_divider
 from src.ui_deploiement import render_page
 
 st.title(":material/rocket_launch: Déploiement")
+rainbow_divider()
 
 config = st.session_state.get("config", {})
 add_log = st.session_state.get("add_log", lambda msg: None)

@@ -7,10 +7,12 @@ import streamlit as st
 
 import src.dialog as _dialog
 from src.config import get_device_data_dir
+from src.ui_common import rainbow_divider
 
 
 def render_page(config, save_config, add_log, resolve_device_type, DEFAULT_DEVICE_TYPE):
     st.title(":material/settings: Configuration des appareils")
+    rainbow_divider()
 
     if st.session_state.get("config_saved_name"):
         saved_name = st.session_state.pop("config_saved_name")

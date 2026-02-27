@@ -44,3 +44,10 @@ CMD_CAROUSEL_BACKUP_DIR = f"mkdir -p {REMOTE_CAROUSEL_BACKUP_DIR}"
 CMD_CAROUSEL_DISABLE = (
     f"mv {REMOTE_CAROUSEL_DIR}/*.png {REMOTE_CAROUSEL_BACKUP_DIR}/ 2>/dev/null || true"
 )
+
+# ---------------------------------------------------------------------------
+# UI layout
+# ---------------------------------------------------------------------------
+
+# Number of columns in the image / template grid
+GRID_COLUMNS = 5

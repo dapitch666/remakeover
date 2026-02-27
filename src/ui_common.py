@@ -2,16 +2,54 @@
 
 import os
 
+import streamlit as st
 import src.ssh as _ssh
+
+_DEFERRED_TOAST_KEY = "_deferred_toast"
+
+
+def deferred_toast(msg: str, icon: str | None = None) -> None:
+    """Queue a toast to be displayed on the next rerun via show_deferred_toast()."""
+    st.session_state[_DEFERRED_TOAST_KEY] = {"msg": msg, "icon": icon}
+
+
+def show_deferred_toast() -> None:
+    """Display and clear any queued deferred toast. Call once per rerun at app level."""
+    toast = st.session_state.pop(_DEFERRED_TOAST_KEY, None)
+    if toast:
+        st.toast(toast["msg"], icon=toast["icon"])
+
+
+def rainbow_divider():
+    """Render a thin rainbow gradient rule beneath a page title."""
+    st.html(
+        '<hr style="'
+        "height: 3px; border: none; margin-bottom: 3rem;"
+        " background: linear-gradient("
+        "   to right, #e63946, #f4a261, #e9c46a, #52b788, #4895ef, #7b2d8b"
+        ");"
+        '">'
+    )
 from src.constants import SUSPENDED_PNG_PATH, CMD_RESTART_XOCHITL
 
 
+_KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp"}
+
+
 def _normalise_filename(filename: str, ext: str = ".png") -> str:
-    """Sanitise a filename and ensure it ends with the specified extension."""
+    """Sanitise a filename and ensure it ends with the specified extension.
+
+    Only strips an existing suffix when it is a recognised file extension,
+    so that dots inside a user-supplied base name (e.g. ``alice.et.merlin``)
+    are preserved rather than being mistakenly treated as an extension.
+    """
     filename = filename.replace(" ", "_")
-    if not filename.endswith(ext):
-        filename = os.path.splitext(filename)[0] + ext
-    return filename
+    if filename.lower().endswith(ext.lower()):
+        return filename
+    current_ext = os.path.splitext(filename)[1].lower()
+    if current_ext in _KNOWN_EXTENSIONS:
+        filename = os.path.splitext(filename)[0]
+    return filename + ext
 
 
 def _send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:

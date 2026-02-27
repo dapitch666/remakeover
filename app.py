@@ -35,9 +35,13 @@ def _read_version():
 def _inject_css():
     st.html(
         "<style>"
-        "[data-testid='stSidebarNavLink'] span {"
-        "    font-size: 1.1rem !important;"
-        "}"
+        "   [data-testid='stSidebarNavLink'] span {"
+        "       font-size: 1.1rem;"
+        "   }"
+        "   .block-container {"
+        "       max-width: 65rem;"
+        "       padding-top: 3rem;"
+        "   }"
         "</style>"
     )
 
@@ -46,12 +50,13 @@ def _sidebar_version(version):
     if not version:
         return
     html = (
-        f'<div style="position:fixed;left:20px;bottom:8px;font-size:12px;">'
-        f'<a href="https://github.com/dapitch666/rm-manager" target="_blank" '
-        f'style="color:rgba(0,0,0,0.6);text-decoration:none;">'
-        f"rm-manager - version {version}</a></div>"
+        f'<div style="position:fixed;left:20px;bottom:8px">'
+        f'  <a href="https://github.com/dapitch666/rm-manager" target="_blank">'
+        f'      rm-manager - version {version}'
+        f'  </a>'
+        f'</div>'
     )
-    st.sidebar.html(html)
+    st.sidebar.caption(html, unsafe_allow_html=True)
 
 
 
@@ -161,6 +166,9 @@ def main():
     _inject_css()
     _sidebar_version(_read_version())
     _debug_overlay()
+
+    from src.ui_common import show_deferred_toast
+    show_deferred_toast()
 
     pg.run()
 
