@@ -9,6 +9,4 @@ services:
     volumes:
       # Persiste la configuration et les données
       - ./data:/app/data
-      # Persiste les clés SSH (à créer avant le lancement)
-      - ./data/ssh_keys:/app/ssh_keys
     restart: unless-stopped

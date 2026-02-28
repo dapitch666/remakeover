@@ -9,6 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copie du code de l'application
 COPY app.py .
 COPY assets ./assets
+COPY pages ./pages
+COPY src ./src
 COPY VERSION .
 
 # Exposition du port Streamlit

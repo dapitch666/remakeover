@@ -1,32 +1,34 @@
 RELEASING
-========
+=========
 
-But
-----
-Procédure rapide pour tagger, publier l'image Docker via GitHub Actions et bonnes pratiques de versioning.
+Overview
+--------
+Quick procedure for tagging, publishing the Docker image via GitHub Actions, and versioning best practices.
 
-Tagging et push
-----------------
+Tagging and pushing
+-------------------
 
-Créer le tag annoté localement et le pousser :
+Create an annotated tag locally and push it:
 
 ```bash
-# créer un tag annoté
+# create an annotated tag
 git tag -a v0.6.0 -m "Release v0.6.0"
-# pousser le tag vers l'origine
+# push the tag to origin
 git push origin v0.6.0
 ```
 
-Le push du tag déclenchera le workflow `Build and publish Docker image` qui :
-- détermine la version (étiquette sans le préfixe `v`),
-- construit l'image via `docker/build-push-action`,
-- pousse `ghcr.io/<OWNER>/rm-manager:<version>` et `...:latest`.
+Pushing the tag will trigger the `Build and publish Docker image` workflow, which:
+- determines the version (tag name without the `v` prefix),
+- builds the image via `docker/build-push-action`,
+- pushes `ghcr.io/<OWNER>/rm-manager:<version>` and `...:latest`.
+
+The workflow can also be triggered manually from GitHub Actions (`workflow_dispatch`) with an optional version override.
 
 Keeping `VERSION`
-------------------
+-----------------
 
-- Le fichier `VERSION` existe pour usage local. Le workflow se base sur le tag Git.
-- Optionnel : mettre à jour `VERSION` avant de tagger pour cohérence :
+- The `VERSION` file is for local use only. The workflow derives the version from the Git tag.
+- Optional: update `VERSION` before tagging for consistency:
 
 ```bash
 echo "0.6.0" > VERSION
@@ -36,66 +38,69 @@ git tag -a v0.6.0 -m "Release v0.6.0"
 git push origin main --follow-tags
 ```
 
-Publier des notes de release
----------------------------
+Publishing release notes
+------------------------
 
-- Après push du tag, créez une Release sur GitHub (UI) ou via `gh` pour ajouter des notes/CHANGELOG.
+- After pushing the tag, create a Release on GitHub (UI) or via `gh` to add notes/CHANGELOG.
 
-Règles de publication recommandées
----------------------------------
+Recommended publishing rules
+-----------------------------
 
-- Utiliser SemVer (`vMAJOR.MINOR.PATCH`).
-- Publier des images Docker uniquement pour des tags de release (`v*`).
-- Laisser `latest` pointer vers la dernière release stable.
-- Pour builds fréquents (CI/main) ajouter un workflow distinct qui construit mais n'upload pas, ou qui publie des images `snapshot`/`nightly` avec un tag daté (`snapshot-YYYYMMDD`).
+- Use SemVer (`vMAJOR.MINOR.PATCH`).
+- Publish Docker images only for release tags (`v*`).
+- Keep `latest` pointing to the last stable release.
+- A separate CI workflow (`.github/workflows/ci.yml`) runs on every push/PR and executes the tests without pushing any Docker image.
 
-Dépannage rapide
------------------
-
-- Vérifier Actions → Runs pour voir les logs du workflow.
-- Vérifier que `packages: write` est autorisé (workflow permissions) et que l'organisation autorise Actions à publier des packages.
-- Si push vers GHCR échoue, envisager un PAT temporaire (`write:packages`) pour isoler le problème.
-
-Questions fréquentes
--------------------
-
-- Q: "Dois‑je mettre `VERSION` à jour ?" — Non strictement nécessaire si vous taggez, mais c'est utile pour cohérence locale.
-- Q: "Puis‑je builder depuis `main` ?" — Oui, mais séparez builds nightly et releases (tag → publish).
-
-Versioning & CHANGELOG
-----------------------
-
-- **SemVer** : respectez `MAJOR.MINOR.PATCH`.
-  - **MAJOR** : breaking changes.
-  - **MINOR** : nouvelles fonctionnalités rétro‑compatibles.
-  - **PATCH** : corrections et petits fixes.
-
-- **Pré‑releases** : utilisez des suffixes `-rc.N`, `-beta.N` (ex: `v1.2.0-rc.1`). Décidez si vous publiez des images pour ces tags.
-
-- **CHANGELOG** : maintenez `CHANGELOG.md` ou générez automatiquement via :
-  - `Release Drafter` (prépare notes de release depuis PRs),
-  - `semantic-release` (génère changelog et publie automatiquement, basé sur Conventional Commits),
-  - scripts maison (collecte PR titles/labels).
-
-- **Procédure recommandée** :
-  1. Mettre à jour `CHANGELOG.md` et `VERSION` (optionnel).
-  2. Commit + tag annoté : `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
-  3. `git push origin vX.Y.Z` → Actions publie l'image.
-
-- **Politique de publication** :
-  - Publier seulement pour tags officiels.
-  - Ne pas réécrire des tags publics (préférer une nouvelle version).
-  - Pour tests, utiliser tags `snapshot-YYYYMMDD` plutôt que réutiliser `latest`.
-
-- **Automatisation** :
-  - Intégrer `Release Drafter` pour draft automatique des Releases.
-  - Option : `semantic-release` pour automatiser bump/versioning/changelog (impose des conventions sur les messages de commit).
-
-Exemples de commandes
+Quick troubleshooting
 ---------------------
 
+- Check Actions → Runs to view workflow logs.
+- Verify that `packages: write` is granted (workflow permissions) and that the organisation allows Actions to publish packages.
+- If the push to GHCR fails, consider using a temporary PAT (`write:packages`) to isolate the issue.
+
+FAQ
+---
+
+- Q: “Do I need to update `VERSION`?” — Not strictly necessary if you tag, but helpful for local consistency.
+- Q: “Can I build from `main`?” — Yes, but keep nightly builds and releases separate (tag → publish).
+
+Versioning & CHANGELOG
+-----------------------
+
+- **SemVer**: follow `MAJOR.MINOR.PATCH`.
+  - **MAJOR**: breaking changes.
+  - **MINOR**: new backwards-compatible features.
+  - **PATCH**: bug fixes and small corrections.
+
+- **Pre-releases**: use suffixes `-rc.N`, `-beta.N` (e.g. `v1.2.0-rc.1`). Decide whether to publish images for these tags.
+
+- **CHANGELOG**: maintain `CHANGELOG.md` or generate it automatically via:
+  - `Release Drafter` (drafts release notes from PRs),
+  - `semantic-release` (generates changelog and publishes automatically, based on Conventional Commits),
+  - custom scripts (collects PR titles/labels).
+
+- **Recommended procedure**:
+  1. Update `CHANGELOG.md` and `VERSION` (optional).
+  2. Commit + annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
+  3. `git push origin vX.Y.Z` → Actions publishes the image.
+
+- **Publishing policy**:
+  - Publish only for official tags.
+  - Do not rewrite public tags (prefer a new version instead).
+  - For testing, use `snapshot-YYYYMMDD` tags rather than reusing `latest`.
+
+- **Automation**:
+  - Integrate `Release Drafter` for automatic Release drafts.
+  - Option: `semantic-release` to automate bump/versioning/changelog (requires Conventional Commits discipline).
+
+Example commands
+----------------
+
 ```bash
-# Bump VERSION, commit, tag and push
+# Use the provided script (recommended)
+./scripts/bump_version.sh minor --commit --push
+
+# OR manually
 echo "1.2.3" > VERSION
 git add VERSION CHANGELOG.md
 git commit -m "Release: bump to 1.2.3"
@@ -103,4 +108,4 @@ git tag -a v1.2.3 -m "Release v1.2.3"
 git push origin v1.2.3
 ```
 
-Fin.
+The `bump_version.sh` script accepts `major`, `minor`, or `patch` and automatically handles updating `VERSION`, committing, creating an annotated tag, and pushing (`--commit`, `--push`).

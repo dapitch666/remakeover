@@ -1,127 +1,141 @@
 # reMarkable Manager
 
-Application web pour gérer plusieurs tablettes reMarkable (Paper Pro, Paper Pro Move, etc.)
+Web application to manage multiple reMarkable tablets (Paper Pro, Paper Pro Move, reMarkable 2, etc.).
+
+Connects over SSH using a password — no SSH keys required.
 
 ## 🚀 Installation
 
-### Prérequis
-- Docker et Docker Compose installés (pour production)
-- OU Python 3.11+ (pour développement local)
-- Les clés SSH de vos tablettes reMarkable
-
-## 🛠️ Développement local (sans Docker)
-
-### Installation rapide
-```bash
-# Installer les dépendances
-pip install -r requirements.txt
-
-# Créer les dossiers nécessaires (si pas déjà créés)
-mkdir -p data/ssh_keys
-
-# Copier vos clés SSH
-cp ~/.ssh/id_rsa_remarkable_pro data/ssh_keys/id_rsa_paper_pro
-cp ~/.ssh/id_rsa_remarkable_move data/ssh_keys/id_rsa_move
-chmod 600 data/ssh_keys/*
-
-# Lancer l'application
-streamlit run app.py
-# OU utiliser le script
-./run_local.sh
-```
-
-L'application sera accessible sur http://localhost:8501
-
-**En mode local, tous les fichiers sont stockés dans `./data/` à côté de votre code.**
+### Requirements
+- Docker and Docker Compose (for production)
+- OR Python 3.11+ (for local development)
 
 ---
 
-## 🐳 Installation Docker (production)
+## 🛠️ Local development (without Docker)
 
-1. **Créer le dossier pour les clés SSH** :
 ```bash
-mkdir -p data/ssh_keys
+# Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate   # macOS / Linux
+# .venv\Scripts\activate    # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the application
+streamlit run app.py
 ```
 
-2. **Copier vos clés SSH** :
-Placez vos clés SSH privées dans `data/ssh_keys/`. Par exemple :
-- `data/ssh_keys/id_rsa_paper_pro` (clé pour la Paper Pro)
-- `data/ssh_keys/id_rsa_move` (clé pour la Move)
+The application will be available at http://localhost:8501
+
+**In local mode, all files are stored in `./data/` next to your code.**
+
+---
+
+## 🐳 Docker installation (production)
 
 ```bash
-cp ~/.ssh/id_rsa_remarkable_pro data/ssh_keys/id_rsa_paper_pro
-cp ~/.ssh/id_rsa_remarkable_move data/ssh_keys/id_rsa_move
-chmod 600 data/ssh_keys/*
-```
-
-3. **Lancer l'application** :
-```bash
+# Build and start the container
 docker-compose up -d
 ```
 
-4. **Accéder à l'interface** :
-Ouvrez votre navigateur sur http://localhost:8501
+Open your browser at http://localhost:8501
+
+---
 
 ## ⚙️ Configuration
 
-### Première utilisation
-1. Allez dans l'onglet **Configuration** (barre latérale)
-2. Les deux appareils par défaut sont déjà configurés
-3. Modifiez les paramètres selon vos besoins :
-   - **Adresse IP** : IP de votre tablette (USB ou Wi-Fi)
-   - **Nom du fichier clé SSH** : nom du fichier dans `data/ssh_keys/`
-   - **Dimensions suspended.png** : 
-     - Paper Pro: 1620 x 2160
-     - Paper Pro Move: 1404 x 1872
-   - **Templates** et **Carousel** : activer/désactiver selon vos besoins
+### First-time setup
+1. Go to **⚙️ Configuration** (sidebar)
+2. Select "-- Create a new device --"
+3. Fill in the fields:
+   - **Name**: a free-form label to identify the device
+   - **IP address**: the tablet's IP (USB or Wi-Fi)
+   - **SSH password**: the tablet's root password (visible in Settings > Help > About)
+   - **Tablet type**: select from the supported models
+   - **Enable templates** / **Disable carousel**: as needed
+4. Click **Save**
 
-### Ajouter un nouvel appareil
-1. Dans Configuration, sélectionnez "-- Créer un nouvel appareil --"
-2. Remplissez les informations
-3. Placez la clé SSH correspondante dans `data/ssh_keys/`
-4. Sauvegardez
+### Supported models and sleep-screen dimensions
 
-### Structure des données
+| Model | Resolution |
+|---|---|
+| reMarkable 2 | 1404 × 1872 |
+| reMarkable Paper Pro | 1620 × 2160 |
+| reMarkable Paper Pro Move | 954 × 1696 |
+
+Imported images are automatically converted and resized to the correct format.
+
+### Data structure
+
 ```
 data/
-├── config.json           # Configuration des appareils (créé automatiquement)
-└── ssh_keys/             # Vos clés SSH privées
-    ├── id_rsa_paper_pro
-    └── id_rsa_move
+├── config.json             # Device configuration (created automatically)
+├── MyDevice/               # One sub-folder per device
+│   ├── images/             # Sleep-screen images saved locally
+│   ├── templates/          # Local SVG templates
+│   ├── templates.json      # Local template index
+│   └── templates.backup.json  # Backup of the remote templates.json
+└── ...
 ```
 
-## 📝 Utilisation
+---
 
-### Changer l'écran de veille
-1. Sélectionnez votre tablette dans la liste
-2. Glissez une image (PNG, JPG, JPEG)
-3. L'image sera automatiquement redimensionnée selon la configuration
-4. Cliquez sur "Envoyer l'image"
+## 📝 Application pages
 
-### Maintenance après mise à jour
-Utilisez le bouton "Lancer le script complet" pour :
-- Sauvegarder les illustrations du carousel
-- Redémarrer xochitl
+### 🖼️ Images
+Manage sleep-screen images (`suspended.png`):
+- **Import** the image currently on the tablet
+- **Add** a new image from your computer (PNG, JPG, JPEG — resized automatically)
+- **Send** an image directly to the tablet
+- **Set a preferred image** (used first during a deployment)
+- **Rename** or **delete** local images
 
-## 🔧 Commandes utiles
+### 📄 Templates
+Manage custom SVG templates:
+- **Import** templates from the tablet (initial setup)
+- **Add** new SVG templates
+- **Edit categories** for each template
+- **Rename** or **delete** templates
+- **Sync** changes to the tablet
+
+### 🚀 Deployment
+Re-deploy your configuration after a firmware update (which resets all customisations):
+- Sends the preferred sleep-screen image (or a random one)
+- Deploys SVG templates and updates `templates.json`
+- Disables the carousel (moves stock illustrations to a backup folder)
+- Restarts `xochitl` to apply the changes
+
+### ⚙️ Configuration
+Add, edit, or delete devices.
+
+### 📋 Logs
+View the history of operations for the current session.
+
+---
+
+## 🔧 Useful commands
 
 ```bash
-# Arrêter l'application
+# Stop the application
 docker-compose down
 
-# Voir les logs
+# View container logs
 docker-compose logs -f
 
-# Reconstruire après modification du code
+# Rebuild after code changes
 docker-compose up -d --build
 
-# Sauvegarder votre configuration
-cp data/config.json config.json.backup
+# Run the tests
+pytest
+
+# Back up your data
+cp -r data/ data.backup/
 ```
 
-## 📌 Notes importantes
+## 📌 Important notes
 
-- La configuration est stockée dans `data/config.json`
-- Les clés SSH ne sont JAMAIS incluses dans le container
-- Tout est persisté localement dans le dossier `data/`
-- Vous pouvez sauvegarder uniquement le dossier `data/` pour conserver toute votre configuration
+- Configuration and data are persisted in `data/` — back up this folder
+- The SSH connection uses the tablet's root password, visible in **Settings > Help > About > Copyrights and licences**
+- Developer mode is not required on recent models
