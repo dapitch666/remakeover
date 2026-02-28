@@ -7,6 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copie du code de l'application
+COPY .streamlit ./.streamlit
 COPY app.py .
 COPY assets ./assets
 COPY pages ./pages
