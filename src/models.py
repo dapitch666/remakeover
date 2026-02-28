@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 
+from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE
+
 
 @dataclass
 class Device:
@@ -43,8 +45,17 @@ class Device:
             d["preferred_image"] = self.preferred_image
         return d
 
-    def resolve_type(self, device_sizes: Dict[str, Any], default: str) -> str:
-        """Return the device type string if known, otherwise the provided default."""
+    def resolve_type(
+        self,
+        device_sizes: Dict[str, Any] = DEVICE_SIZES,
+        default: str = DEFAULT_DEVICE_TYPE,
+    ) -> str:
+        """Return the device type string if known, otherwise *default*.
+
+        Both arguments are optional: when called without arguments the
+        canonical ``DEVICE_SIZES`` catalogue and ``DEFAULT_DEVICE_TYPE``
+        are used automatically.
+        """
         if self.device_type in device_sizes:
             return self.device_type
         return default

@@ -4,11 +4,11 @@ from datetime import datetime
 
 from src.config import (
     BASE_DIR,
-    DEFAULT_DEVICE_TYPE,
     load_config,
     save_config,
     resolve_device_type,
 )
+from src.constants import DEFAULT_DEVICE_TYPE
 
 
 # ── Session logging helper ────────────────────────────────────────────────────

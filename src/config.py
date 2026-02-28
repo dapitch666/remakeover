@@ -8,6 +8,8 @@ import os
 import json
 from typing import Dict, Any, Optional
 
+from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE  # re-exported for back-compat
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -35,17 +37,6 @@ def get_device_data_dir(device_name: str) -> str:
 def _active_config_path() -> str:
     """Return the config path, honouring RM_CONFIG_PATH at call time."""
     return os.environ.get("RM_CONFIG_PATH") or CONFIG_PATH
-
-# ---------------------------------------------------------------------------
-# Device catalogue
-# ---------------------------------------------------------------------------
-
-DEVICE_SIZES: Dict[str, tuple] = {
-    "reMarkable 2": (1404, 1872),
-    "reMarkable Paper Pro": (1620, 2160),
-    "reMarkable Paper Pro Move": (954, 1696),
-}
-DEFAULT_DEVICE_TYPE: str = "reMarkable Paper Pro"
 
 # ---------------------------------------------------------------------------
 # Display helpers

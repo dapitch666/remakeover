@@ -9,6 +9,7 @@ import src.images as _images
 import src.ssh as _ssh
 import src.dialog as _dialog
 from src.models import Device
+from src.constants import DEVICE_SIZES
 from src.ui_common import rainbow_divider, _normalise_filename, _send_suspended_png, deferred_toast
 from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
 
@@ -131,8 +132,10 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
     )
 
 
-def _render_upload_section(selected_name, device, width, height, config, save_config, add_log):
+def _render_upload_section(selected_name, device, add_log):
     """Render the 'add an image' column: auto-save on upload, then ask to send."""
+    width, height = DEVICE_SIZES[device.resolve_type()]
+
     st.subheader("Ajouter une image", divider="rainbow")
 
     uploader_key = f"img_uploader_{selected_name}_{st.session_state.get(f'img_uploader_rev_{selected_name}', 0)}"
@@ -257,4 +260,4 @@ with col1:
             add_log(f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}")
 
 with col2:
-    _render_upload_section(selected_name, device, 1620, 2160, config, save_config, add_log)
+    _render_upload_section(selected_name, device, add_log)
