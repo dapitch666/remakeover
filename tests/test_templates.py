@@ -10,11 +10,26 @@ import src.templates as tpl
 
 DEVICE = "TestDevice"
 SVG_CONTENT = b"<svg><rect width='100' height='100'/></svg>"
-JSON_STOCK = json.dumps({"templates": [{"name": "Blank", "filename": "Blank", "iconCode": "\ue9fe", "categories": ["Lines"]}]}).encode()
-JSON_LOCAL = json.dumps({"templates": [
-    {"name": "Blank", "filename": "Blank", "iconCode": "\ue9fe", "categories": ["Lines"]},
-    {"name": "MyColor", "filename": "MyColor", "iconCode": "\ue9fe", "categories": ["Color"]},
-]}).encode()
+JSON_STOCK = json.dumps(
+    {
+        "templates": [
+            {"name": "Blank", "filename": "Blank", "iconCode": "\ue9fe", "categories": ["Lines"]}
+        ]
+    }
+).encode()
+JSON_LOCAL = json.dumps(
+    {
+        "templates": [
+            {"name": "Blank", "filename": "Blank", "iconCode": "\ue9fe", "categories": ["Lines"]},
+            {
+                "name": "MyColor",
+                "filename": "MyColor",
+                "iconCode": "\ue9fe",
+                "categories": ["Color"],
+            },
+        ]
+    }
+).encode()
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +41,7 @@ def _patch_data_dir(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 # Local file helpers
 # ---------------------------------------------------------------------------
+
 
 class TestLocalFileHelpers:
     def test_get_device_templates_dir_creates_dir(self, tmp_path):
@@ -82,6 +98,7 @@ class TestLocalFileHelpers:
 # JSON management
 # ---------------------------------------------------------------------------
 
+
 class TestStem:
     def test_strips_svg(self):
         assert tpl._stem("MyFile.svg") == "MyFile"
@@ -100,7 +117,9 @@ class TestJsonHelpers:
         assert data == {"templates": []}
 
     def test_save_and_load_roundtrip(self):
-        original = {"templates": [{"name": "X", "filename": "X", "iconCode": "\ue9fe", "categories": []}]}
+        original = {
+            "templates": [{"name": "X", "filename": "X", "iconCode": "\ue9fe", "categories": []}]
+        }
         tpl.save_templates_json(DEVICE, original)
         assert tpl.load_templates_json(DEVICE) == original
 
@@ -183,6 +202,7 @@ class TestJsonHelpers:
 # Remote helpers
 # ---------------------------------------------------------------------------
 
+
 class TestCompareAndBackupTemplatesJson:
     def test_identical_returns_identical(self, tmp_path):
         # Write the same content locally and pretend remote returns it too
@@ -203,8 +223,10 @@ class TestCompareAndBackupTemplatesJson:
         with open(tpl_json_path, "wb") as f:
             f.write(JSON_LOCAL)
 
-        with patch("src.templates.download_file_ssh", return_value=JSON_STOCK), \
-             patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_upload:
+        with (
+            patch("src.templates.download_file_ssh", return_value=JSON_STOCK),
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_upload,
+        ):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
 
         assert ok is True
@@ -233,8 +255,10 @@ class TestCompareAndBackupTemplatesJson:
         with open(tpl_json_path, "wb") as f:
             f.write(JSON_LOCAL)
 
-        with patch("src.templates.download_file_ssh", return_value=JSON_STOCK), \
-             patch("src.templates.upload_file_ssh", return_value=(False, "disk full")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=JSON_STOCK),
+            patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
+        ):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
 
         assert ok is False
@@ -249,8 +273,10 @@ class TestUploadTemplateToTablet:
 
     def test_happy_path(self, tmp_path):
         self._setup_svg(tmp_path)
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up, \
-             patch("src.templates.run_ssh_cmd") as mock_cmd:
+        with (
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
+            patch("src.templates.run_ssh_cmd") as mock_cmd,
+        ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
 
         assert ok is True
@@ -268,8 +294,10 @@ class TestUploadTemplateToTablet:
 
     def test_symlink_failure(self, tmp_path):
         self._setup_svg(tmp_path)
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")), \
-             patch("src.templates.run_ssh_cmd", side_effect=Exception("bash error")):
+        with (
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.templates.run_ssh_cmd", side_effect=Exception("bash error")),
+        ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is False
         assert "symlink_failed" in msg
@@ -277,8 +305,10 @@ class TestUploadTemplateToTablet:
     def test_json_upload_failure(self, tmp_path):
         self._setup_svg(tmp_path)
         # First call (SVG) succeeds, second call (json) fails
-        with patch("src.templates.upload_file_ssh", side_effect=[(True, "ok"), (False, "error")]), \
-             patch("src.templates.run_ssh_cmd"):
+        with (
+            patch("src.templates.upload_file_ssh", side_effect=[(True, "ok"), (False, "error")]),
+            patch("src.templates.run_ssh_cmd"),
+        ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is False
         assert "upload_json_failed" in msg
@@ -293,8 +323,10 @@ class TestUploadTemplateToTablet:
         """If templates.json doesn't exist, only the SVG upload and symlink are done."""
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
         # no templates.json written
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up, \
-             patch("src.templates.run_ssh_cmd"):
+        with (
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
+            patch("src.templates.run_ssh_cmd"),
+        ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is True
         assert mock_up.call_count == 1  # only SVG, no json push
@@ -307,8 +339,10 @@ class TestRemoveTemplateFromTablet:
 
     def test_happy_path(self, tmp_path):
         self._setup(tmp_path)
-        with patch("src.templates.run_ssh_cmd") as mock_cmd, \
-             patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up:
+        with (
+            patch("src.templates.run_ssh_cmd") as mock_cmd,
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
+        ):
             ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is True
         assert msg == "ok"
@@ -324,8 +358,10 @@ class TestRemoveTemplateFromTablet:
 
     def test_json_upload_failure(self, tmp_path):
         self._setup(tmp_path)
-        with patch("src.templates.run_ssh_cmd"), \
-             patch("src.templates.upload_file_ssh", return_value=(False, "io error")):
+        with (
+            patch("src.templates.run_ssh_cmd"),
+            patch("src.templates.upload_file_ssh", return_value=(False, "io error")),
+        ):
             ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is False
         assert "upload_json_failed" in msg
@@ -333,8 +369,10 @@ class TestRemoveTemplateFromTablet:
     def test_no_local_json_skips_json_push(self, tmp_path):
         """If templates.json doesn't exist, only the rm command is issued."""
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        with patch("src.templates.run_ssh_cmd") as mock_cmd, \
-             patch("src.templates.upload_file_ssh") as mock_up:
+        with (
+            patch("src.templates.run_ssh_cmd") as mock_cmd,
+            patch("src.templates.upload_file_ssh") as mock_up,
+        ):
             ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is True
         mock_cmd.assert_called_once()

@@ -1,16 +1,17 @@
 """Unit tests for src.maintenance.run_maintenance."""
 
-import pytest
 from contextlib import ExitStack
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from src.maintenance import run_maintenance
 from src.models import Device
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _callbacks():
     """Return keyword callables for step_fn, progress_fn, toast_fn, log_fn."""
@@ -23,12 +24,15 @@ def _callbacks():
 
 
 def _device(templates=False, carousel=False, preferred_image=None):
-    dev = Device.from_dict("D1", {
-        "ip": "1.2.3.4",
-        "password": "pw",
-        "templates": templates,
-        "carousel": carousel,
-    })
+    dev = Device.from_dict(
+        "D1",
+        {
+            "ip": "1.2.3.4",
+            "password": "pw",
+            "templates": templates,
+            "carousel": carousel,
+        },
+    )
     dev.preferred_image = preferred_image
     return dev
 
@@ -42,12 +46,16 @@ def _base_patches(
     return [
         patch("src.maintenance.load_device_image", return_value=load_image_data),
         patch("src.maintenance.list_device_images", return_value=[]),
-        patch("src.maintenance.upload_file_ssh",
-              return_value=(upload_ok, "ok" if upload_ok else "err")),
+        patch(
+            "src.maintenance.upload_file_ssh",
+            return_value=(upload_ok, "ok" if upload_ok else "err"),
+        ),
         patch("src.maintenance.run_ssh_cmd", return_value=run_cmd_out),
         patch("src.maintenance.ensure_remote_template_dirs", return_value=(True, "ok")),
         patch("src.maintenance.upload_template_svgs", return_value=0),
-        patch("src.maintenance.compare_and_backup_templates_json", return_value=(True, "identical")),
+        patch(
+            "src.maintenance.compare_and_backup_templates_json", return_value=(True, "identical")
+        ),
         patch("src.maintenance.get_device_templates_dir", return_value="/tmp/tpl"),
     ]
 
@@ -56,18 +64,31 @@ def _base_patches(
 # Validation
 # ---------------------------------------------------------------------------
 
+
 class TestRunMaintenanceValidation:
     def test_raises_when_step_fn_is_none(self):
         dev = _device()
         with pytest.raises(ValueError):
-            run_maintenance("D1", dev, step_fn=None, progress_fn=lambda p: None,
-                            toast_fn=lambda m: None, log_fn=lambda m: None)
+            run_maintenance(
+                "D1",
+                dev,
+                step_fn=None,
+                progress_fn=lambda p: None,
+                toast_fn=lambda m: None,
+                log_fn=lambda m: None,
+            )
 
     def test_raises_when_progress_fn_is_none(self):
         dev = _device()
         with pytest.raises(ValueError):
-            run_maintenance("D1", dev, step_fn=lambda m: None, progress_fn=None,
-                            toast_fn=lambda m: None, log_fn=lambda m: None)
+            run_maintenance(
+                "D1",
+                dev,
+                step_fn=lambda m: None,
+                progress_fn=None,
+                toast_fn=lambda m: None,
+                log_fn=lambda m: None,
+            )
 
     def test_raises_when_no_callbacks(self):
         dev = _device()
@@ -79,6 +100,7 @@ class TestRunMaintenanceValidation:
 # Image resolution (no explicit image argument)
 # ---------------------------------------------------------------------------
 
+
 class TestImageResolution:
     def test_uses_preferred_image_when_set(self):
         dev = _device(preferred_image="my.png")
@@ -86,9 +108,11 @@ class TestImageResolution:
         with ExitStack() as stack:
             for p in _base_patches():
                 stack.enter_context(p)
-            mock_load = stack.enter_context(
-                patch("src.maintenance.load_device_image",
-                      side_effect=lambda name, img: loaded.append(img) or b"data")
+            stack.enter_context(
+                patch(
+                    "src.maintenance.load_device_image",
+                    side_effect=lambda name, img: loaded.append(img) or b"data",
+                )
             )
             run_maintenance("D1", dev, image=None, **_callbacks())
 
@@ -103,8 +127,10 @@ class TestImageResolution:
             for p in patches:
                 stack.enter_context(p)
             stack.enter_context(
-                patch("src.maintenance.load_device_image",
-                      side_effect=lambda name, img: loaded.append(img) or b"data")
+                patch(
+                    "src.maintenance.load_device_image",
+                    side_effect=lambda name, img: loaded.append(img) or b"data",
+                )
             )
             run_maintenance("D1", dev, image=None, **_callbacks())
 
@@ -133,6 +159,7 @@ class TestImageResolution:
 # Happy-path outcomes
 # ---------------------------------------------------------------------------
 
+
 class TestRunMaintenanceHappyPath:
     def test_image_upload_only(self):
         dev = _device()
@@ -151,8 +178,10 @@ class TestRunMaintenanceHappyPath:
             for p in _base_patches():
                 stack.enter_context(p)
             stack.enter_context(
-                patch("src.maintenance.ensure_remote_template_dirs",
-                      side_effect=lambda ip, pw, c, t: ensure_calls.append((c, t)) or (True, "ok"))
+                patch(
+                    "src.maintenance.ensure_remote_template_dirs",
+                    side_effect=lambda ip, pw, c, t: ensure_calls.append((c, t)) or (True, "ok"),
+                )
             )
             result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
 
@@ -165,7 +194,7 @@ class TestRunMaintenanceHappyPath:
         patches = _base_patches()
         patches[3] = patch(
             "src.maintenance.run_ssh_cmd",
-            side_effect=lambda ip, pw, cmds: cmd_calls.append(cmds) or ("", "")
+            side_effect=lambda ip, pw, cmds: cmd_calls.append(cmds) or ("", ""),
         )
         with ExitStack() as stack:
             for p in patches:
@@ -191,12 +220,14 @@ class TestRunMaintenanceHappyPath:
 # Error paths
 # ---------------------------------------------------------------------------
 
+
 class TestRunMaintenanceErrors:
     def test_image_load_failure_returns_error(self):
         dev = _device()
         patches = _base_patches()
-        patches[0] = patch("src.maintenance.load_device_image",
-                           side_effect=FileNotFoundError("no file"))
+        patches[0] = patch(
+            "src.maintenance.load_device_image", side_effect=FileNotFoundError("no file")
+        )
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -219,8 +250,9 @@ class TestRunMaintenanceErrors:
     def test_ensure_remote_dirs_failure_returns_error(self):
         dev = _device(templates=True)
         patches = _base_patches()
-        patches[4] = patch("src.maintenance.ensure_remote_template_dirs",
-                           return_value=(False, "permission denied"))
+        patches[4] = patch(
+            "src.maintenance.ensure_remote_template_dirs", return_value=(False, "permission denied")
+        )
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -234,8 +266,7 @@ class TestRunMaintenanceErrors:
         patches = _base_patches()
         # send_count > 0 so symlink command is attempted
         patches[5] = patch("src.maintenance.upload_template_svgs", return_value=1)
-        patches[3] = patch("src.maintenance.run_ssh_cmd",
-                           side_effect=Exception("bash error"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("bash error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -247,8 +278,7 @@ class TestRunMaintenanceErrors:
     def test_restart_failure_returns_error(self):
         dev = _device()
         patches = _base_patches()
-        patches[3] = patch("src.maintenance.run_ssh_cmd",
-                           side_effect=Exception("connection lost"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("connection lost"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)

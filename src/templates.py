@@ -4,17 +4,18 @@ Local helpers (list, save, load, delete, rename SVG templates per device)
 and remote helpers (upload, backup/replace templates.json).
 """
 
-from contextlib import contextmanager
-from typing import Any, Dict, Generator, List, Optional, Tuple
 import hashlib
 import json
-import os
 import logging
+import os
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
-from src.ssh import run_ssh_cmd, upload_file_ssh, download_file_ssh
-from src.constants import REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR, REMOTE_TEMPLATES_JSON
 from src.config import get_device_data_dir
+from src.constants import REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR, REMOTE_TEMPLATES_JSON
+from src.ssh import download_file_ssh, run_ssh_cmd, upload_file_ssh
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Local template management (mirrors src/images.py pattern)
 # ---------------------------------------------------------------------------
+
 
 def get_device_templates_dir(device_name: str) -> str:
     """Return (and create) the local directory that stores SVGs for *device_name*."""
@@ -40,7 +42,7 @@ def get_device_templates_backup_path(device_name: str) -> str:
     return os.path.join(get_device_data_dir(device_name), "templates.backup.json")
 
 
-def list_device_templates(device_name: str) -> List[str]:
+def list_device_templates(device_name: str) -> list[str]:
     """Return sorted list of .svg filenames stored locally for *device_name*."""
     device_dir = get_device_templates_dir(device_name)
     files = [f for f in os.listdir(device_dir) if f.lower().endswith(".svg")]
@@ -87,21 +89,22 @@ def rename_device_template(device_name: str, old_filename: str, new_filename: st
 # templates.json management
 # ---------------------------------------------------------------------------
 
+
 def _stem(filename: str) -> str:
     """Return filename without .svg extension (case-insensitive)."""
     return Path(filename).stem if filename.lower().endswith(".svg") else filename
 
 
-def load_templates_json(device_name: str) -> Dict[str, Any]:
+def load_templates_json(device_name: str) -> dict[str, Any]:
     """Load and return data/{{device}}/templates.json, or {{"templates": []}} if absent."""
     path = get_device_templates_json_path(device_name)
     if not os.path.exists(path):
         return {"templates": []}
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_templates_json(device_name: str, data: Dict[str, Any]) -> None:
+def save_templates_json(device_name: str, data: dict[str, Any]) -> None:
     """Persist *data* as data/{{device}}/templates.json.
 
     Uses ensure_ascii=True so Private Use Area icon codes (e.g. \\ue9fd) are
@@ -114,7 +117,7 @@ def save_templates_json(device_name: str, data: Dict[str, Any]) -> None:
         json.dump(data, f, indent=2, ensure_ascii=True)
 
 
-def get_all_categories(device_name: str) -> List[str]:
+def get_all_categories(device_name: str) -> list[str]:
     """Return sorted list of all distinct categories found in templates.json."""
     data = load_templates_json(device_name)
     cats: set[str] = set()
@@ -123,7 +126,7 @@ def get_all_categories(device_name: str) -> List[str]:
     return sorted(cats)
 
 
-def get_template_entry(device_name: str, filename: str) -> Optional[Dict[str, Any]]:
+def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None:
     """Return the templates.json entry whose filename matches *filename* (stem), or None."""
     stem = _stem(filename)
     for t in load_templates_json(device_name).get("templates", []):
@@ -133,7 +136,7 @@ def get_template_entry(device_name: str, filename: str) -> Optional[Dict[str, An
 
 
 @contextmanager
-def _edit_templates_json(device_name: str) -> Generator[Dict[str, Any], None, None]:
+def _edit_templates_json(device_name: str) -> Generator[dict[str, Any], None, None]:
     """Context manager that loads templates.json, yields the data dict for mutation,
     then saves it back on exit.
     """
@@ -143,7 +146,7 @@ def _edit_templates_json(device_name: str) -> Generator[Dict[str, Any], None, No
 
 
 def add_template_entry(
-    device_name: str, filename: str, categories: List[str], icon_code: str = "\ue9fe"
+    device_name: str, filename: str, categories: list[str], icon_code: str = "\ue9fe"
 ) -> None:
     """Add or replace the templates.json entry for *filename*."""
     stem = _stem(filename)
@@ -172,9 +175,7 @@ def rename_template_entry(device_name: str, old_filename: str, new_filename: str
                 break
 
 
-def update_template_categories(
-    device_name: str, filename: str, categories: List[str]
-) -> None:
+def update_template_categories(device_name: str, filename: str, categories: list[str]) -> None:
     """Update the categories list for *filename* in templates.json."""
     stem = _stem(filename)
     with _edit_templates_json(device_name) as data:
@@ -188,7 +189,10 @@ def update_template_categories(
 # Remote helpers
 # ---------------------------------------------------------------------------
 
-def ensure_remote_template_dirs(ip: str, password: str, remote_custom_dir: str, remote_templates_dir: str) -> Tuple[bool, str]:
+
+def ensure_remote_template_dirs(
+    ip: str, password: str, remote_custom_dir: str, remote_templates_dir: str
+) -> tuple[bool, str]:
     """Ensure remote template directories exist. Return (ok, message)."""
     try:
         cmd = f"mkdir -p '{remote_custom_dir}' '{remote_templates_dir}'"
@@ -199,18 +203,20 @@ def ensure_remote_template_dirs(ip: str, password: str, remote_custom_dir: str, 
         return False, str(e)
 
 
-def upload_template_svgs(ip: str, password: str, local_dirs: List[str], remote_custom_dir: str) -> int:
+def upload_template_svgs(
+    ip: str, password: str, local_dirs: list[str], remote_custom_dir: str
+) -> int:
     """Upload SVG files from local_dirs to remote_custom_dir. Return count uploaded."""
     sent_count = 0
     for local_templates_dir in local_dirs:
         if not os.path.exists(local_templates_dir):
             continue
         for fname in os.listdir(local_templates_dir):
-            if not fname.lower().endswith('.svg'):
+            if not fname.lower().endswith(".svg"):
                 continue
             local_path = os.path.join(local_templates_dir, fname)
             try:
-                with open(local_path, 'rb') as lf:
+                with open(local_path, "rb") as lf:
                     content = lf.read()
                 remote_path = f"{remote_custom_dir}/{fname}"
                 ok, msg = upload_file_ssh(ip, password, content, remote_path)
@@ -221,7 +227,7 @@ def upload_template_svgs(ip: str, password: str, local_dirs: List[str], remote_c
     return sent_count
 
 
-def compare_and_backup_templates_json(ip: str, password: str, device_name: str) -> Tuple[bool, str]:
+def compare_and_backup_templates_json(ip: str, password: str, device_name: str) -> tuple[bool, str]:
     """Fetch remote templates.json and compare to the local copy at data/{device}/templates.json.
 
     - If local file is absent: returns (False, "no_local").
@@ -268,7 +274,7 @@ def compare_and_backup_templates_json(ip: str, password: str, device_name: str) 
     return True, "uploaded"
 
 
-def fetch_and_init_templates(ip: str, password: str, device_name: str) -> Tuple[bool, str]:
+def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[bool, str]:
     """Download the tablet's templates.json, save it as templates.backup.json,
     then compose the local templates.json by appending entries for any locally
     stored SVG files that are not already listed in the backup.
@@ -294,7 +300,7 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> Tuple[
 
     # 3 — Parse backup
     try:
-        backup_data: Dict[str, Any] = json.loads(remote_content.decode("utf-8"))
+        backup_data: dict[str, Any] = json.loads(remote_content.decode("utf-8"))
     except Exception as e:
         return False, f"backup_parse_failed: {e}"
 
@@ -323,14 +329,15 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> Tuple[
     save_templates_json(device_name, backup_data)
     logger.info(
         "fetch_and_init_templates: backup saved, %d local SVG(s) appended for '%s'",
-        appended, device_name,
+        appended,
+        device_name,
     )
     return True, f"fetched ({appended} local SVG(s) appended)"
 
 
 def upload_template_to_tablet(
     ip: str, password: str, device_name: str, filename: str
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Upload one SVG to the tablet, create its symlink, and push templates.json.
 
     Steps:
@@ -369,7 +376,7 @@ def upload_template_to_tablet(
 
 def remove_template_from_tablet(
     ip: str, password: str, device_name: str, filename: str
-) -> Tuple[bool, str]:
+) -> tuple[bool, str]:
     """Remove an SVG and its symlink from the tablet, then push updated templates.json.
 
     The local templates.json must already have been updated (entry removed) before
@@ -398,6 +405,7 @@ def remove_template_from_tablet(
 # Sync-state helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_sync_state_path(device_name: str) -> str:
     """Return the path to the .tpl_sync sentinel file for *device_name*."""
     return os.path.join(get_device_data_dir(device_name), ".tpl_sync")
@@ -420,7 +428,7 @@ def is_templates_dirty(device_name: str) -> bool:
         # Never synced: consider dirty only if there is at least one entry.
         data = load_templates_json(device_name)
         return bool(data.get("templates"))
-    with open(sync_path, "r", encoding="utf-8") as sf:
+    with open(sync_path, encoding="utf-8") as sf:
         return sf.read().strip() != current_hash
 
 

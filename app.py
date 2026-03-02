@@ -1,6 +1,7 @@
 import html as _pyhtml
 import json
 import os
+from contextlib import suppress
 from datetime import datetime
 
 import streamlit as st
@@ -52,40 +53,39 @@ def _sidebar_version(version):
     html = (
         f'<div style="position:fixed;left:20px;bottom:8px">'
         f'  <a href="https://github.com/dapitch666/rm-manager" target="_blank">'
-        f'      rm-manager - version {version}'
-        f'  </a>'
-        f'</div>'
+        f"      rm-manager - version {version}"
+        f"  </a>"
+        f"</div>"
     )
     st.sidebar.caption(html, unsafe_allow_html=True)
 
 
-
 def _debug_overlay():
     try:
-        debug_mode = (BASE_DIR != "/app") or os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
+        debug_mode = (BASE_DIR != "/app") or os.environ.get("DEBUG", "").lower() in (
+            "1",
+            "true",
+            "yes",
+        )
     except Exception:
         debug_mode = False
     if not debug_mode:
         return
 
-    try:
+    with suppress(Exception):
         st.sidebar.expander("session_state (debug)", expanded=False).write(dict(st.session_state))
-    except Exception:
-        pass
 
-    try:
+    with suppress(Exception):
         safe = _pyhtml.escape(json.dumps(dict(st.session_state), default=str, indent=2))
         st.html(
             f'<div style="position:fixed;right:8px;top:8px;max-width:420px;max-height:45vh;'
-            f'overflow:auto;background:rgba(255,255,255,0.95);border:1px solid rgba(0,0,0,0.12);'
-            f'padding:8px;font-size:12px;z-index:99999;font-family:monospace;'
+            f"overflow:auto;background:rgba(255,255,255,0.95);border:1px solid rgba(0,0,0,0.12);"
+            f"padding:8px;font-size:12px;z-index:99999;font-family:monospace;"
             f'box-shadow:0 4px 12px rgba(0,0,0,0.08);">'
             f"<details><summary style='font-weight:600;cursor:pointer'>session_state (debug)</summary>"
             f"<pre style='white-space:pre-wrap;margin:6px 0 0 0;'>{safe}</pre>"
             f"</details></div>"
         )
-    except Exception:
-        pass
 
 
 def main():
@@ -106,7 +106,9 @@ def main():
     st.session_state["config"] = config
 
     # ── Navigation ────────────────────────────────────────────────────────
-    config_page = st.Page("pages/configuration.py", title="Configuration", icon=":material/settings:")
+    config_page = st.Page(
+        "pages/configuration.py", title="Configuration", icon=":material/settings:"
+    )
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
@@ -136,8 +138,8 @@ def main():
                 st.session_state["selected_tablet_select"] = pending
 
         with st.sidebar:
-            from src.ssh import test_ssh_connection
             from src.models import Device as _Device
+            from src.ssh import ssh_connectivity_test
 
             col1, col2 = st.columns([4, 1], vertical_alignment="bottom")
             with col1:
@@ -153,7 +155,7 @@ def main():
                     help="Tester la connexion SSH",
                 ):
                     _device = _Device.from_dict(selected_name, DEVICES[selected_name])
-                    ok, err = test_ssh_connection(_device.ip, _device.password or "")
+                    ok, err = ssh_connectivity_test(_device.ip, _device.password or "")
                     if ok:
                         st.toast("Connexion SSH OK", icon=":material/task_alt:")
                         _add_log(f"SSH connection successful to '{selected_name}'")
@@ -179,6 +181,7 @@ def main():
     _debug_overlay()
 
     from src.ui_common import show_deferred_toast
+
     show_deferred_toast()
 
     pg.run()

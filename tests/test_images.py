@@ -45,6 +45,7 @@ def _make_png_file(width: int, height: int, color=(200, 100, 50)):
 # list_device_images
 # ---------------------------------------------------------------------------
 
+
 class TestListDeviceImages:
     def test_empty_dir_returns_empty_list(self):
         assert images_mod.list_device_images(DEVICE) == []
@@ -71,6 +72,7 @@ class TestListDeviceImages:
 # save_device_image / load_device_image
 # ---------------------------------------------------------------------------
 
+
 class TestSaveLoadImage:
     def test_roundtrip(self):
         images_mod.save_device_image(DEVICE, PNG_1PX, "img.png")
@@ -90,6 +92,7 @@ class TestSaveLoadImage:
 # delete_device_image
 # ---------------------------------------------------------------------------
 
+
 class TestDeleteDeviceImage:
     def test_existing_file_is_removed(self):
         images_mod.save_device_image(DEVICE, PNG_1PX, "bye.png")
@@ -103,6 +106,7 @@ class TestDeleteDeviceImage:
 # ---------------------------------------------------------------------------
 # rename_device_image
 # ---------------------------------------------------------------------------
+
 
 class TestRenameDeviceImage:
     def test_success(self):
@@ -119,6 +123,7 @@ class TestRenameDeviceImage:
 # ---------------------------------------------------------------------------
 # process_image
 # ---------------------------------------------------------------------------
+
 
 class TestProcessImage:
     def test_already_correct_size_returns_original_bytes(self):

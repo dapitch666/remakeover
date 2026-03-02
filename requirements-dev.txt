@@ -1,0 +1,6 @@
+# Development-only dependencies (not needed at runtime)
+ruff
+mypy
+types-paramiko
+pytest-cov
+pre-commit

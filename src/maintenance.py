@@ -14,26 +14,26 @@ The routine includes:
 4. Restarting `xochitl` to apply changes
 """
 
-from typing import Dict, List
 import logging
 import random as _random
+from contextlib import suppress
 
-from src.ssh import run_ssh_cmd, upload_file_ssh
-from src.images import list_device_images, load_device_image
-from src.templates import (
-    ensure_remote_template_dirs,
-    upload_template_svgs,
-    compare_and_backup_templates_json,
-    get_device_templates_dir,
-)
-from src.models import Device
 from src.constants import (
-    SUSPENDED_PNG_PATH,
-    REMOTE_TEMPLATES_DIR,
-    REMOTE_CUSTOM_TEMPLATES_DIR,
-    REMOTE_CAROUSEL_DIR,
-    REMOTE_CAROUSEL_BACKUP_DIR,
     CMD_RESTART_XOCHITL,
+    REMOTE_CAROUSEL_BACKUP_DIR,
+    REMOTE_CAROUSEL_DIR,
+    REMOTE_CUSTOM_TEMPLATES_DIR,
+    REMOTE_TEMPLATES_DIR,
+    SUSPENDED_PNG_PATH,
+)
+from src.images import list_device_images, load_device_image
+from src.models import Device
+from src.ssh import run_ssh_cmd, upload_file_ssh
+from src.templates import (
+    compare_and_backup_templates_json,
+    ensure_remote_template_dirs,
+    get_device_templates_dir,
+    upload_template_svgs,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,12 +42,12 @@ logger = logging.getLogger(__name__)
 def run_maintenance(
     device_name: str,
     device: Device,
-    image: str = None,
+    image: str | None = None,
     step_fn=None,
     progress_fn=None,
     toast_fn=None,
     log_fn=None,
-) -> Dict:
+) -> dict:
     """Run the post-update maintenance routine for a device.
 
     Parameters
@@ -77,11 +77,11 @@ def run_maintenance(
     if step_fn is None or progress_fn is None or toast_fn is None or log_fn is None:
         raise ValueError("step_fn, progress_fn, toast_fn and log_fn are required")
 
-    errors: List[str] = []
-    details: Dict = {}
+    errors: list[str] = []
+    details: dict = {}
 
     # Build the list of active steps to compute progress percentages correctly.
-    active_steps: List[str] = []
+    active_steps: list[str] = []
 
     # Resolve which image to upload (may be None → step skipped)
     if image is None:
@@ -120,10 +120,8 @@ def run_maintenance(
             logger.warning("progress_fn raised: %s", e)
 
     def _log(msg: str) -> None:
-        try:
+        with suppress(Exception):
             log_fn(msg)
-        except Exception:
-            pass
 
     ip = device.ip
     pw = device.password or ""
@@ -165,11 +163,12 @@ def run_maintenance(
             if sent_count:
                 try:
                     run_ssh_cmd(
-                        ip, pw,
+                        ip,
+                        pw,
                         [
                             f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg; do "
-                            f"[ -f \"$file\" ] || continue; "
-                            f"ln -sf \"$file\" \"{REMOTE_TEMPLATES_DIR}/\"$(basename \"$file\"); "
+                            f'[ -f "$file" ] || continue; '
+                            f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
                             "done"
                         ],
                     )

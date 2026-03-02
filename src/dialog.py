@@ -6,6 +6,7 @@ def confirm(title: str = "Confirmer", message: str = "Confirmer ?", key: str = "
     Displays a confirmation dialog with the given title.
     Updates st.session_state[key] with True (confirmed) or False (cancelled).
     """
+
     @st.dialog(title)
     def _dialog():
         st.write(message)

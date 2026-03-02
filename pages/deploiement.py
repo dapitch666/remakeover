@@ -1,7 +1,7 @@
 """Deployment page."""
 
-import os
 import random
+from contextlib import suppress
 
 import streamlit as st
 
@@ -9,7 +9,7 @@ import src.images as _images
 import src.maintenance as _maint
 from src.models import Device
 from src.templates import list_device_templates
-from src.ui_common import rainbow_divider, deferred_toast, require_device
+from src.ui_common import deferred_toast, rainbow_divider, require_device
 
 st.title(":material/rocket_launch: Déploiement")
 rainbow_divider()
@@ -34,6 +34,8 @@ st.divider()
 imgs_available = _images.list_device_images(selected_name)
 
 # Resolve the image that will be uploaded
+image: str | None
+image_desc: str | None
 if device.preferred_image:
     image = device.preferred_image
     image_desc = f"l'image préférée (`{device.preferred_image}`)"
@@ -50,20 +52,19 @@ if image_desc:
     lines.append(f"- Envoyer {image_desc} comme image de veille (`suspended.png`) sur la tablette")
 else:
     lines.append("- *(Aucune image locale — envoi de l'image de veille ignoré)*")
-if getattr(device, "templates", False) and bool(list_device_templates(selected_name)):
+if device.templates and bool(list_device_templates(selected_name)):
     lines.append(
         "- Déployer les templates SVG locaux, créer les liens symboliques "
         "et mettre à jour `templates.json` sur la tablette"
     )
-if getattr(device, "carousel", False):
+if device.carousel:
     lines.append(
-        "- Désactiver le carrousel en déplaçant les illustrations "
-        "dans un dossier de sauvegarde"
+        "- Désactiver le carrousel en déplaçant les illustrations dans un dossier de sauvegarde"
     )
 lines.append("- Redémarrer `xochitl` pour appliquer les changements")
 
-templates_active = getattr(device, "templates", False) and bool(list_device_templates(selected_name))
-has_meaningful_actions = bool(image) or templates_active or getattr(device, "carousel", False)
+templates_active = device.templates and bool(list_device_templates(selected_name))
+has_meaningful_actions = bool(image) or templates_active or device.carousel
 
 if has_meaningful_actions:
     st.info("\n".join(lines))
@@ -110,13 +111,13 @@ else:
                 progress = st.progress(0)
 
                 def _step(msg: str) -> None:
-                    try:
+                    with suppress(Exception):
                         status.text(msg)
-                    except Exception:
-                        pass
 
                 result = _maint.run_maintenance(
-                    selected_name, device, image,
+                    selected_name,
+                    device,
+                    image,
                     step_fn=_step,
                     progress_fn=lambda pct: progress.progress(pct),
                     toast_fn=lambda msg: deferred_toast(msg, ":material/task_alt:"),

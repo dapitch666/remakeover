@@ -1,6 +1,7 @@
 import json
 import os
 from unittest.mock import patch
+
 from streamlit.testing.v1 import AppTest
 
 
@@ -16,25 +17,27 @@ def _empty_cfg(tmp_path):
 
 
 def _with_device(tmp_path, name="D1"):
-    return _write_config(tmp_path, {
-        "devices": {name: {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"}}
-    })
+    return _write_config(
+        tmp_path,
+        {"devices": {name: {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"}}},
+    )
 
 
 def _with_two_devices(tmp_path):
-    return _write_config(tmp_path, {
-        "devices": {
-            "D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"},
-            "D2": {"ip": "10.0.0.2", "password": "pw2", "device_type": "reMarkable 2"},
-        }
-    })
+    return _write_config(
+        tmp_path,
+        {
+            "devices": {
+                "D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"},
+                "D2": {"ip": "10.0.0.2", "password": "pw2", "device_type": "reMarkable 2"},
+            }
+        },
+    )
 
 
 def _test_env(tmp_path, cfg_path: str) -> dict:
     """Return env overrides that redirect both config and data dir to tmp_path."""
     return {"RM_CONFIG_PATH": cfg_path, "RM_DATA_DIR": str(tmp_path)}
-
-
 
 
 def test_main_page_renders(tmp_path):
@@ -71,6 +74,7 @@ def test_images_page_warns_when_no_devices(tmp_path):
 # ---------------------------------------------------------------------------
 # Configuration page
 # ---------------------------------------------------------------------------
+
 
 def test_configuration_save_requires_name(tmp_path):
     """Switch to Configuration and click Save without a device name."""
@@ -247,6 +251,7 @@ def test_cancel_button_returns_to_edit_mode(tmp_path):
 # Deploiement page
 # ---------------------------------------------------------------------------
 
+
 def test_deploiement_page_warns_when_no_devices(tmp_path):
     """Deploiement page shows 'Aucun appareil' message with empty config."""
     with patch.dict(os.environ, _test_env(tmp_path, _empty_cfg(tmp_path))):
@@ -280,7 +285,9 @@ def test_deploiement_page_shows_info_when_actions_available(tmp_path):
         at.switch_page("pages/deploiement.py").run()
 
     assert not at.exception
-    deploy_btn = next((b for b in at.button if "d" in b.label.lower() and "ployer" in b.label.lower()), None)
+    deploy_btn = next(
+        (b for b in at.button if "d" in b.label.lower() and "ployer" in b.label.lower()), None
+    )
     assert deploy_btn is not None
     assert not deploy_btn.disabled
     # No "nothing to deploy" warning
@@ -345,6 +352,7 @@ def test_deploiement_page_shows_warning_when_templates_enabled_but_no_local_file
 # Templates page
 # ---------------------------------------------------------------------------
 
+
 def test_templates_page_warns_when_no_devices(tmp_path):
     """Templates page shows 'Aucun appareil' message with empty config."""
     with patch.dict(os.environ, _test_env(tmp_path, _empty_cfg(tmp_path))):
@@ -359,6 +367,7 @@ def test_templates_page_warns_when_no_devices(tmp_path):
 # ---------------------------------------------------------------------------
 # Logs page
 # ---------------------------------------------------------------------------
+
 
 def test_logs_page_renders_empty(tmp_path):
     """Logs page renders without exception and shows 'Aucun log' info when empty."""

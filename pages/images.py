@@ -5,17 +5,22 @@ from datetime import datetime
 
 import streamlit as st
 
+import src.dialog as _dialog
 import src.images as _images
 import src.ssh as _ssh
-import src.dialog as _dialog
-from src.models import Device
 from src.config import save_config
-from src.constants import DEVICE_SIZES
-from src.ui_common import rainbow_divider, normalise_filename, send_suspended_png, deferred_toast, require_device
-from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
-
+from src.constants import DEVICE_SIZES, GRID_COLUMNS, SUSPENDED_PNG_PATH
+from src.models import Device
+from src.ui_common import (
+    deferred_toast,
+    normalise_filename,
+    rainbow_divider,
+    require_device,
+    send_suspended_png,
+)
 
 # ── Image card ────────────────────────────────────────────────────────────────
+
 
 def _render_image_card(img_name, selected_name, device, config, save_config, add_log):
     """Render one image card: name/rename button, thumbnail, and action controls."""
@@ -24,6 +29,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
 
     # ── name / inline rename ──────────────────────────────────────────────
     if st.session_state.get("img_renaming") == img_name:
+
         def do_rename(_old=img_name):
             raw = st.session_state.get(f"rename_input_{_old}", "").strip()
             new_name = normalise_filename(raw) if raw else None
@@ -33,7 +39,9 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                     device.set_preferred(new_name)
                     config["devices"][selected_name] = device.to_dict()
                     save_config(config)
-                    add_log(f"Preferred image renamed '{_old}' \u2192 '{new_name}' for '{selected_name}'")
+                    add_log(
+                        f"Preferred image renamed '{_old}' \u2192 '{new_name}' for '{selected_name}'"
+                    )
                 add_log(f"Renamed image '{_old}' to '{new_name}' for '{selected_name}'")
             st.session_state["img_renaming"] = None
 
@@ -83,7 +91,9 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                 device.set_preferred(None)
                 config["devices"][selected_name] = device.to_dict()
                 save_config(config)
-                add_log(f"Preferred image removed for '{selected_name}' because {img_name} was deleted")
+                add_log(
+                    f"Preferred image removed for '{selected_name}' because {img_name} was deleted"
+                )
             add_log(f"Deleted {img_name} from '{selected_name}'")
             st.session_state.pop("confirm_del_img", None)
             st.session_state["img_pending_delete"] = None
@@ -220,7 +230,7 @@ if stored_images:
     st.divider()
 
     for row_start in range(0, len(stored_images), GRID_COLUMNS):
-        row_items = stored_images[row_start:row_start + GRID_COLUMNS]
+        row_items = stored_images[row_start : row_start + GRID_COLUMNS]
         cols = st.columns(GRID_COLUMNS, gap="medium")
         for col_idx, img_name in enumerate(row_items):
             with cols[col_idx]:
@@ -237,9 +247,15 @@ else:
 col1, col2 = st.columns(2, gap="large")
 with col1:
     st.subheader("Récupérer l'image actuelle", divider="rainbow")
-    if st.button("Importer depuis la tablette", key=f"ui_import_from_tablet_{selected_name}", icon=":material/download:", width='stretch', help="Télécharger l'image actuelle de l'écran de veille depuis la tablette"):
+    if st.button(
+        "Importer depuis la tablette",
+        key=f"ui_import_from_tablet_{selected_name}",
+        icon=":material/download:",
+        width="stretch",
+        help="Télécharger l'image actuelle de l'écran de veille depuis la tablette",
+    ):
         try:
-            img_data = _ssh.download_file_ssh(device.ip, device.password or '', SUSPENDED_PNG_PATH)
+            img_data = _ssh.download_file_ssh(device.ip, device.password or "", SUSPENDED_PNG_PATH)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}.png"
             _images.save_device_image(selected_name, img_data, filename)
@@ -248,7 +264,9 @@ with col1:
             st.rerun()
         except Exception as e:
             st.error(f"Erreur : {str(e)}", icon=":material/error:")
-            add_log(f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}")
+            add_log(
+                f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}"
+            )
 
 with col2:
     _render_upload_section(selected_name, device, add_log)

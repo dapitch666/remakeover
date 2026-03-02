@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+
 import src.dialog as dialog_mod
 
 
@@ -50,8 +51,9 @@ def test_confirm_ok_sets_true():
 
 def test_confirm_uses_custom_key():
     """State is written under the supplied key, leaving other keys untouched."""
-    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=True,
-                               initial_state={"other": "unchanged"})
+    patcher, st = _patched_st(
+        cancel_clicked=False, confirm_clicked=True, initial_state={"other": "unchanged"}
+    )
     with patcher:
         dialog_mod.confirm("Titre", "Message", key="my_key")
 

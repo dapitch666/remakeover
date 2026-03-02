@@ -1,8 +1,9 @@
-import os
-import json
 import base64
+import json
+import os
 from contextlib import ExitStack
 from unittest.mock import patch
+
 from streamlit.testing.v1 import AppTest
 
 # a minimal valid 1x1 PNG used as synthetic SSH download payload
@@ -26,16 +27,22 @@ def _flow_patches(images_dir, upload_calls, run_cmds, saved_files):
         return open(p, "rb").read() if os.path.exists(p) else b""
 
     return [
-        patch("src.ssh.test_ssh_connection", return_value=(True, "")),
-        patch("src.ssh.upload_file_ssh",
-              side_effect=lambda ip, pw, blob, path: upload_calls.append((ip, path)) or (True, "ok")),
+        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
+        patch(
+            "src.ssh.upload_file_ssh",
+            side_effect=lambda ip, pw, blob, path: upload_calls.append((ip, path)) or (True, "ok"),
+        ),
         patch("src.ssh.download_file_ssh", return_value=PNG_BYTES),
-        patch("src.ssh.run_ssh_cmd",
-              side_effect=lambda ip, pw, cmds: run_cmds.append((ip, tuple(cmds)))),
+        patch(
+            "src.ssh.run_ssh_cmd",
+            side_effect=lambda ip, pw, cmds: run_cmds.append((ip, tuple(cmds))),
+        ),
         patch("src.images.process_image", return_value=b"processed"),
         patch("src.images.get_device_images_dir", return_value=str(images_dir)),
-        patch("src.images.list_device_images",
-              side_effect=lambda name: sorted(os.listdir(str(images_dir)))),
+        patch(
+            "src.images.list_device_images",
+            side_effect=lambda name: sorted(os.listdir(str(images_dir))),
+        ),
         patch("src.images.save_device_image", side_effect=_save_device_image),
         patch("src.images.load_device_image", side_effect=_load_device_image),
         patch("src.images.delete_device_image", return_value=True),
@@ -46,11 +53,7 @@ def _flow_patches(images_dir, upload_calls, run_cmds, saved_files):
 
 
 def test_upload_and_send_flow(tmp_path):
-    cfg = {
-        "devices": {
-            "D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"}
-        }
-    }
+    cfg = {"devices": {"D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"}}}
     cfg_file = tmp_path / "config.json"
     cfg_file.write_text(json.dumps(cfg), encoding="utf-8")
     images_dir = tmp_path / "images" / "D1"
@@ -61,7 +64,9 @@ def test_upload_and_send_flow(tmp_path):
     saved_files = []
 
     with ExitStack() as stack:
-        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)}))
+        stack.enter_context(
+            patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)})
+        )
         for p in _flow_patches(images_dir, upload_calls, run_cmds, saved_files):
             stack.enter_context(p)
 
@@ -82,7 +87,12 @@ def test_upload_and_send_flow(tmp_path):
 def test_run_maintenance_flow(tmp_path):
     cfg = {
         "devices": {
-            "D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2", "carousel": True}
+            "D1": {
+                "ip": "10.0.0.1",
+                "password": "pw",
+                "device_type": "reMarkable 2",
+                "carousel": True,
+            }
         }
     }
     cfg_file = tmp_path / "config.json"
@@ -98,12 +108,19 @@ def test_run_maintenance_flow(tmp_path):
     patches = _flow_patches(images_dir, upload_calls, run_cmds, saved_files)
     patches[11] = patch(
         "src.maintenance.run_maintenance",
-        side_effect=lambda name, dev, image=None, step_fn=None, progress_fn=None, toast_fn=None, log_fn=None:
-            maintenance_calls.append((name, dev)) or {"ok": True},
+        side_effect=lambda name,
+        dev,
+        image=None,
+        step_fn=None,
+        progress_fn=None,
+        toast_fn=None,
+        log_fn=None: maintenance_calls.append((name, dev)) or {"ok": True},
     )
 
     with ExitStack() as stack:
-        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)}))
+        stack.enter_context(
+            patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)})
+        )
         for p in patches:
             stack.enter_context(p)
 

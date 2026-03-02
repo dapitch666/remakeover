@@ -1,17 +1,17 @@
 import src.config as config_mod
 from src.config import (
-    truncate_display_name,
     load_config,
-    save_config,
     resolve_device_type,
+    save_config,
+    truncate_display_name,
 )
 from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES
 from src.models import Device
 
-
 # ---------------------------------------------------------------------------
 # truncate_display_name
 # ---------------------------------------------------------------------------
+
 
 class TestTruncateDisplayName:
     def test_short_name_unchanged(self):
@@ -37,6 +37,7 @@ class TestTruncateDisplayName:
 # Device catalogue constants
 # ---------------------------------------------------------------------------
 
+
 class TestDeviceSizes:
     def test_has_expected_models(self):
         assert "reMarkable 2" in DEVICE_SIZES
@@ -44,7 +45,7 @@ class TestDeviceSizes:
         assert "reMarkable Paper Pro Move" in DEVICE_SIZES
 
     def test_sizes_are_tuples_of_ints(self):
-        for model, size in DEVICE_SIZES.items():
+        for _model, size in DEVICE_SIZES.items():
             assert isinstance(size, tuple) and len(size) == 2
             assert all(isinstance(v, int) for v in size)
 
@@ -52,6 +53,7 @@ class TestDeviceSizes:
 # ---------------------------------------------------------------------------
 # resolve_device_type
 # ---------------------------------------------------------------------------
+
 
 class TestResolveDeviceType:
     def test_known_type_returned_unchanged(self):
@@ -70,6 +72,7 @@ class TestResolveDeviceType:
 # ---------------------------------------------------------------------------
 # save_config / load_config
 # ---------------------------------------------------------------------------
+
 
 class TestConfigPersistence:
     def test_roundtrip(self, tmp_path):
@@ -98,6 +101,7 @@ class TestConfigPersistence:
 # get_device_data_dir
 # ---------------------------------------------------------------------------
 
+
 class TestGetDeviceDataDir:
     def test_slashes_replaced(self, tmp_path, monkeypatch):
         monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
@@ -111,6 +115,7 @@ class TestGetDeviceDataDir:
 
     def test_directory_is_created(self, tmp_path, monkeypatch):
         import os
+
         monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
         path = config_mod.get_device_data_dir("TestDevice")
         assert os.path.isdir(path)
@@ -119,6 +124,7 @@ class TestGetDeviceDataDir:
 # ---------------------------------------------------------------------------
 # Device model
 # ---------------------------------------------------------------------------
+
 
 class TestDeviceFromDict:
     def test_all_fields_populated(self):

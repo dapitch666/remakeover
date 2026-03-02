@@ -10,10 +10,11 @@ Current file contains function signatures and docs; implementations
 should be moved here from `app.py` incrementally.
 """
 
-from contextlib import contextmanager
-from typing import Generator, List, Tuple
-import paramiko
 import logging
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
+
+import paramiko
 
 from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW
 
@@ -29,13 +30,11 @@ def _ssh_client(ip: str, password: str) -> Generator[paramiko.SSHClient, None, N
     try:
         yield client
     finally:
-        try:
+        with suppress(Exception):
             client.close()
-        except Exception:
-            pass
 
 
-def _ensure_rw(client: paramiko.SSHClient) -> Tuple[bool, str]:
+def _ensure_rw(client: paramiko.SSHClient) -> tuple[bool, str]:
     """Check if `/` is mounted read-write on an open *client* and remount if not.
 
     Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
@@ -65,7 +64,7 @@ def _ensure_rw(client: paramiko.SSHClient) -> Tuple[bool, str]:
         return False, str(e)
 
 
-def ensure_rw_filesystem(ip: str, password: str) -> Tuple[bool, str]:
+def ensure_rw_filesystem(ip: str, password: str) -> tuple[bool, str]:
     """Open a fresh SSH connection, check if `/` is RW, remount if needed.
 
     Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
@@ -81,7 +80,7 @@ def ensure_rw_filesystem(ip: str, password: str) -> Tuple[bool, str]:
         return False, str(e)
 
 
-def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
+def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
     """Execute commands over SSH, ensuring filesystem is writable first."""
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
     try:
@@ -102,14 +101,20 @@ def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
                 logger.error("SSH exec failed on %s: %s", ip, e)
                 return "", str(e)
 
-            logger.info("SSH exec on %s (rw=%s, out_len=%d, err_len=%d)", ip, rw_msg, len(output), len(error))
+            logger.info(
+                "SSH exec on %s (rw=%s, out_len=%d, err_len=%d)",
+                ip,
+                rw_msg,
+                len(output),
+                len(error),
+            )
             return output, error
     except Exception as e:
         logger.error("SSH error on %s: %s", ip, e)
         return "", str(e)
 
 
-def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
+def ssh_connectivity_test(ip: str, password: str) -> tuple[bool, str]:
     """Test simple SSH connectivity without modifying the device."""
     logger.info("SSH connectivity test start for %s", ip)
     try:
@@ -124,7 +129,9 @@ def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
         return False, str(e)
 
 
-def upload_file_ssh(ip: str, password: str, file_content: bytes, remote_path: str) -> Tuple[bool, str]:
+def upload_file_ssh(
+    ip: str, password: str, file_content: bytes, remote_path: str
+) -> tuple[bool, str]:
     """Ensure filesystem is writable, then upload *file_content* to *remote_path* via SFTP.
 
     Uses a single SSH connection for both the RW check/remount and the SFTP transfer.
@@ -140,16 +147,16 @@ def upload_file_ssh(ip: str, password: str, file_content: bytes, remote_path: st
             try:
                 with sftp.file(remote_path, "wb") as f:
                     f.write(file_content)
-                logger.info("SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
+                logger.info(
+                    "SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content)
+                )
                 return True, "OK"
             except Exception as e:
                 logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
                 return False, str(e)
             finally:
-                try:
+                with suppress(Exception):
                     sftp.close()
-                except Exception:
-                    pass
     except Exception as e:
         logger.error("SSH upload connect error on %s: %s", ip, e)
         return False, str(e)
@@ -164,15 +171,13 @@ def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:
             with sftp.file(remote_path, "rb") as f:
                 content = f.read()
         finally:
-            try:
+            with suppress(Exception):
                 sftp.close()
-            except Exception:
-                pass
     logger.info("SFTP download OK from %s:%s (bytes=%d)", ip, remote_path, len(content))
     return content
 
 
-def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> Tuple[List[str], str]:
+def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> tuple[list[str], str]:
     """Return a sorted list of filenames in *remote_dir* via SFTP.
 
     Returns (filenames, error_message). On success *error_message* is empty.
@@ -187,13 +192,10 @@ def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> Tuple[List[s
                 logger.error("SFTP listdir error on %s:%s: %s", ip, remote_dir, e)
                 return [], str(e)
             finally:
-                try:
+                with suppress(Exception):
                     sftp.close()
-                except Exception:
-                    pass
         logger.info("SFTP listdir OK from %s:%s (%d entries)", ip, remote_dir, len(entries))
         return sorted(entries), ""
     except Exception as e:
         logger.error("SFTP listdir connect error on %s: %s", ip, e)
         return [], str(e)
-

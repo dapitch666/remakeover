@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from dataclasses import dataclass
+from typing import Any
 
-from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE
+from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES
 
 
 @dataclass
@@ -19,10 +19,10 @@ class Device:
     device_type: str = ""
     templates: bool = True
     carousel: bool = True
-    preferred_image: Optional[str] = None
+    preferred_image: str | None = None
 
     @staticmethod
-    def from_dict(name: str, data: Dict[str, Any]) -> "Device":
+    def from_dict(name: str, data: dict[str, Any]) -> Device:
         return Device(
             name=name,
             ip=data.get("ip", ""),
@@ -33,7 +33,7 @@ class Device:
             preferred_image=data.get("preferred_image"),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = {
             "ip": self.ip,
             "password": self.password,
@@ -47,7 +47,7 @@ class Device:
 
     def resolve_type(
         self,
-        device_sizes: Dict[str, Any] = DEVICE_SIZES,
+        device_sizes: dict[str, Any] = DEVICE_SIZES,
         default: str = DEFAULT_DEVICE_TYPE,
     ) -> str:
         """Return the device type string if known, otherwise *default*.
@@ -63,5 +63,5 @@ class Device:
     def is_preferred(self, image_name: str) -> bool:
         return bool(self.preferred_image and self.preferred_image == image_name)
 
-    def set_preferred(self, image_name: Optional[str]) -> None:
+    def set_preferred(self, image_name: str | None) -> None:
         self.preferred_image = image_name or None

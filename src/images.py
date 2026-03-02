@@ -4,11 +4,12 @@ Provide local image management helpers used by the UI and maintenance
 logic. Intended API mirrors the functions currently inside `app.py`.
 """
 
-from typing import List
-import os
-from PIL import Image
 import io
 import logging
+import os
+from contextlib import suppress
+
+from PIL import Image
 
 from src.config import get_device_data_dir
 
@@ -21,16 +22,16 @@ def get_device_images_dir(device_name: str) -> str:
     return device_dir
 
 
-def list_device_images(device_name: str) -> List[str]:
+def list_device_images(device_name: str) -> list[str]:
     device_dir = get_device_images_dir(device_name)
-    files = [f for f in os.listdir(device_dir) if f.endswith('.png')]
+    files = [f for f in os.listdir(device_dir) if f.endswith(".png")]
     return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
 
 
 def save_device_image(device_name: str, image_data: bytes, filename: str) -> str:
     device_dir = get_device_images_dir(device_name)
     filepath = os.path.join(device_dir, filename)
-    with open(filepath, 'wb') as f:
+    with open(filepath, "wb") as f:
         f.write(image_data)
     return filepath
 
@@ -38,7 +39,7 @@ def save_device_image(device_name: str, image_data: bytes, filename: str) -> str
 def load_device_image(device_name: str, filename: str) -> bytes:
     device_dir = get_device_images_dir(device_name)
     filepath = os.path.join(device_dir, filename)
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         return f.read()
 
 
@@ -62,13 +63,10 @@ def rename_device_image(device_name: str, old_filename: str, new_filename: str) 
 def process_image(uploaded_file, width: int, height: int) -> bytes:
     img = Image.open(uploaded_file)
     if img.format == "PNG" and img.size == (width, height):
-        try:
+        with suppress(Exception):
             uploaded_file.seek(0)
-        except Exception:
-            pass
         return uploaded_file.read()
-    img = img.resize((width, height), Image.Resampling.LANCZOS)
-    img = img.convert("RGB")
+    result = img.resize((width, height), Image.Resampling.LANCZOS).convert("RGB")
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    result.save(buf, format="PNG")
     return buf.getvalue()

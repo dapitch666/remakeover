@@ -134,6 +134,71 @@ pytest
 cp -r data/ data.backup/
 ```
 
+---
+
+## 🧑‍💻 Contributing
+
+### Install development dependencies
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+This installs `ruff` (linter + formatter), `mypy` (type checker), `pytest-cov` (coverage), and `pre-commit`.
+
+### Code quality
+
+```bash
+# Lint — report issues
+ruff check src/ pages/ app.py
+
+# Lint — auto-fix everything possible
+ruff check src/ pages/ app.py --fix
+
+# Format — check only (no changes written)
+ruff format src/ pages/ app.py --check
+
+# Format — apply
+ruff format src/ pages/ app.py
+
+# Type check
+mypy src/ app.py --ignore-missing-imports
+```
+
+Run lint + format + types in one shot:
+
+```bash
+ruff check src/ pages/ app.py --fix && ruff format src/ pages/ app.py && mypy src/ app.py --ignore-missing-imports
+```
+
+### Tests and coverage
+
+```bash
+# Run tests (coverage report printed automatically)
+pytest
+
+# Generate an interactive HTML coverage report
+pytest --cov=src --cov=pages --cov=app --cov-report=html
+open htmlcov/index.html
+```
+
+The test suite enforces a minimum coverage threshold defined in `pytest.ini`. A failure means existing coverage regressed — add tests or update the threshold intentionally.
+
+### Pre-commit hooks
+
+Hooks run ruff and mypy automatically on every `git commit`:
+
+```bash
+# Install hooks (once, after cloning)
+pre-commit install
+
+# Run all hooks manually against every file
+pre-commit run --all-files
+```
+
+This is the most reliable way to verify that a commit will pass before pushing.
+
+---
 ## 📌 Important notes
 
 - Configuration and data are persisted in `data/` — back up this folder

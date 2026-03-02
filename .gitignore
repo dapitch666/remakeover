@@ -11,6 +11,12 @@ env/
 venv/
 .venv
 
+# Tests & coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # Docker
 .dockerignore
 

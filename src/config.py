@@ -4,15 +4,16 @@ All symbols here are Streamlit-free so they can be imported and tested
 without a running Streamlit session.
 """
 
-import os
 import json
-from typing import Any, Dict, Optional
+import os
+from typing import Any
 
-from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE  # re-exported for back-compat
+from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES  # re-exported for back-compat
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
+
 
 def _repo_root() -> str:
     """Return the repository root (parent of src/)."""
@@ -43,9 +44,11 @@ def _active_config_path() -> str:
     """Return the config path, honouring RM_CONFIG_PATH at call time."""
     return os.environ.get("RM_CONFIG_PATH") or CONFIG_PATH
 
+
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
+
 
 def truncate_display_name(name: Any, max_len: int = 13) -> str:
     """Return a display-safe version of *name*, truncated to *max_len* chars."""
@@ -55,11 +58,13 @@ def truncate_display_name(name: Any, max_len: int = 13) -> str:
         return name
     return name[: max_len - 3] + "..."
 
+
 # ---------------------------------------------------------------------------
 # Config persistence
 # ---------------------------------------------------------------------------
 
-def load_config(path: Optional[str] = None) -> Dict[str, Any]:
+
+def load_config(path: str | None = None) -> dict[str, Any]:
     """Load and return the device configuration.
 
     *path* overrides the default ``CONFIG_PATH`` (useful in tests).
@@ -69,12 +74,12 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
     if path is None:
         path = _active_config_path()
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     return {"devices": {}}
 
 
-def save_config(config: Dict[str, Any], path: Optional[str] = None) -> None:
+def save_config(config: dict[str, Any], path: str | None = None) -> None:
     """Persist *config* to *path* (defaults to the active config path)."""
     if path is None:
         path = _active_config_path()  # re-read env var at call time
@@ -82,9 +87,11 @@ def save_config(config: Dict[str, Any], path: Optional[str] = None) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
+
 # ---------------------------------------------------------------------------
 # Device-type resolution
 # ---------------------------------------------------------------------------
+
 
 def resolve_device_type(device: Any) -> str:
     """Return the device's type string if known, otherwise ``DEFAULT_DEVICE_TYPE``."""

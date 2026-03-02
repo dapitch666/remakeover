@@ -4,30 +4,8 @@ import os
 
 import streamlit as st
 
-import src.ssh as _ssh
 import src.dialog as _dialog
-from src.models import Device
-from src.templates import (
-    list_device_templates,
-    save_device_template,
-    delete_device_template,
-    rename_device_template,
-    rename_template_entry,
-    get_device_templates_dir,
-    get_device_templates_backup_path,
-    get_template_entry,
-    get_all_categories,
-    add_template_entry,
-    remove_template_entry,
-    update_template_categories,
-    ensure_remote_template_dirs,
-    upload_template_svgs,
-    get_device_templates_json_path,
-    fetch_and_init_templates,
-    is_templates_dirty,
-    mark_templates_synced,
-)
-from src.ui_common import rainbow_divider, normalise_filename, deferred_toast, require_device
+import src.ssh as _ssh
 from src.constants import (
     CMD_RESTART_XOCHITL,
     GRID_COLUMNS,
@@ -35,9 +13,31 @@ from src.constants import (
     REMOTE_TEMPLATES_DIR,
     REMOTE_TEMPLATES_JSON,
 )
-
+from src.models import Device
+from src.templates import (
+    add_template_entry,
+    delete_device_template,
+    ensure_remote_template_dirs,
+    fetch_and_init_templates,
+    get_all_categories,
+    get_device_templates_backup_path,
+    get_device_templates_dir,
+    get_device_templates_json_path,
+    get_template_entry,
+    is_templates_dirty,
+    list_device_templates,
+    mark_templates_synced,
+    remove_template_entry,
+    rename_device_template,
+    rename_template_entry,
+    save_device_template,
+    update_template_categories,
+    upload_template_svgs,
+)
+from src.ui_common import deferred_toast, normalise_filename, rainbow_divider, require_device
 
 # ── Sync helper ───────────────────────────────────────────────────────────────
+
 
 def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
     """Push all local SVG templates and templates.json to the tablet, restart xochitl."""
@@ -54,11 +54,12 @@ def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
     if sent:
         try:
             _ssh.run_ssh_cmd(
-                ip, pw,
+                ip,
+                pw,
                 [
                     f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg; do "
-                    f"[ -f \"$file\" ] || continue; "
-                    f"ln -sf \"$file\" \"{REMOTE_TEMPLATES_DIR}/\"$(basename \"$file\"); "
+                    f'[ -f "$file" ] || continue; '
+                    f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
                     "done"
                 ],
             )
@@ -90,6 +91,7 @@ def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
 
 
 # ── Category dialog ───────────────────────────────────────────────────────────
+
 
 @st.dialog("Modifier les catégories")
 def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
@@ -126,6 +128,7 @@ def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
 
 # ── Template card ─────────────────────────────────────────────────────────────
 
+
 def _render_template_card(tpl_name, selected_name, device, add_log):
     """Render one template card: name/rename, SVG preview, categories, upload & delete actions."""
     tpl_path = os.path.join(get_device_templates_dir(selected_name), tpl_name)
@@ -133,6 +136,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
 
     # ── name / inline rename ──────────────────────────────────────────────
     if renaming:
+
         def do_rename(_old=tpl_name):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
             new_name = normalise_filename(raw, ext=".svg") if raw else None
@@ -253,7 +257,11 @@ def _render_template_upload_section(selected_name, add_log):
         help="Sauvegarder les templates localement",
         width="stretch",
     ):
-        extra_list = [c.strip() for c in extra_cats_input.split(",") if c.strip()] if extra_cats_input else []
+        extra_list = (
+            [c.strip() for c in extra_cats_input.split(",") if c.strip()]
+            if extra_cats_input
+            else []
+        )
         categories = list(sel_cats) + extra_list
         saved = []
         for uf in uploaded_files:
@@ -300,9 +308,7 @@ if not os.path.exists(backup_path):
         icon=":material/download:",
     ):
         with st.spinner("Importation en cours…"):
-            ok, msg = fetch_and_init_templates(
-                device.ip, device.password or "", selected_name
-            )
+            ok, msg = fetch_and_init_templates(device.ip, device.password or "", selected_name)
         if ok:
             add_log(f"Templates initialisés pour '{selected_name}' : {msg}")
             deferred_toast("Templates importés avec succès !", ":material/task_alt:")
@@ -351,14 +357,16 @@ else:
         if sort_by == "A → Z":
             stored_templates = sorted(stored_templates, key=lambda f: f.lower())
         elif sort_by == "Catégories":
+
             def _cat_key(f):
                 entry = get_template_entry(selected_name, f)
                 cats = entry.get("categories", []) if entry else []
                 return (cats[0].lower() if cats else "\xff", f.lower())
+
             stored_templates = sorted(stored_templates, key=_cat_key)
 
         for row_start in range(0, len(stored_templates), GRID_COLUMNS):
-            row_items = stored_templates[row_start:row_start + GRID_COLUMNS]
+            row_items = stored_templates[row_start : row_start + GRID_COLUMNS]
             cols = st.columns(GRID_COLUMNS, gap="medium")
             for col_idx, tpl_name in enumerate(row_items):
                 with cols[col_idx]:
