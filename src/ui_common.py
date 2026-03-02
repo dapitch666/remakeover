@@ -57,7 +57,7 @@ from src.constants import SUSPENDED_PNG_PATH, CMD_RESTART_XOCHITL
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp"}
 
 
-def _normalise_filename(filename: str, ext: str = ".png") -> str:
+def normalise_filename(filename: str, ext: str = ".png") -> str:
     """Sanitise a filename and ensure it ends with the specified extension.
 
     Only strips an existing suffix when it is a recognised file extension,
@@ -73,7 +73,7 @@ def _normalise_filename(filename: str, ext: str = ".png") -> str:
     return filename + ext
 
 
-def _send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
+def send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
     """Upload *img_data* as suspended.png and restart xochitl. Returns True on success."""
     success, msg = _ssh.upload_file_ssh(device.ip, device.password or "", img_data, SUSPENDED_PNG_PATH)
     if success:

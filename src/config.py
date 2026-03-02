@@ -71,27 +71,6 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    # if BASE_DIR != "/app":
-    #     default_config: Dict[str, Any] = {
-    #         "devices": {
-    #             "Anne (rM Paper Pro)": {
-    #                 "ip": "192.168.1.174",
-    #                 "password": "a5g7du9FkY",
-    #                 "device_type": "reMarkable Paper Pro",
-    #                 "templates": False,
-    #                 "carousel": True,
-    #             },
-    #             "Benoît (rM Move)": {
-    #                 "ip": "192.168.1.144",
-    #                 "password": "3JRpokPWbA",
-    #                 "device_type": "reMarkable Paper Pro Move",
-    #                 "templates": False,
-    #                 "carousel": True,
-    #             },
-    #         }
-    #     }
-    #     save_config(default_config, path)
-    #     return default_config
     return {"devices": {}}
 
 

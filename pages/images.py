@@ -10,7 +10,7 @@ import src.ssh as _ssh
 import src.dialog as _dialog
 from src.models import Device
 from src.constants import DEVICE_SIZES
-from src.ui_common import rainbow_divider, _normalise_filename, _send_suspended_png, deferred_toast, require_device
+from src.ui_common import rainbow_divider, normalise_filename, send_suspended_png, deferred_toast, require_device
 from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
 
 
@@ -25,7 +25,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
     if st.session_state.get("img_renaming") == img_name:
         def do_rename(_old=img_name):
             raw = st.session_state.get(f"rename_input_{_old}", "").strip()
-            new_name = _normalise_filename(raw) if raw else None
+            new_name = normalise_filename(raw) if raw else None
             if new_name and new_name != _old:
                 _images.rename_device_image(selected_name, _old, new_name)
                 if device.is_preferred(_old):
@@ -102,7 +102,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             return
         try:
             if selection == 0:
-                if _send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
+                if send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
                     st.toast(f"{_img_name} envoyée à {selected_name} !", icon=":material/task_alt:")
                 else:
                     st.toast(f"Erreur lors de l'envoi de {_img_name}", icon=":material/error:")
@@ -151,7 +151,7 @@ def _render_upload_section(selected_name, device, add_log):
     upload_key = f"img_last_upload_{selected_name}"
     if st.session_state.get(upload_key) != uploaded_file.name:
         img_data = _images.process_image(uploaded_file, width, height)
-        filename = _normalise_filename(uploaded_file.name)
+        filename = normalise_filename(uploaded_file.name)
         _images.save_device_image(selected_name, img_data, filename)
         add_log(f"Image saved locally: {filename} for '{selected_name}'")
         deferred_toast(f"Image sauvegardée : {filename}", ":material/task_alt:")
@@ -173,7 +173,7 @@ def _render_upload_section(selected_name, device, add_log):
     if result is True:
         img_data, filename = st.session_state.get(f"img_send_data_{selected_name}", (None, None))
         if img_data and filename:
-            if _send_suspended_png(device, img_data, filename, selected_name, add_log):
+            if send_suspended_png(device, img_data, filename, selected_name, add_log):
                 deferred_toast(f"{filename} envoyée sur {selected_name} !", ":material/task_alt:")
             else:
                 deferred_toast("Erreur lors de l'envoi.", ":material/error:")

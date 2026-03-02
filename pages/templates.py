@@ -27,7 +27,7 @@ from src.templates import (
     is_templates_dirty,
     mark_templates_synced,
 )
-from src.ui_common import rainbow_divider, _normalise_filename, deferred_toast, require_device
+from src.ui_common import rainbow_divider, normalise_filename, deferred_toast, require_device
 from src.constants import (
     CMD_RESTART_XOCHITL,
     GRID_COLUMNS,
@@ -135,7 +135,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     if renaming:
         def do_rename(_old=tpl_name):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
-            new_name = _normalise_filename(raw, ext=".svg") if raw else None
+            new_name = normalise_filename(raw, ext=".svg") if raw else None
             if new_name and new_name != _old:
                 rename_device_template(selected_name, _old, new_name)
                 rename_template_entry(selected_name, _old, new_name)
@@ -258,7 +258,7 @@ def _render_template_upload_section(selected_name, add_log):
         saved = []
         for uf in uploaded_files:
             content = uf.read()
-            filename = _normalise_filename(uf.name, ext=".svg")
+            filename = normalise_filename(uf.name, ext=".svg")
             save_device_template(selected_name, content, filename)
             add_template_entry(selected_name, filename, categories)
             add_log(f"{filename} template saved for '{selected_name}'")
