@@ -10,7 +10,8 @@ Current file contains function signatures and docs; implementations
 should be moved here from `app.py` incrementally.
 """
 
-from typing import List, Tuple
+from contextlib import contextmanager
+from typing import Generator, List, Tuple
 import paramiko
 import logging
 
@@ -18,6 +19,20 @@ from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW
 
 logger = logging.getLogger(__name__)
 
+
+@contextmanager
+def _ssh_client(ip: str, password: str) -> Generator[paramiko.SSHClient, None, None]:
+    """Context manager that opens, yields and always closes a paramiko SSHClient."""
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.connect(ip, username="root", password=password, timeout=10)
+    try:
+        yield client
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 def _ensure_rw(client: paramiko.SSHClient) -> Tuple[bool, str]:
@@ -58,69 +73,50 @@ def ensure_rw_filesystem(ip: str, password: str) -> Tuple[bool, str]:
     of operations (e.g. before opening an SFTP session).
     """
     logger.info("ensure_rw_filesystem: connecting to %s", ip)
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username="root", password=password, timeout=10)
-        ok, msg = _ensure_rw(client)
-        return ok, msg
+        with _ssh_client(ip, password) as client:
+            return _ensure_rw(client)
     except Exception as e:
         logger.error("ensure_rw_filesystem connect error on %s: %s", ip, e)
         return False, str(e)
-    finally:
-        try:
-            client.close()
-        except Exception:
-            pass
 
 
 def run_ssh_cmd(ip: str, password: str, commands) -> Tuple[str, str]:
     """Execute commands over SSH, ensuring filesystem is writable first."""
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username="root", password=password, timeout=10)
+        with _ssh_client(ip, password) as client:
+            ok, rw_msg = _ensure_rw(client)
+            if not ok:
+                return "", f"remount failed: {rw_msg}"
 
-        ok, rw_msg = _ensure_rw(client)
-        if not ok:
-            return "", f"remount failed: {rw_msg}"
+            full_cmd = " && ".join(commands) if commands else ""
+            if not full_cmd:
+                return "", ""
 
-        full_cmd = " && ".join(commands) if commands else ""
-        if not full_cmd:
-            return "", ""
+            try:
+                _, stdout, stderr = client.exec_command(full_cmd)
+                output = stdout.read().decode()
+                error = stderr.read().decode()
+            except Exception as e:
+                logger.error("SSH exec failed on %s: %s", ip, e)
+                return "", str(e)
 
-        try:
-            _, stdout, stderr = client.exec_command(full_cmd)
-            output = stdout.read().decode()
-            error = stderr.read().decode()
-        except Exception as e:
-            logger.error("SSH exec failed on %s: %s", ip, e)
-            return "", str(e)
-
-        logger.info("SSH exec on %s (rw=%s, out_len=%d, err_len=%d)", ip, rw_msg, len(output), len(error))
-        return output, error
+            logger.info("SSH exec on %s (rw=%s, out_len=%d, err_len=%d)", ip, rw_msg, len(output), len(error))
+            return output, error
     except Exception as e:
         logger.error("SSH error on %s: %s", ip, e)
         return "", str(e)
-    finally:
-        try:
-            client.close()
-        except Exception:
-            pass
 
 
 def test_ssh_connection(ip: str, password: str) -> Tuple[bool, str]:
     """Test simple SSH connectivity without modifying the device."""
     logger.info("SSH connectivity test start for %s", ip)
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username='root', password=password, timeout=10)
-        stdin, stdout, stderr = client.exec_command("echo ok")
-        output = stdout.read().decode().strip()
-        error = stderr.read().decode().strip()
-        client.close()
+        with _ssh_client(ip, password) as client:
+            _, stdout, stderr = client.exec_command("echo ok")
+            output = stdout.read().decode().strip()
+            error = stderr.read().decode().strip()
         logger.info("SSH connectivity test OK for %s (out=%s, err_len=%d)", ip, output, len(error))
         return output == "ok", error
     except Exception as e:
@@ -134,48 +130,44 @@ def upload_file_ssh(ip: str, password: str, file_content: bytes, remote_path: st
     Uses a single SSH connection for both the RW check/remount and the SFTP transfer.
     """
     logger.info("SSH prepare upload to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        client.connect(ip, username="root", password=password, timeout=10)
+        with _ssh_client(ip, password) as client:
+            ok, msg = _ensure_rw(client)
+            if not ok:
+                return False, f"remount failed: {msg}"
 
-        ok, msg = _ensure_rw(client)
-        if not ok:
-            return False, f"remount failed: {msg}"
+            sftp = client.open_sftp()
+            try:
+                with sftp.file(remote_path, "wb") as f:
+                    f.write(file_content)
+                logger.info("SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
+                return True, "OK"
+            except Exception as e:
+                logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
+                return False, str(e)
+            finally:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error("SSH upload connect error on %s: %s", ip, e)
+        return False, str(e)
 
+
+def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:
+    """Download *remote_path* via SFTP. Raises on any connection or transfer error."""
+    logger.info("SFTP download start from %s:%s", ip, remote_path)
+    with _ssh_client(ip, password) as client:
         sftp = client.open_sftp()
         try:
-            with sftp.file(remote_path, "wb") as f:
-                f.write(file_content)
-            logger.info("SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
-            return True, "OK"
-        except Exception as e:
-            logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
-            return False, str(e)
+            with sftp.file(remote_path, "rb") as f:
+                content = f.read()
         finally:
             try:
                 sftp.close()
             except Exception:
                 pass
-    except Exception as e:
-        logger.error("SSH upload connect error on %s: %s", ip, e)
-        return False, str(e)
-    finally:
-        try:
-            client.close()
-        except Exception:
-            pass
-
-
-def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:
-    logger.info("SFTP download start from %s:%s", ip, remote_path)
-    transport = paramiko.Transport((ip, 22))
-    transport.connect(username='root', password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
-    with sftp.file(remote_path, 'rb') as f:
-        content = f.read()
-    sftp.close()
-    transport.close()
     logger.info("SFTP download OK from %s:%s (bytes=%d)", ip, remote_path, len(content))
     return content
 
@@ -186,27 +178,22 @@ def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> Tuple[List[s
     Returns (filenames, error_message). On success *error_message* is empty.
     """
     logger.info("SFTP listdir start from %s:%s", ip, remote_dir)
-    transport = None
     try:
-        transport = paramiko.Transport((ip, 22))
-        transport.connect(username="root", password=password)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        try:
-            entries = sftp.listdir(remote_dir)
-        except Exception as e:
-            logger.error("SFTP listdir error on %s:%s: %s", ip, remote_dir, e)
-            return [], str(e)
-        finally:
-            sftp.close()
+        with _ssh_client(ip, password) as client:
+            sftp = client.open_sftp()
+            try:
+                entries = sftp.listdir(remote_dir)
+            except Exception as e:
+                logger.error("SFTP listdir error on %s:%s: %s", ip, remote_dir, e)
+                return [], str(e)
+            finally:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
         logger.info("SFTP listdir OK from %s:%s (%d entries)", ip, remote_dir, len(entries))
         return sorted(entries), ""
     except Exception as e:
         logger.error("SFTP listdir connect error on %s: %s", ip, e)
         return [], str(e)
-    finally:
-        if transport:
-            try:
-                transport.close()
-            except Exception:
-                pass
 

@@ -97,9 +97,9 @@ def run_maintenance(
 
     if image:
         active_steps.append("Upload de l'image de veille")
-    if getattr(device, "templates", False):
+    if device.templates:
         active_steps.append("Ajout des templates personnalisés")
-    if getattr(device, "carousel", False):
+    if device.carousel:
         active_steps.append("Désactivation du carrousel")
     active_steps.append("Redémarrage de xochitl")
 
@@ -112,12 +112,12 @@ def run_maintenance(
         pct = int((cur / total) * 100)
         try:
             step_fn(f"{cur}/{total} — {label}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("step_fn raised: %s", e)
         try:
             progress_fn(pct)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("progress_fn raised: %s", e)
 
     def _log(msg: str) -> None:
         try:
@@ -148,7 +148,7 @@ def run_maintenance(
             _log(f"Image '{image}' uploaded as suspended.png")
 
         # ── 2) Custom templates ────────────────────────────────────────────
-        if getattr(device, "templates", False):
+        if device.templates:
             _advance("Ajout des templates personnalisés")
 
             ok, msg = ensure_remote_template_dirs(
@@ -193,7 +193,7 @@ def run_maintenance(
                 return {"ok": False, "errors": errors, "details": details}
 
         # ── 3) Disable carousel ────────────────────────────────────────────
-        if getattr(device, "carousel", False):
+        if device.carousel:
             _advance("Désactivation du carrousel")
             carousel_cmd = (
                 f"mkdir -p '{REMOTE_CAROUSEL_BACKUP_DIR}' && "

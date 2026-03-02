@@ -1,14 +1,14 @@
-import streamlit as st
+import html as _pyhtml
+import json
 import os
 from datetime import datetime
+
+import streamlit as st
 
 from src.config import (
     BASE_DIR,
     load_config,
-    save_config,
-    resolve_device_type,
 )
-from src.constants import DEFAULT_DEVICE_TYPE
 
 
 # ── Session logging helper ────────────────────────────────────────────────────
@@ -74,7 +74,6 @@ def _debug_overlay():
         pass
 
     try:
-        import json, html as _pyhtml
         safe = _pyhtml.escape(json.dumps(dict(st.session_state), default=str, indent=2))
         st.html(
             f'<div style="position:fixed;right:8px;top:8px;max-width:420px;max-height:45vh;'
@@ -105,9 +104,6 @@ def main():
 
     config = load_config()
     st.session_state["config"] = config
-    st.session_state["save_config"] = save_config
-    st.session_state["resolve_device_type"] = resolve_device_type
-    st.session_state["DEFAULT_DEVICE_TYPE"] = DEFAULT_DEVICE_TYPE
 
     # ── Navigation ────────────────────────────────────────────────────────
     config_page = st.Page("pages/configuration.py", title="Configuration", icon=":material/settings:")

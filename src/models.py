@@ -63,8 +63,5 @@ class Device:
     def is_preferred(self, image_name: str) -> bool:
         return bool(self.preferred_image and self.preferred_image == image_name)
 
-    def set_preferred(self, image_name: Optional[str]):
-        if image_name:
-            self.preferred_image = image_name
-        else:
-            self.preferred_image = None
+    def set_preferred(self, image_name: Optional[str]) -> None:
+        self.preferred_image = image_name or None

@@ -7,15 +7,12 @@ import shutil
 import streamlit as st
 
 import src.dialog as _dialog
-from src.config import get_device_data_dir
-from src.constants import DEVICE_SIZES
+from src.config import get_device_data_dir, save_config, resolve_device_type
+from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE
 from src.ui_common import rainbow_divider, deferred_toast
 
 config = st.session_state.get("config", {})
 add_log = st.session_state.get("add_log", lambda msg: None)
-save_config = st.session_state.get("save_config", lambda c: None)
-resolve_device_type = st.session_state.get("resolve_device_type")
-DEFAULT_DEVICE_TYPE = st.session_state.get("DEFAULT_DEVICE_TYPE", "reMarkable 2")
 
 st.title(":material/settings: Configuration des appareils")
 rainbow_divider()

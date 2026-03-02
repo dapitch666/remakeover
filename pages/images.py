@@ -9,6 +9,7 @@ import src.images as _images
 import src.ssh as _ssh
 import src.dialog as _dialog
 from src.models import Device
+from src.config import save_config
 from src.constants import DEVICE_SIZES
 from src.ui_common import rainbow_divider, normalise_filename, send_suspended_png, deferred_toast, require_device
 from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
@@ -195,7 +196,6 @@ rainbow_divider()
 
 config = st.session_state.get("config", {})
 add_log = st.session_state.get("add_log", lambda msg: None)
-save_config = st.session_state.get("save_config", lambda c: None)
 selected_name = st.session_state.get("selected_name")
 
 DEVICES = config.get("devices", {})

@@ -23,8 +23,6 @@ def get_device_images_dir(device_name: str) -> str:
 
 def list_device_images(device_name: str) -> List[str]:
     device_dir = get_device_images_dir(device_name)
-    if not os.path.exists(device_dir):
-        return []
     files = [f for f in os.listdir(device_dir) if f.endswith('.png')]
     return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
 
@@ -69,8 +67,7 @@ def process_image(uploaded_file, width: int, height: int) -> bytes:
         except Exception:
             pass
         return uploaded_file.read()
-    if img.size != (width, height):
-        img = img.resize((width, height), Image.Resampling.LANCZOS)
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
     img = img.convert("RGB")
     buf = io.BytesIO()
     img.save(buf, format="PNG")

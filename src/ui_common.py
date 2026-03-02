@@ -4,6 +4,7 @@ import os
 
 import streamlit as st
 import src.ssh as _ssh
+from src.constants import SUSPENDED_PNG_PATH, CMD_RESTART_XOCHITL
 
 _DEFERRED_TOAST_KEY = "_deferred_toast"
 
@@ -51,7 +52,6 @@ def rainbow_divider():
         ");"
         '">'
     )
-from src.constants import SUSPENDED_PNG_PATH, CMD_RESTART_XOCHITL
 
 
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp"}
@@ -75,9 +75,10 @@ def normalise_filename(filename: str, ext: str = ".png") -> str:
 
 def send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
     """Upload *img_data* as suspended.png and restart xochitl. Returns True on success."""
-    success, msg = _ssh.upload_file_ssh(device.ip, device.password or "", img_data, SUSPENDED_PNG_PATH)
+    pw = device.password or ""
+    success, msg = _ssh.upload_file_ssh(device.ip, pw, img_data, SUSPENDED_PNG_PATH)
     if success:
-        _ssh.run_ssh_cmd(device.ip, device.password or "", [CMD_RESTART_XOCHITL])
+        _ssh.run_ssh_cmd(device.ip, pw, [CMD_RESTART_XOCHITL])
         add_log(f"Sent {img_name} to '{selected_name}'")
         return True
     add_log(f"Error sending {img_name} to '{selected_name}': {msg}")

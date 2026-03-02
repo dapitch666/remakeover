@@ -6,7 +6,7 @@ without a running Streamlit session.
 
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from src.constants import DEVICE_SIZES, DEFAULT_DEVICE_TYPE  # re-exported for back-compat
 
@@ -47,7 +47,7 @@ def _active_config_path() -> str:
 # Display helpers
 # ---------------------------------------------------------------------------
 
-def truncate_display_name(name: str, max_len: int = 13) -> str:
+def truncate_display_name(name: Any, max_len: int = 13) -> str:
     """Return a display-safe version of *name*, truncated to *max_len* chars."""
     if not isinstance(name, str):
         return str(name)

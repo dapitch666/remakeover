@@ -4,11 +4,13 @@ Local helpers (list, save, load, delete, rename SVG templates per device)
 and remote helpers (upload, backup/replace templates.json).
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from typing import Any, Dict, Generator, List, Optional, Tuple
 import hashlib
 import json
 import os
 import logging
+from pathlib import Path
 
 from src.ssh import run_ssh_cmd, upload_file_ssh, download_file_ssh
 from src.constants import REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR, REMOTE_TEMPLATES_JSON
@@ -41,8 +43,6 @@ def get_device_templates_backup_path(device_name: str) -> str:
 def list_device_templates(device_name: str) -> List[str]:
     """Return sorted list of .svg filenames stored locally for *device_name*."""
     device_dir = get_device_templates_dir(device_name)
-    if not os.path.exists(device_dir):
-        return []
     files = [f for f in os.listdir(device_dir) if f.lower().endswith(".svg")]
     return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
 
@@ -89,7 +89,7 @@ def rename_device_template(device_name: str, old_filename: str, new_filename: st
 
 def _stem(filename: str) -> str:
     """Return filename without .svg extension (case-insensitive)."""
-    return filename[:-4] if filename.lower().endswith(".svg") else filename
+    return Path(filename).stem if filename.lower().endswith(".svg") else filename
 
 
 def load_templates_json(device_name: str) -> Dict[str, Any]:
@@ -117,7 +117,7 @@ def save_templates_json(device_name: str, data: Dict[str, Any]) -> None:
 def get_all_categories(device_name: str) -> List[str]:
     """Return sorted list of all distinct categories found in templates.json."""
     data = load_templates_json(device_name)
-    cats: set = set()
+    cats: set[str] = set()
     for t in data.get("templates", []):
         cats.update(t.get("categories", []))
     return sorted(cats)
@@ -132,37 +132,44 @@ def get_template_entry(device_name: str, filename: str) -> Optional[Dict[str, An
     return None
 
 
+@contextmanager
+def _edit_templates_json(device_name: str) -> Generator[Dict[str, Any], None, None]:
+    """Context manager that loads templates.json, yields the data dict for mutation,
+    then saves it back on exit.
+    """
+    data = load_templates_json(device_name)
+    yield data
+    save_templates_json(device_name, data)
+
+
 def add_template_entry(
     device_name: str, filename: str, categories: List[str], icon_code: str = "\ue9fe"
 ) -> None:
     """Add or replace the templates.json entry for *filename*."""
     stem = _stem(filename)
-    data = load_templates_json(device_name)
-    data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
-    data["templates"].append(
-        {"name": stem, "filename": stem, "iconCode": icon_code, "categories": categories}
-    )
-    save_templates_json(device_name, data)
+    with _edit_templates_json(device_name) as data:
+        data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
+        data["templates"].append(
+            {"name": stem, "filename": stem, "iconCode": icon_code, "categories": categories}
+        )
 
 
 def remove_template_entry(device_name: str, filename: str) -> None:
     """Remove the templates.json entry matching *filename*."""
     stem = _stem(filename)
-    data = load_templates_json(device_name)
-    data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
-    save_templates_json(device_name, data)
+    with _edit_templates_json(device_name) as data:
+        data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
 
 
 def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
     """Update filename and name fields in templates.json when a template is renamed."""
     old_stem, new_stem = _stem(old_filename), _stem(new_filename)
-    data = load_templates_json(device_name)
-    for t in data.get("templates", []):
-        if t.get("filename") == old_stem:
-            t["filename"] = new_stem
-            t["name"] = new_stem
-            break
-    save_templates_json(device_name, data)
+    with _edit_templates_json(device_name) as data:
+        for t in data.get("templates", []):
+            if t.get("filename") == old_stem:
+                t["filename"] = new_stem
+                t["name"] = new_stem
+                break
 
 
 def update_template_categories(
@@ -170,12 +177,11 @@ def update_template_categories(
 ) -> None:
     """Update the categories list for *filename* in templates.json."""
     stem = _stem(filename)
-    data = load_templates_json(device_name)
-    for t in data.get("templates", []):
-        if t.get("filename") == stem:
-            t["categories"] = categories
-            break
-    save_templates_json(device_name, data)
+    with _edit_templates_json(device_name) as data:
+        for t in data.get("templates", []):
+            if t.get("filename") == stem:
+                t["categories"] = categories
+                break
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +218,6 @@ def upload_template_svgs(ip: str, password: str, local_dirs: List[str], remote_c
                     sent_count += 1
             except Exception as e:
                 logger.warning("Failed to upload template %s: %s", local_path, e)
-                continue
     return sent_count
 
 
