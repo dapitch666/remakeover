@@ -8,7 +8,8 @@ import streamlit as st
 import src.images as _images
 import src.maintenance as _maint
 from src.models import Device
-from src.ui_common import rainbow_divider, deferred_toast
+from src.templates import list_device_templates
+from src.ui_common import rainbow_divider, deferred_toast, require_device
 
 st.title(":material/rocket_launch: Déploiement")
 rainbow_divider()
@@ -19,16 +20,7 @@ selected_name = st.session_state.get("selected_name")
 
 DEVICES = config.get("devices", {})
 
-if not DEVICES:
-    st.warning(
-        "Aucun appareil configuré. Ajoutez-en un dans ⚙️ **Configuration**.",
-        icon=":material/info:",
-    )
-    st.stop()
-
-if not selected_name or selected_name not in DEVICES:
-    st.info("Sélectionnez une tablette dans la barre latérale.")
-    st.stop()
+require_device(DEVICES, selected_name)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 
@@ -58,7 +50,7 @@ if image_desc:
     lines.append(f"- Envoyer {image_desc} comme image de veille (`suspended.png`) sur la tablette")
 else:
     lines.append("- *(Aucune image locale — envoi de l'image de veille ignoré)*")
-if getattr(device, "templates", False):
+if getattr(device, "templates", False) and bool(list_device_templates(selected_name)):
     lines.append(
         "- Déployer les templates SVG locaux, créer les liens symboliques "
         "et mettre à jour `templates.json` sur la tablette"
@@ -69,7 +61,19 @@ if getattr(device, "carousel", False):
         "dans un dossier de sauvegarde"
     )
 lines.append("- Redémarrer `xochitl` pour appliquer les changements")
-st.info("\n".join(lines))
+
+templates_active = getattr(device, "templates", False) and bool(list_device_templates(selected_name))
+has_meaningful_actions = bool(image) or templates_active or getattr(device, "carousel", False)
+
+if has_meaningful_actions:
+    st.info("\n".join(lines))
+else:
+    st.warning(
+        "Aucune action de déploiement configurée pour cette tablette "
+        "(pas d'image locale, templates désactivés ou inexistants, carrousel désactivé). "
+        "Le déploiement ne ferait que redémarrer `xochitl`.",
+        icon=":material/warning:",
+    )
 
 # ── Run / result state ───────────────────────────────────────────────
 result_key = f"maint_result_{selected_name}"
@@ -100,6 +104,7 @@ else:
             help="Redéployer la configuration locale sur la tablette après une mise à jour",
             type="primary",
             width="stretch",
+            disabled=not has_meaningful_actions,
         ):
             with st.status("Maintenance en cours…", expanded=True) as status:
                 progress = st.progress(0)

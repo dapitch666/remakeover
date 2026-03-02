@@ -27,9 +27,14 @@ CONFIG_PATH: str = os.path.join(BASE_DIR, "data", "config.json")
 
 
 def get_device_data_dir(device_name: str) -> str:
-    """Return (and create) the per-device data directory: data/{device}/"""
+    """Return (and create) the per-device data directory: data/{device}/
+
+    The base data directory can be overridden via the ``RM_DATA_DIR`` environment
+    variable — used in tests to avoid writing into the real ``data/`` tree.
+    """
     safe = device_name.replace("/", "_").replace(" ", "_")
-    path = os.path.join(BASE_DIR, "data", safe)
+    base = os.environ.get("RM_DATA_DIR") or os.path.join(BASE_DIR, "data")
+    path = os.path.join(base, safe)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -66,27 +71,27 @@ def load_config(path: Optional[str] = None) -> Dict[str, Any]:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    if BASE_DIR != "/app":
-        default_config: Dict[str, Any] = {
-            "devices": {
-                "Anne (rM Paper Pro)": {
-                    "ip": "192.168.1.174",
-                    "password": "a5g7du9FkY",
-                    "device_type": "reMarkable Paper Pro",
-                    "templates": False,
-                    "carousel": True,
-                },
-                "Benoît (rM Move)": {
-                    "ip": "192.168.1.144",
-                    "password": "3JRpokPWbA",
-                    "device_type": "reMarkable Paper Pro Move",
-                    "templates": False,
-                    "carousel": True,
-                },
-            }
-        }
-        save_config(default_config, path)
-        return default_config
+    # if BASE_DIR != "/app":
+    #     default_config: Dict[str, Any] = {
+    #         "devices": {
+    #             "Anne (rM Paper Pro)": {
+    #                 "ip": "192.168.1.174",
+    #                 "password": "a5g7du9FkY",
+    #                 "device_type": "reMarkable Paper Pro",
+    #                 "templates": False,
+    #                 "carousel": True,
+    #             },
+    #             "Benoît (rM Move)": {
+    #                 "ip": "192.168.1.144",
+    #                 "password": "3JRpokPWbA",
+    #                 "device_type": "reMarkable Paper Pro Move",
+    #                 "templates": False,
+    #                 "carousel": True,
+    #             },
+    #         }
+    #     }
+    #     save_config(default_config, path)
+    #     return default_config
     return {"devices": {}}
 
 

@@ -110,11 +110,12 @@ def main():
     st.session_state["DEFAULT_DEVICE_TYPE"] = DEFAULT_DEVICE_TYPE
 
     # ── Navigation ────────────────────────────────────────────────────────
+    config_page = st.Page("pages/configuration.py", title="Configuration", icon=":material/settings:")
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
         st.Page("pages/deploiement.py", title="Déploiement", icon=":material/rocket_launch:"),
-        st.Page("pages/configuration.py", title="Configuration", icon=":material/settings:"),
+        config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),
     ]
 
@@ -125,11 +126,18 @@ def main():
     if DEVICES:
         device_names = list(DEVICES.keys())
 
-        # Restore selection from URL query param on fresh loads.
+        # Restore selection from URL query param on fresh loads,
+        # or from a pending selection set by another page (e.g. after saving a new device).
         if "selected_tablet_select" not in st.session_state:
-            saved = st.query_params.get("tablet")
+            pending = st.session_state.pop("pending_selected_tablet", None)
+            saved = pending or st.query_params.get("tablet")
             if saved and saved in device_names:
                 st.session_state["selected_tablet_select"] = saved
+        else:
+            # Consume any pending selection even when the widget key already exists.
+            pending = st.session_state.pop("pending_selected_tablet", None)
+            if pending and pending in device_names:
+                st.session_state["selected_tablet_select"] = pending
 
         with st.sidebar:
             from src.ssh import test_ssh_connection
@@ -162,6 +170,13 @@ def main():
         st.session_state["selected_name"] = selected_name
     else:
         st.session_state["selected_name"] = None
+        # On the very first visit with no devices configured, send the user
+        # straight to the configuration page.  The flag prevents the redirect
+        # from firing again for the rest of the session (so the warning pages
+        # remain reachable via the sidebar navigation if the user wants to).
+        if pg is not config_page and not st.session_state.get("_auto_config_redirect"):
+            st.session_state["_auto_config_redirect"] = True
+            st.switch_page(config_page)
 
     _inject_css()
     _sidebar_version(_read_version())

@@ -61,7 +61,7 @@ def test_upload_and_send_flow(tmp_path):
     saved_files = []
 
     with ExitStack() as stack:
-        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}))
+        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)}))
         for p in _flow_patches(images_dir, upload_calls, run_cmds, saved_files):
             stack.enter_context(p)
 
@@ -103,7 +103,7 @@ def test_run_maintenance_flow(tmp_path):
     )
 
     with ExitStack() as stack:
-        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file)}))
+        stack.enter_context(patch.dict(os.environ, {"RM_CONFIG_PATH": str(cfg_file), "RM_DATA_DIR": str(tmp_path)}))
         for p in patches:
             stack.enter_context(p)
 

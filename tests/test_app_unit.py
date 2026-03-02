@@ -79,13 +79,13 @@ class TestConfigPersistence:
         assert cfg_file.exists()
         assert load_config(str(cfg_file)) == cfg
 
-    def test_load_missing_file_creates_default_outside_docker(self, tmp_path, monkeypatch):
-        """Outside Docker (BASE_DIR != /app), a missing config file gets a default created."""
+    def test_load_missing_file_returns_empty_outside_docker(self, tmp_path, monkeypatch):
+        """Outside Docker, a missing config file returns an empty device dict (no file is created)."""
         monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
         cfg_file = tmp_path / "data" / "config.json"
         result = load_config(str(cfg_file))
-        assert "devices" in result
-        assert cfg_file.exists(), "default config should be written to disk"
+        assert result == {"devices": {}}
+        assert not cfg_file.exists(), "no default config file should be written"
 
     def test_load_missing_file_returns_empty_in_docker(self, tmp_path, monkeypatch):
         """Inside Docker (BASE_DIR == /app), return empty config without writing."""

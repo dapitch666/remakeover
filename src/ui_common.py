@@ -20,6 +20,27 @@ def show_deferred_toast() -> None:
         st.toast(toast["msg"], icon=toast["icon"])
 
 
+def require_device(devices: dict, selected_name) -> None:
+    """Guard helper called at the top of every device-specific page.
+
+    * If *devices* is empty, shows a warning with a link to the configuration
+      page and stops rendering.
+    * If *selected_name* is not set or not in *devices*, shows an info message
+      prompting the user to select a tablet in the sidebar and stops rendering.
+    """
+    if not devices:
+        _, col, _ = st.columns([0.5, 3, 0.5])
+        with col:
+            with st.container(horizontal=True, width="content", gap="xsmall", border=True):
+                st.markdown(":orange[:material/warning:]")
+                st.markdown("Aucun appareil configuré. Ajoutez-en un dans la page ")
+                st.page_link("pages/configuration.py", icon=":material/settings:")
+        st.stop()
+    if not selected_name or selected_name not in devices:
+        st.info("Sélectionnez une tablette dans la barre latérale.")
+        st.stop()
+
+
 def rainbow_divider():
     """Render a thin rainbow gradient rule beneath a page title."""
     st.html(

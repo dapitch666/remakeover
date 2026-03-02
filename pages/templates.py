@@ -27,7 +27,7 @@ from src.templates import (
     is_templates_dirty,
     mark_templates_synced,
 )
-from src.ui_common import rainbow_divider, _normalise_filename, deferred_toast
+from src.ui_common import rainbow_divider, _normalise_filename, deferred_toast, require_device
 from src.constants import (
     CMD_RESTART_XOCHITL,
     GRID_COLUMNS,
@@ -282,16 +282,7 @@ selected_name = st.session_state.get("selected_name")
 
 DEVICES = config.get("devices", {})
 
-if not DEVICES:
-    st.warning(
-        "Aucun appareil configuré. Ajoutez-en un dans ⚙️ **Configuration**.",
-        icon=":material/info:",
-    )
-    st.stop()
-
-if not selected_name or selected_name not in DEVICES:
-    st.info("Sélectionnez une tablette dans la barre latérale.")
-    st.stop()
+require_device(DEVICES, selected_name)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 

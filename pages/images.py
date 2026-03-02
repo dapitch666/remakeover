@@ -10,7 +10,7 @@ import src.ssh as _ssh
 import src.dialog as _dialog
 from src.models import Device
 from src.constants import DEVICE_SIZES
-from src.ui_common import rainbow_divider, _normalise_filename, _send_suspended_png, deferred_toast
+from src.ui_common import rainbow_divider, _normalise_filename, _send_suspended_png, deferred_toast, require_device
 from src.constants import SUSPENDED_PNG_PATH, GRID_COLUMNS
 
 
@@ -200,16 +200,7 @@ selected_name = st.session_state.get("selected_name")
 
 DEVICES = config.get("devices", {})
 
-if not DEVICES:
-    st.warning(
-        "Aucun appareil configuré. Ajoutez-en un dans ⚙️ **Configuration**.",
-        icon=":material/info:",
-    )
-    st.stop()
-
-if not selected_name or selected_name not in DEVICES:
-    st.info("Sélectionnez une tablette dans la barre latérale.")
-    st.stop()
+require_device(DEVICES, selected_name)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 
