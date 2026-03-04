@@ -1,4 +1,4 @@
-"""Unit tests for src.images — local image management helpers."""
+"""Unit tests for src/images.py — local image management helpers."""
 
 import io
 import os

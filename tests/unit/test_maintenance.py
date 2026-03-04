@@ -1,4 +1,4 @@
-"""Unit tests for src.maintenance.run_maintenance."""
+"""Unit tests for src/maintenance.py — run_maintenance orchestration."""
 
 from contextlib import ExitStack
 from unittest.mock import patch
@@ -247,11 +247,24 @@ class TestRunMaintenanceErrors:
         assert result["ok"] is False
         assert any("upload_suspended_failed" in e for e in result["errors"])
 
-    def test_ensure_remote_dirs_failure_returns_error(self):
+    def test_list_device_images_exception_treated_as_empty(self):
+        """If list_device_images raises, no image step runs and maintenance succeeds."""
+        dev = _device()
+        patches = _base_patches()
+        patches[1] = patch("src.maintenance.list_device_images", side_effect=Exception("io error"))
+        with ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            result = run_maintenance("D1", dev, image=None, **_callbacks())
+
+        assert result["ok"] is True
+
+    def test_templates_ensure_dirs_failure_returns_error(self):
+        """ensure_remote_template_dirs failing causes maintenance to return an error."""
         dev = _device(templates=True)
         patches = _base_patches()
         patches[4] = patch(
-            "src.maintenance.ensure_remote_template_dirs", return_value=(False, "permission denied")
+            "src.maintenance.ensure_remote_template_dirs", return_value=(False, "dirs failed")
         )
         with ExitStack() as stack:
             for p in patches:
@@ -261,12 +274,12 @@ class TestRunMaintenanceErrors:
         assert result["ok"] is False
         assert any("ensure_remote_dirs_failed" in e for e in result["errors"])
 
-    def test_symlink_failure_returns_error(self):
+    def test_templates_symlink_failure_returns_error(self):
+        """run_ssh_cmd raising during symlink creation aborts maintenance."""
         dev = _device(templates=True)
         patches = _base_patches()
-        # send_count > 0 so symlink command is attempted
         patches[5] = patch("src.maintenance.upload_template_svgs", return_value=1)
-        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("bash error"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("symlink error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -275,10 +288,24 @@ class TestRunMaintenanceErrors:
         assert result["ok"] is False
         assert any("symlink_failed" in e for e in result["errors"])
 
+    def test_carousel_failure_returns_error(self):
+        """run_ssh_cmd raising during carousel step aborts maintenance."""
+        dev = _device(carousel=True)
+        patches = _base_patches()
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("carousel error"))
+        with ExitStack() as stack:
+            for p in patches:
+                stack.enter_context(p)
+            result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
+
+        assert result["ok"] is False
+        assert any("carousel_failed" in e for e in result["errors"])
+
     def test_restart_failure_returns_error(self):
+        """run_ssh_cmd raising during xochitl restart aborts maintenance."""
         dev = _device()
         patches = _base_patches()
-        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("connection lost"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("restart error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -286,3 +313,45 @@ class TestRunMaintenanceErrors:
 
         assert result["ok"] is False
         assert any("restart_failed" in e for e in result["errors"])
+
+    def test_toast_fn_called_with_success_message(self):
+        """toast_fn receives the success message when maintenance completes without errors."""
+        dev = _device()
+        toasts: list[str] = []
+        with ExitStack() as stack:
+            for p in _base_patches():
+                stack.enter_context(p)
+            run_maintenance(
+                "D1",
+                dev,
+                image="bg.png",
+                step_fn=lambda m: None,
+                progress_fn=lambda p: None,
+                toast_fn=toasts.append,
+                log_fn=lambda m: None,
+            )
+
+        assert any("succès" in t or "success" in t.lower() for t in toasts)
+
+    def test_toast_fn_called_with_error_message_on_failure(self):
+        """toast_fn receives the error message on an unexpected exception."""
+
+        def _raise(msg: str) -> None:
+            raise RuntimeError("unexpected boom")
+
+        dev = _device()
+        toasts: list[str] = []
+        with ExitStack() as stack:
+            for p in _base_patches():
+                stack.enter_context(p)
+            run_maintenance(
+                "D1",
+                dev,
+                image="bg.png",
+                step_fn=_raise,
+                progress_fn=lambda p: None,
+                toast_fn=toasts.append,
+                log_fn=lambda m: None,
+            )
+
+        assert any("erreur" in t.lower() or "error" in t.lower() for t in toasts)

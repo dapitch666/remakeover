@@ -1,10 +1,9 @@
-"""Unit tests for src.ui_common helpers (Streamlit-free logic)."""
+"""Unit tests for src/ui_common.py — Streamlit-free logic."""
 
-from src.ui_common import normalise_filename
+from unittest.mock import patch
 
-# ---------------------------------------------------------------------------
-# _normalise_filename
-# ---------------------------------------------------------------------------
+from src.models import Device
+from src.ui_common import normalise_filename, send_suspended_png
 
 
 class TestNormaliseFilename:
@@ -46,3 +45,29 @@ class TestNormaliseFilename:
 
     def test_known_extension_swapped_to_svg(self):
         assert normalise_filename("icon.png", ext=".svg") == "icon.svg"
+
+
+# ---------------------------------------------------------------------------
+# send_suspended_png
+# ---------------------------------------------------------------------------
+
+
+class TestSendSuspendedPng:
+    _device = Device.from_dict("D1", {"ip": "10.0.0.1", "password": "pw"})
+
+    def test_success_returns_true_and_logs(self):
+        log: list[str] = []
+        with (
+            patch("src.ui_common._ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.ui_common._ssh.run_ssh_cmd"),
+        ):
+            result = send_suspended_png(self._device, b"imgdata", "bg.png", "D1", log.append)
+        assert result is True
+        assert any("Sent" in m for m in log)
+
+    def test_failure_returns_false_and_logs_error(self):
+        log: list[str] = []
+        with patch("src.ui_common._ssh.upload_file_ssh", return_value=(False, "refused")):
+            result = send_suspended_png(self._device, b"imgdata", "bg.png", "D1", log.append)
+        assert result is False
+        assert any("Error" in m for m in log)

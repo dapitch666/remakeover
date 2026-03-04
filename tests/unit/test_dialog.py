@@ -1,3 +1,5 @@
+"""Unit tests for src/dialog.py — confirm() dialog helper."""
+
 from unittest.mock import MagicMock, patch
 
 import src.dialog as dialog_mod

@@ -1,4 +1,4 @@
-"""Unit tests for src.templates — local helpers, JSON management, and remote helpers."""
+"""Unit tests for src/templates.py — local helpers, JSON management, and remote helpers."""
 
 import json
 import os
@@ -65,7 +65,6 @@ class TestLocalFileHelpers:
         assert "readme.txt" not in result
 
     def test_list_device_templates_sorted_by_mtime_desc(self, tmp_path):
-        # Create files with known mtimes
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Old.svg")
         tpl.save_device_template(DEVICE, SVG_CONTENT, "New.svg")
         d = tpl.get_device_templates_dir(DEVICE)
@@ -205,7 +204,6 @@ class TestJsonHelpers:
 
 class TestCompareAndBackupTemplatesJson:
     def test_identical_returns_identical(self, tmp_path):
-        # Write the same content locally and pretend remote returns it too
         tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
         os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
         with open(tpl_json_path, "wb") as f:
@@ -268,7 +266,6 @@ class TestCompareAndBackupTemplatesJson:
 class TestUploadTemplateToTablet:
     def _setup_svg(self, tmp_path):
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        # write a templates.json too so the json push path is exercised
         tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
 
     def test_happy_path(self, tmp_path):
@@ -281,7 +278,6 @@ class TestUploadTemplateToTablet:
 
         assert ok is True
         assert msg == "ok"
-        # First call: SVG upload; second call: templates.json push
         assert mock_up.call_count == 2
         mock_cmd.assert_called_once()
 
@@ -304,7 +300,6 @@ class TestUploadTemplateToTablet:
 
     def test_json_upload_failure(self, tmp_path):
         self._setup_svg(tmp_path)
-        # First call (SVG) succeeds, second call (json) fails
         with (
             patch("src.templates.upload_file_ssh", side_effect=[(True, "ok"), (False, "error")]),
             patch("src.templates.run_ssh_cmd"),
@@ -322,7 +317,6 @@ class TestUploadTemplateToTablet:
     def test_no_local_json_skips_json_push(self, tmp_path):
         """If templates.json doesn't exist, only the SVG upload and symlink are done."""
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        # no templates.json written
         with (
             patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
             patch("src.templates.run_ssh_cmd"),
@@ -349,31 +343,181 @@ class TestRemoveTemplateFromTablet:
         mock_cmd.assert_called_once()
         mock_up.assert_called_once()
 
-    def test_remove_failure(self, tmp_path):
-        self._setup(tmp_path)
-        with patch("src.templates.run_ssh_cmd", side_effect=Exception("permission denied")):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
+    def test_ssh_remove_fails(self):
+        with patch("src.templates.run_ssh_cmd", side_effect=Exception("ssh down")):
+            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "icon.svg")
         assert ok is False
         assert "remove_failed" in msg
 
-    def test_json_upload_failure(self, tmp_path):
-        self._setup(tmp_path)
+    def test_json_upload_fails(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
         with (
             patch("src.templates.run_ssh_cmd"),
-            patch("src.templates.upload_file_ssh", return_value=(False, "io error")),
+            patch("src.templates.upload_file_ssh", return_value=(False, "upload error")),
         ):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
+            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "icon.svg")
         assert ok is False
         assert "upload_json_failed" in msg
 
-    def test_no_local_json_skips_json_push(self, tmp_path):
-        """If templates.json doesn't exist, only the rm command is issued."""
-        tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        with (
-            patch("src.templates.run_ssh_cmd") as mock_cmd,
-            patch("src.templates.upload_file_ssh") as mock_up,
-        ):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
+
+# ---------------------------------------------------------------------------
+# ensure_remote_template_dirs
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureRemoteTemplateDirs:
+    def test_success(self):
+        with patch("src.templates.run_ssh_cmd", return_value=("ok", "")):
+            ok, msg = tpl.ensure_remote_template_dirs(
+                "1.2.3.4", "pw", "/remote/custom", "/remote/tpl"
+            )
         assert ok is True
-        mock_cmd.assert_called_once()
+
+    def test_exception_returns_false(self):
+        with patch("src.templates.run_ssh_cmd", side_effect=Exception("ssh error")):
+            ok, msg = tpl.ensure_remote_template_dirs(
+                "1.2.3.4", "pw", "/remote/custom", "/remote/tpl"
+            )
+        assert ok is False
+        assert "ssh error" in msg
+
+
+# ---------------------------------------------------------------------------
+# upload_template_svgs
+# ---------------------------------------------------------------------------
+
+
+class TestUploadTemplateSvgs:
+    def test_returns_count_of_uploaded(self, tmp_path):
+        svg_dir = tmp_path / "svgs"
+        svg_dir.mkdir()
+        (svg_dir / "a.svg").write_bytes(b"<svg/>")
+        (svg_dir / "b.svg").write_bytes(b"<svg/>")
+        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
+        assert count == 2
+
+    def test_skips_non_svg_files(self, tmp_path):
+        svg_dir = tmp_path / "svgs"
+        svg_dir.mkdir()
+        (svg_dir / "note.txt").write_bytes(b"text")
+        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up:
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
+        assert count == 0
         mock_up.assert_not_called()
+
+    def test_skips_missing_dir(self):
+        with patch("src.templates.upload_file_ssh") as mock_up:
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", ["/no/such/dir"], "/remote/custom")
+        assert count == 0
+        mock_up.assert_not_called()
+
+    def test_upload_failure_not_counted(self, tmp_path):
+        svg_dir = tmp_path / "svgs"
+        svg_dir.mkdir()
+        (svg_dir / "c.svg").write_bytes(b"<svg/>")
+        with patch("src.templates.upload_file_ssh", return_value=(False, "error")):
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
+        assert count == 0
+
+
+# ---------------------------------------------------------------------------
+# fetch_and_init_templates
+# ---------------------------------------------------------------------------
+
+
+class TestFetchAndInitTemplates:
+    def test_download_failure(self):
+        with patch("src.templates.download_file_ssh", side_effect=Exception("timeout")):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+        assert ok is False
+        assert "download_failed" in msg
+
+    def test_backup_parse_failed(self):
+        with patch("src.templates.download_file_ssh", return_value=b"not-valid-json"):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+        assert ok is False
+        assert "backup_parse_failed" in msg
+
+    def test_happy_path_no_local_svgs(self, tmp_path):
+        # Ensure the device directory exists so the backup file can be written
+        (tmp_path / DEVICE).mkdir(parents=True, exist_ok=True)
+        remote_json = json.dumps({"templates": []}).encode()
+        with patch("src.templates.download_file_ssh", return_value=remote_json):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+        assert ok is True
+        assert "fetched" in msg
+
+    def test_appends_local_svgs_not_in_backup(self, tmp_path):
+        svgs_dir = tmp_path / DEVICE / "templates"
+        svgs_dir.mkdir(parents=True)
+        (svgs_dir / "custom.svg").write_bytes(SVG_CONTENT)
+        remote_json = json.dumps({"templates": []}).encode()
+        with patch("src.templates.download_file_ssh", return_value=remote_json):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+        assert ok is True
+        assert "1 local SVG" in msg
+        data = tpl.load_templates_json(DEVICE)
+        assert any(t["filename"] == "custom" for t in data["templates"])
+
+    def test_does_not_duplicate_existing_entries(self, tmp_path):
+        svgs_dir = tmp_path / DEVICE / "templates"
+        svgs_dir.mkdir(parents=True)
+        (svgs_dir / "Blank.svg").write_bytes(SVG_CONTENT)
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {"name": "Blank", "filename": "Blank", "iconCode": "\ue9fe", "categories": []}
+                ]
+            }
+        ).encode()
+        with patch("src.templates.download_file_ssh", return_value=remote_json):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+        assert ok is True
+        assert "0 local SVG" in msg
+
+
+# ---------------------------------------------------------------------------
+# is_templates_dirty + mark_templates_synced
+# ---------------------------------------------------------------------------
+
+
+class TestIsDirtyAndMarkSynced:
+    def test_missing_json_not_dirty(self):
+        assert tpl.is_templates_dirty(DEVICE) is False
+
+    def test_never_synced_no_entries_not_dirty(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+        assert tpl.is_templates_dirty(DEVICE) is False
+
+    def test_never_synced_with_entries_is_dirty(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[{"filename":"a"}]}', encoding="utf-8")
+        assert tpl.is_templates_dirty(DEVICE) is True
+
+    def test_synced_matching_hash_not_dirty(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+        tpl.mark_templates_synced(DEVICE)
+        assert tpl.is_templates_dirty(DEVICE) is False
+
+    def test_synced_then_modified_is_dirty(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+        tpl.mark_templates_synced(DEVICE)
+        json_path.write_text('{"templates":[{"filename":"new"}]}', encoding="utf-8")
+        assert tpl.is_templates_dirty(DEVICE) is True
+
+    def test_mark_synced_when_no_json_removes_sync_file(self, tmp_path):
+        sync_path = tmp_path / DEVICE / ".tpl_sync"
+        sync_path.parent.mkdir(parents=True, exist_ok=True)
+        sync_path.write_text("oldhash", encoding="utf-8")
+        tpl.mark_templates_synced(DEVICE)
+        assert not sync_path.exists()

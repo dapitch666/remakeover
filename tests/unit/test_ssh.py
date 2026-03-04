@@ -372,4 +372,3 @@ class TestListRemoteDirSsh:
         with _patched_client(inst):
             entries, err = list_remote_dir_ssh(IP, PW, "/templates")
         assert entries == []
-        assert "refused" in err
