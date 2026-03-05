@@ -157,10 +157,10 @@ def main():
                     _device = _Device.from_dict(selected_name, DEVICES[selected_name])
                     ok, err = ssh_connectivity_test(_device.ip, _device.password or "")
                     if ok:
-                        st.toast("Connexion SSH OK", icon=":material/task_alt:")
+                        st.toast(":green[Connexion SSH OK]", icon=":material/task_alt:")
                         _add_log(f"SSH connection successful to '{selected_name}'")
                     else:
-                        st.toast(f"Connexion SSH impossible : {err}", icon=":material/error:")
+                        st.toast(f":red[Connexion SSH impossible : {err}]", icon=":material/error:")
                         _add_log(f"SSH connection failed to '{selected_name}': {err}")
 
         # Persist selection in URL and session state for pages to consume.

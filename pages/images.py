@@ -114,9 +114,14 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
         try:
             if selection == 0:
                 if send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
-                    st.toast(f"{_img_name} envoyée à {selected_name} !", icon=":material/task_alt:")
+                    st.toast(
+                        f":green[{_img_name} envoyée à {selected_name} !]",
+                        icon=":material/task_alt:",
+                    )
                 else:
-                    st.toast(f"Erreur lors de l'envoi de {_img_name}", icon=":material/error:")
+                    st.toast(
+                        f":red[Erreur lors de l'envoi de {_img_name}]", icon=":material/error:"
+                    )
             elif selection == 1:
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
@@ -260,7 +265,7 @@ with col1:
             filename = f"{timestamp}.png"
             _images.save_device_image(selected_name, img_data, filename)
             add_log(f"suspended.png from téléchargé de '{selected_name}' sous {filename}")
-            st.toast(f"Image sauvegardée : {filename}", icon=":material/task_alt:")
+            st.toast(f":green[Image sauvegardée : {filename}]", icon=":material/task_alt:")
             st.rerun()
         except Exception as e:
             st.error(f"Erreur : {str(e)}", icon=":material/error:")

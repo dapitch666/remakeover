@@ -15,11 +15,21 @@ def deferred_toast(msg: str, icon: str | None = None) -> None:
     st.session_state[_DEFERRED_TOAST_KEY] = {"msg": msg, "icon": icon}
 
 
+_ICON_COLOR = {
+    ":material/task_alt:": "green",
+    ":material/error:": "red",
+}
+
+
 def show_deferred_toast() -> None:
     """Display and clear any queued deferred toast. Call once per rerun at app level."""
     toast = st.session_state.pop(_DEFERRED_TOAST_KEY, None)
     if toast:
-        st.toast(toast["msg"], icon=toast["icon"])
+        msg, icon = toast["msg"], toast["icon"]
+        color = _ICON_COLOR.get(icon)
+        if color:
+            msg = f":{color}[{msg}]"
+        st.toast(msg, icon=icon)
 
 
 def require_device(devices: dict, selected_name) -> None:
