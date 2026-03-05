@@ -283,6 +283,71 @@ class TestTemplatesPage:
         assert not at.exception
         assert at.session_state["tpl_pending_delete_local"] is None
 
+    def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
+        """When tpl_pending_rename is set, the overwrite confirmation dialog is triggered."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+
+    def test_rename_conflict_confirmed_renames_template(self, tmp_path):
+        """When confirm_rename_tpl is True, the template is renamed and state cleared."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        env = make_env(tmp_path, cfg_path)
+        renamed: list[tuple] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch(
+                "src.templates.rename_device_template",
+                side_effect=lambda n, o, f: renamed.append((o, f)),
+            ),
+            patch("src.templates.rename_template_entry"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.session_state["confirm_rename_tpl"] = True
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert ("old.svg", "new.svg") in renamed
+        assert at.session_state["tpl_pending_rename"] is None
+        assert at.session_state["tpl_renaming"] is None
+
+    def test_rename_conflict_cancelled_clears_state(self, tmp_path):
+        """When confirm_rename_tpl is False, state is cleared without renaming."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        env = make_env(tmp_path, cfg_path)
+        renamed: list[tuple] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch(
+                "src.templates.rename_device_template",
+                side_effect=lambda n, o, f: renamed.append((o, f)),
+            ),
+            patch("src.templates.rename_template_entry"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.session_state["confirm_rename_tpl"] = False
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert not renamed
+        assert at.session_state["tpl_pending_rename"] is None
+        assert at.session_state["tpl_renaming"] is None
+
     def test_sort_az_renders_without_error(self, tmp_path):
         """Sort-by 'A → Z' is applied without error when templates exist."""
         cfg_path = with_device(tmp_path, "D1")
@@ -410,3 +475,90 @@ class TestSyncBranches:
             ],
         )
         assert not at.exception
+
+
+# ---------------------------------------------------------------------------
+# Upload-to-tablet confirmation after overwriting an existing template
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateReload:
+    """Tests for the per-card reload (update SVG) feature."""
+
+    """When a saved template overwrites an existing file and templates are not dirty,
+    the user is asked whether to push the file to the tablet immediately."""
+
+    def test_reload_dialog_shows_when_reloading(self, tmp_path):
+        """When tpl_reloading is set, the reload dialog opens with Save and Cancel buttons."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["my.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_reloading"] = "my.svg"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any(b.label == "Sauvegarder" for b in at.button)
+        assert any(b.label == "Annuler" for b in at.button)
+
+    def test_reload_save_button_present(self, tmp_path):
+        """The Save button in the reload dialog is present (disabled until file selected)."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["my.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.save_device_template"),
+            patch("src.templates.upload_template_to_tablet", return_value=(True, "ok")),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_reloading"] = "my.svg"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any(b.label == "Sauvegarder" for b in at.button)
+
+    def test_reload_cancel_clears_state(self, tmp_path):
+        """Clicking Annuler in the reload dialog sets tpl_reloading to None."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["my.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_reloading"] = "my.svg"
+            at.switch_page("pages/templates.py").run()
+            cancel_btn = next((b for b in at.button if b.label == "Annuler"), None)
+            assert cancel_btn is not None
+            cancel_btn.click().run()
+        assert not at.exception
+        assert at.session_state["tpl_reloading"] is None
+
+    def test_reload_upload_failure_logs_error(self, tmp_path):
+        """When upload_template_to_tablet fails, the dialog still renders without exception."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["my.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.save_device_template"),
+            patch(
+                "src.templates.upload_template_to_tablet",
+                return_value=(False, "SSH error"),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_reloading"] = "my.svg"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any(b.label == "Sauvegarder" for b in at.button)

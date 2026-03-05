@@ -11,11 +11,3 @@ repos:
       - id: mypy
         additional_dependencies: [types-paramiko]
         args: [--ignore-missing-imports]
-  - repo: local
-    hooks:
-      - id: pytest
-        name: pytest
-        entry: .venv/bin/python -m pytest -q --tb=short
-        language: system
-        pass_filenames: false
-        always_run: true

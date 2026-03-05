@@ -196,6 +196,115 @@ class TestJsonHelpers:
         assert entry is not None
         assert entry["filename"] == "Plain"
 
+    def test_add_template_entry_sorts_custom_alphabetically(self, tmp_path):
+        """Custom templates are sorted alphabetically; re-saving keeps the order stable."""
+        tpl.add_template_entry(DEVICE, "Zebra.svg", ["Lines"])
+        tpl.add_template_entry(DEVICE, "Apple.svg", ["Lines"])
+        tpl.add_template_entry(DEVICE, "Mango.svg", ["Lines"])
+        data = tpl.load_templates_json(DEVICE)
+        names = [t["filename"] for t in data["templates"]]
+        assert names == ["Apple", "Mango", "Zebra"]
+
+    def test_add_template_entry_resave_is_idempotent(self, tmp_path):
+        """Re-saving an existing custom template produces the same JSON hash (not dirty)."""
+        import hashlib
+
+        tpl.add_template_entry(DEVICE, "Alpha.svg", ["Lines"])
+        tpl.add_template_entry(DEVICE, "Beta.svg", ["Lines"])
+        json_path = tpl.get_device_templates_json_path(DEVICE)
+        with open(json_path, "rb") as f:
+            hash_before = hashlib.md5(f.read()).hexdigest()
+        # Re-save Beta with the same categories
+        tpl.add_template_entry(DEVICE, "Beta.svg", ["Lines"])
+        with open(json_path, "rb") as f:
+            hash_after = hashlib.md5(f.read()).hexdigest()
+        assert hash_before == hash_after
+
+    def test_add_template_entry_stock_templates_keep_order(self, tmp_path):
+        """Stock templates (in backup) come first in their original order; custom sorted after."""
+        # Write a backup with two stock templates in a specific order
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        import json as _json
+
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            _json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "StockZ",
+                            "filename": "StockZ",
+                            "iconCode": "\ue9fe",
+                            "categories": [],
+                        },
+                        {
+                            "name": "StockA",
+                            "filename": "StockA",
+                            "iconCode": "\ue9fe",
+                            "categories": [],
+                        },
+                    ]
+                },
+                f,
+            )
+        # Seed templates.json with the stock entries
+        tpl.save_templates_json(
+            DEVICE,
+            {
+                "templates": [
+                    {
+                        "name": "StockZ",
+                        "filename": "StockZ",
+                        "iconCode": "\ue9fe",
+                        "categories": [],
+                    },
+                    {
+                        "name": "StockA",
+                        "filename": "StockA",
+                        "iconCode": "\ue9fe",
+                        "categories": [],
+                    },
+                ]
+            },
+        )
+        # Add two custom templates
+        tpl.add_template_entry(DEVICE, "CustomZ.svg", ["Lines"])
+        tpl.add_template_entry(DEVICE, "CustomA.svg", ["Lines"])
+        data = tpl.load_templates_json(DEVICE)
+        names = [t["filename"] for t in data["templates"]]
+        # Stock first in original order, then custom sorted
+        assert names == ["StockZ", "StockA", "CustomA", "CustomZ"]
+
+
+class TestGetBackupStems:
+    def test_returns_empty_when_no_backup(self):
+        assert tpl.get_backup_stems(DEVICE) == set()
+
+    def test_returns_stems_from_backup(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        import json as _json
+
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            _json.dump(
+                {
+                    "templates": [
+                        {"filename": "Blank", "name": "Blank"},
+                        {"filename": "Lines", "name": "Lines"},
+                    ]
+                },
+                f,
+            )
+        stems = tpl.get_backup_stems(DEVICE)
+        assert stems == {"Blank", "Lines"}
+
+    def test_returns_empty_on_malformed_backup(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write("not valid json {{{")
+        assert tpl.get_backup_stems(DEVICE) == set()
+
 
 # ---------------------------------------------------------------------------
 # Remote helpers
@@ -266,7 +375,6 @@ class TestCompareAndBackupTemplatesJson:
 class TestUploadTemplateToTablet:
     def _setup_svg(self, tmp_path):
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
 
     def test_happy_path(self, tmp_path):
         self._setup_svg(tmp_path)
@@ -275,10 +383,9 @@ class TestUploadTemplateToTablet:
             patch("src.templates.run_ssh_cmd") as mock_cmd,
         ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
-
         assert ok is True
         assert msg == "ok"
-        assert mock_up.call_count == 2
+        assert mock_up.call_count == 1
         mock_cmd.assert_called_once()
 
     def test_svg_upload_failure(self, tmp_path):
@@ -288,42 +395,21 @@ class TestUploadTemplateToTablet:
         assert ok is False
         assert "upload_svg_failed" in msg
 
-    def test_symlink_failure(self, tmp_path):
+    def test_restart_failure(self, tmp_path):
         self._setup_svg(tmp_path)
         with (
             patch("src.templates.upload_file_ssh", return_value=(True, "ok")),
-            patch("src.templates.run_ssh_cmd", side_effect=Exception("bash error")),
+            patch("src.templates.run_ssh_cmd", side_effect=Exception("ssh error")),
         ):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
         assert ok is False
-        assert "symlink_failed" in msg
-
-    def test_json_upload_failure(self, tmp_path):
-        self._setup_svg(tmp_path)
-        with (
-            patch("src.templates.upload_file_ssh", side_effect=[(True, "ok"), (False, "error")]),
-            patch("src.templates.run_ssh_cmd"),
-        ):
-            ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
-        assert ok is False
-        assert "upload_json_failed" in msg
+        assert "restart_failed" in msg
 
     def test_missing_local_svg(self):
         with patch("src.templates.upload_file_ssh"), patch("src.templates.run_ssh_cmd"):
             ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Ghost.svg")
         assert ok is False
         assert "read_local_failed" in msg
-
-    def test_no_local_json_skips_json_push(self, tmp_path):
-        """If templates.json doesn't exist, only the SVG upload and symlink are done."""
-        tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        with (
-            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
-            patch("src.templates.run_ssh_cmd"),
-        ):
-            ok, msg = tpl.upload_template_to_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
-        assert ok is True
-        assert mock_up.call_count == 1  # only SVG, no json push
 
 
 class TestRemoveTemplateFromTablet:

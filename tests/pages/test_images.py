@@ -258,3 +258,66 @@ class TestImagesPage:
             at.switch_page("pages/images.py").run()
         assert not at.exception
         assert any("Ajouter" in s.value for s in at.subheader)
+
+    def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
+        """When img_pending_rename is set, the overwrite confirmation dialog is triggered."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.images.list_device_images", return_value=["old.png", "new.png"]),
+            patch("src.images.load_device_image", return_value=PNG_BYTES),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["img_pending_rename"] = ("old.png", "new.png")
+            at.switch_page("pages/images.py").run()
+        assert not at.exception
+
+    def test_rename_conflict_confirmed_renames_file(self, tmp_path):
+        """When confirm_rename_img is True, the image is renamed and state cleared."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        renamed: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.images.list_device_images", return_value=["old.png", "new.png"]),
+            patch("src.images.load_device_image", return_value=PNG_BYTES),
+            patch(
+                "src.images.rename_device_image",
+                side_effect=lambda n, o, f: renamed.append((o, f)),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["img_pending_rename"] = ("old.png", "new.png")
+            at.session_state["confirm_rename_img"] = True
+            at.switch_page("pages/images.py").run()
+        assert not at.exception
+        assert ("old.png", "new.png") in renamed
+        assert at.session_state["img_pending_rename"] is None
+        assert at.session_state["img_renaming"] is None
+
+    def test_rename_conflict_cancelled_clears_state(self, tmp_path):
+        """When confirm_rename_img is False, state is cleared without renaming."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        renamed: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.images.list_device_images", return_value=["old.png", "new.png"]),
+            patch("src.images.load_device_image", return_value=PNG_BYTES),
+            patch(
+                "src.images.rename_device_image",
+                side_effect=lambda n, o, f: renamed.append((o, f)),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["img_pending_rename"] = ("old.png", "new.png")
+            at.session_state["confirm_rename_img"] = False
+            at.switch_page("pages/images.py").run()
+        assert not at.exception
+        assert not renamed
+        assert at.session_state["img_pending_rename"] is None
+        assert at.session_state["img_renaming"] is None

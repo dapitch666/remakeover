@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any
 
 from src.config import get_device_data_dir
-from src.constants import REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR, REMOTE_TEMPLATES_JSON
+from src.constants import (
+    CMD_RESTART_XOCHITL,
+    REMOTE_CUSTOM_TEMPLATES_DIR,
+    REMOTE_TEMPLATES_DIR,
+    REMOTE_TEMPLATES_JSON,
+)
 from src.ssh import download_file_ssh, run_ssh_cmd, upload_file_ssh
 
 logger = logging.getLogger(__name__)
@@ -40,6 +45,19 @@ def get_device_templates_json_path(device_name: str) -> str:
 def get_device_templates_backup_path(device_name: str) -> str:
     """Return the path to data/{device}/templates.backup.json."""
     return os.path.join(get_device_data_dir(device_name), "templates.backup.json")
+
+
+def get_backup_stems(device_name: str) -> set[str]:
+    """Return the set of template filename stems from templates.backup.json (stock templates)."""
+    backup_path = get_device_templates_backup_path(device_name)
+    if not os.path.exists(backup_path):
+        return set()
+    try:
+        with open(backup_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {t.get("filename", "") for t in data.get("templates", [])}
+    except Exception:
+        return set()
 
 
 def list_device_templates(device_name: str) -> list[str]:
@@ -148,13 +166,25 @@ def _edit_templates_json(device_name: str) -> Generator[dict[str, Any], None, No
 def add_template_entry(
     device_name: str, filename: str, categories: list[str], icon_code: str = "\ue9fe"
 ) -> None:
-    """Add or replace the templates.json entry for *filename*."""
+    """Add or replace the templates.json entry for *filename*.
+
+    Custom templates (those absent from templates.backup.json) are kept sorted
+    alphabetically so that re-saving an existing entry does not change the file
+    order and therefore does not mark templates as dirty.
+    """
     stem = _stem(filename)
+    backup_stems = get_backup_stems(device_name)
     with _edit_templates_json(device_name) as data:
         data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
         data["templates"].append(
             {"name": stem, "filename": stem, "iconCode": icon_code, "categories": categories}
         )
+        stock = [t for t in data["templates"] if t.get("filename") in backup_stems]
+        custom = sorted(
+            [t for t in data["templates"] if t.get("filename") not in backup_stems],
+            key=lambda t: t.get("filename", "").lower(),
+        )
+        data["templates"] = stock + custom
 
 
 def remove_template_entry(device_name: str, filename: str) -> None:
@@ -338,13 +368,15 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
 def upload_template_to_tablet(
     ip: str, password: str, device_name: str, filename: str
 ) -> tuple[bool, str]:
-    """Upload one SVG to the tablet, create its symlink, and push templates.json.
+    """Replace an existing SVG on the tablet and restart xochitl.
+
+    The symlink and templates.json are assumed to be already in place
+    (this function is only called when replacing a previously uploaded template).
 
     Steps:
     1. Read the local SVG.
     2. Upload SVG to REMOTE_CUSTOM_TEMPLATES_DIR.
-    3. Create symlink in REMOTE_TEMPLATES_DIR.
-    4. Push local templates.json to REMOTE_TEMPLATES_JSON.
+    3. Restart xochitl.
     """
     try:
         content = load_device_template(device_name, filename)
@@ -356,21 +388,12 @@ def upload_template_to_tablet(
     if not ok:
         return False, f"upload_svg_failed: {msg}"
 
-    symlink_cmd = f"ln -sf '{remote_svg}' '{REMOTE_TEMPLATES_DIR}/{filename}'"
     try:
-        run_ssh_cmd(ip, password, [symlink_cmd])
+        run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
     except Exception as e:
-        return False, f"symlink_failed: {e}"
+        return False, f"restart_failed: {e}"
 
-    local_json_path = get_device_templates_json_path(device_name)
-    if os.path.exists(local_json_path):
-        with open(local_json_path, "rb") as f:
-            json_content = f.read()
-        ok, msg = upload_file_ssh(ip, password, json_content, REMOTE_TEMPLATES_JSON)
-        if not ok:
-            return False, f"upload_json_failed: {msg}"
-        logger.info("templates.json pushed to tablet after uploading %s", filename)
-
+    logger.info("Template %s uploaded and xochitl restarted", filename)
     return True, "ok"
 
 

@@ -34,6 +34,9 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             raw = st.session_state.get(f"rename_input_{_old}", "").strip()
             new_name = normalise_filename(raw) if raw else None
             if new_name and new_name != _old:
+                if new_name in _images.list_device_images(selected_name):
+                    st.session_state["img_pending_rename"] = (_old, new_name)
+                    return
                 _images.rename_device_image(selected_name, _old, new_name)
                 if device.is_preferred(_old):
                     device.set_preferred(new_name)
@@ -76,6 +79,36 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
             st.rerun()
 
     st.image(img_data, width="stretch")
+
+    # Rename overwrite confirmation
+    pending_rename = st.session_state.get("img_pending_rename")
+    if pending_rename and pending_rename[0] == img_name:
+        _old_r, _new_r = pending_rename
+        _dialog.confirm(
+            "Confirmer le remplacement",
+            f"'{_new_r}' existe déjà. Voulez-vous remplacer ce fichier ?",
+            key="confirm_rename_img",
+        )
+        result = st.session_state.get("confirm_rename_img")
+        if result is True:
+            _images.rename_device_image(selected_name, _old_r, _new_r)
+            if device.is_preferred(_old_r):
+                device.set_preferred(_new_r)
+                config["devices"][selected_name] = device.to_dict()
+                save_config(config)
+                add_log(
+                    f"Preferred image renamed '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'"
+                )
+            add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{selected_name}'")
+            st.session_state.pop("confirm_rename_img", None)
+            st.session_state["img_pending_rename"] = None
+            st.session_state["img_renaming"] = None
+            st.rerun()
+        elif result is False:
+            st.session_state.pop("confirm_rename_img", None)
+            st.session_state["img_pending_rename"] = None
+            st.session_state["img_renaming"] = None
+            st.rerun()
 
     # Deletion confirmation
     if st.session_state.get("img_pending_delete") == img_name:

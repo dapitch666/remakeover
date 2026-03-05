@@ -33,6 +33,7 @@ from src.templates import (
     save_device_template,
     update_template_categories,
     upload_template_svgs,
+    upload_template_to_tablet,
 )
 from src.ui_common import deferred_toast, normalise_filename, rainbow_divider, require_device
 
@@ -126,6 +127,52 @@ def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
             st.rerun()
 
 
+# ── Reload dialog ────────────────────────────────────────────────────────────
+
+
+@st.dialog("Recharger le template")
+def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
+    """Modal dialog to replace a template SVG locally and push it to the tablet."""
+    reload_file = st.file_uploader(
+        "Nouveau fichier SVG",
+        type=["svg"],
+        key=f"tpl_reload_file_{tpl_name}",
+    )
+    col_save, col_cancel = st.columns(2, gap="xxsmall")
+    with col_save:
+        if st.button(
+            "Sauvegarder",
+            key=f"tpl_reload_save_{tpl_name}",
+            type="primary",
+            disabled=reload_file is None,
+            width="stretch",
+        ):
+            content = reload_file.read()
+            save_device_template(selected_name, content, tpl_name)
+            add_log(f"Template {tpl_name} recharg\u00e9 localement pour '{selected_name}'")
+            ok, msg = upload_template_to_tablet(
+                device.ip, device.password or "", selected_name, tpl_name
+            )
+            if ok:
+                deferred_toast(
+                    f"{tpl_name} mis \u00e0 jour sur la tablette !", ":material/task_alt:"
+                )
+                add_log(f"Template {tpl_name} envoy\u00e9 sur '{selected_name}'")
+            else:
+                add_log(f"Envoi de {tpl_name} \u00e9chou\u00e9\u00a0: {msg}")
+                deferred_toast(f"Erreur lors de l'envoi de {tpl_name}", ":material/error:")
+            st.session_state["tpl_reloading"] = None
+            st.rerun()
+    with col_cancel:
+        if st.button(
+            "Annuler",
+            key=f"tpl_reload_cancel_{tpl_name}",
+            width="stretch",
+        ):
+            st.session_state["tpl_reloading"] = None
+            st.rerun()
+
+
 # ── Template card ─────────────────────────────────────────────────────────────
 
 
@@ -141,6 +188,9 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
             new_name = normalise_filename(raw, ext=".svg") if raw else None
             if new_name and new_name != _old:
+                if new_name in list_device_templates(selected_name):
+                    st.session_state["tpl_pending_rename"] = (_old, new_name)
+                    return
                 rename_device_template(selected_name, _old, new_name)
                 rename_template_entry(selected_name, _old, new_name)
                 add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
@@ -178,6 +228,30 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     # ── SVG preview ───────────────────────────────────────────────────────
     st.image(tpl_path, width="stretch")
 
+    # Rename overwrite confirmation
+    pending_rename = st.session_state.get("tpl_pending_rename")
+    if pending_rename and pending_rename[0] == tpl_name:
+        _old_r, _new_r = pending_rename
+        _dialog.confirm(
+            "Confirmer le remplacement",
+            f"'{_new_r}' existe déjà. Voulez-vous remplacer ce template ?",
+            key="confirm_rename_tpl",
+        )
+        result = st.session_state.get("confirm_rename_tpl")
+        if result is True:
+            rename_device_template(selected_name, _old_r, _new_r)
+            rename_template_entry(selected_name, _old_r, _new_r)
+            add_log(f"Renamed template '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'")
+            st.session_state.pop("confirm_rename_tpl", None)
+            st.session_state["tpl_pending_rename"] = None
+            st.session_state["tpl_renaming"] = None
+            st.rerun()
+        elif result is False:
+            st.session_state.pop("confirm_rename_tpl", None)
+            st.session_state["tpl_pending_rename"] = None
+            st.session_state["tpl_renaming"] = None
+            st.rerun()
+
     # ── categories button → modal ─────────────────────────────────────────
     entry = get_template_entry(selected_name, tpl_name)
     current_cats = entry.get("categories", []) if entry else []
@@ -210,18 +284,31 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             st.session_state.pop("confirm_del_tpl_local", None)
             st.session_state["tpl_pending_delete_local"] = None
             st.rerun()
-        return
 
-    # ── delete button ─────────────────────────────────────────────────────
-    if st.button(
-        ":material/delete: Supprimer",
-        key=f"tpl_del_{tpl_name}",
-        help="Supprimer ce template localement",
-        type="tertiary",
+    # ── segmented control (reload + delete) ──────────────────────────────
+    action_key = f"tpl_action_{tpl_name}"
+    option_map = {0: ":material/upload_file:", 1: ":material/delete:"}
+
+    def on_tpl_action(_tpl=tpl_name, _akey=action_key):
+        sel = st.session_state.get(_akey)
+        if sel == 1:
+            st.session_state["tpl_pending_delete_local"] = _tpl
+        elif sel == 0:
+            st.session_state["tpl_reloading"] = _tpl
+        st.session_state[_akey] = None
+
+    st.segmented_control(
+        "Actions",
+        options=list(option_map.keys()),
+        format_func=lambda o: option_map[o],
+        key=action_key,
+        selection_mode="single",
+        label_visibility="hidden",
+        on_change=on_tpl_action,
         width="stretch",
-    ):
-        st.session_state["tpl_pending_delete_local"] = tpl_name
-        st.rerun()
+    )
+    if st.session_state.get("tpl_reloading") == tpl_name:
+        _show_reload_dialog(tpl_name, selected_name, device, add_log)
 
 
 def _render_template_upload_section(selected_name, add_log):
