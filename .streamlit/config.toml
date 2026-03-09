@@ -1,5 +1,13 @@
 [browser]
 gatherUsageStats = false
 
+[server]
+enableStaticServing = true
+
 [theme]
 linkUnderline = false
+
+[[theme.fontFaces]]
+family = "icomoon"
+url = "app/static/icomoon.ttf"
+unicodeRange = "U+E000-F8FF"

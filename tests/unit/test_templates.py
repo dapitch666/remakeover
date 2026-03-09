@@ -178,6 +178,18 @@ class TestJsonHelpers:
     def test_update_template_categories_missing_is_noop(self):
         tpl.update_template_categories(DEVICE, "Ghost.svg", ["X"])  # must not raise
 
+    def test_update_template_icon_code_updates_entry(self):
+        """update_template_icon_code persists the new icon code in templates.json."""
+        tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
+        tpl.update_template_icon_code(DEVICE, "Red.svg", "\ue961")
+        assert tpl.get_template_entry(DEVICE, "Red.svg")["iconCode"] == "\ue961"
+
+    def test_update_template_icon_code_missing_is_noop(self):
+        """update_template_icon_code on a non-existent entry must not raise or alter others."""
+        tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
+        tpl.update_template_icon_code(DEVICE, "Ghost.svg", "\ue961")  # must not raise
+        assert tpl.get_template_entry(DEVICE, "Red.svg")["iconCode"] == "\ue9fe"  # unchanged
+
     def test_get_all_categories_distinct_sorted(self):
         tpl.add_template_entry(DEVICE, "A.svg", ["Zebra", "Color"])
         tpl.add_template_entry(DEVICE, "B.svg", ["Color", "Lines"])

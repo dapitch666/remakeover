@@ -5,6 +5,7 @@ dirty banner with sync, all sync branches, template card grid, rename mode,
 delete flow, sort-by, and upload section render.
 """
 
+import json
 import os
 from contextlib import ExitStack
 from unittest.mock import patch
@@ -562,3 +563,66 @@ class TestTemplateReload:
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Sauvegarder" for b in at.button)
+
+
+# ---------------------------------------------------------------------------
+# Template icon code
+# ---------------------------------------------------------------------------
+
+
+class TestTemplateIconCode:
+    """Tests for icon-code handling in template cards."""
+
+    def _make_template_with_icon(
+        self, tmp_path, device: str, filename: str, icon_code: str
+    ) -> None:
+        """Create an SVG + templates.json entry (with *icon_code*) + backup stub."""
+        stem = filename.removesuffix(".svg")
+        d = backup_dir(tmp_path, device)
+        (d / "templates" / filename).write_bytes(_SVG)
+        (d / "templates.json").write_text(
+            json.dumps(
+                {
+                    "templates": [
+                        {
+                            "name": stem,
+                            "filename": stem,
+                            "iconCode": icon_code,
+                            "categories": ["Lines"],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_card_with_icon_code_renders_without_error(self, tmp_path):
+        """A template whose templates.json entry has an iconCode renders without error."""
+        cfg_path = with_device(tmp_path, "D1")
+        self._make_template_with_icon(tmp_path, "D1", "alpha.svg", "\ue960")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any("alpha" in b.label.lower() for b in at.button)
+
+    def test_card_with_empty_icon_code_shows_fallback_button(self, tmp_path):
+        """A template with an empty iconCode shows the fallback palette icon button."""
+        cfg_path = with_device(tmp_path, "D1")
+        self._make_template_with_icon(tmp_path, "D1", "beta.svg", "")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # render_icon_link_html("") == "" → the fallback button is rendered instead
+        assert any(b.key and b.key.startswith("tpl_icon_btn_fallback_") for b in at.button)

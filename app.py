@@ -112,6 +112,7 @@ def main():
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
+        st.Page("pages/icon_font.py", title="Police d'icônes", icon=":material/style:"),
         st.Page("pages/deploiement.py", title="Déploiement", icon=":material/rocket_launch:"),
         config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),

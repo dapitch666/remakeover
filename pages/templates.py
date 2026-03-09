@@ -1,6 +1,7 @@
 """Template library page."""
 
 import os
+from contextlib import suppress
 
 import streamlit as st
 
@@ -12,6 +13,12 @@ from src.constants import (
     REMOTE_CUSTOM_TEMPLATES_DIR,
     REMOTE_TEMPLATES_DIR,
     REMOTE_TEMPLATES_JSON,
+)
+from src.icon_font import (
+    get_icon_font_path,
+    render_icon_grid_html,
+    render_icon_link_html,
+    render_icon_preview_html,
 )
 from src.models import Device
 from src.templates import (
@@ -32,6 +39,7 @@ from src.templates import (
     rename_template_entry,
     save_device_template,
     update_template_categories,
+    update_template_icon_code,
     upload_template_svgs,
     upload_template_to_tablet,
 )
@@ -127,6 +135,68 @@ def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
             st.rerun()
 
 
+# ── Icon dialog ─────────────────────────────────────────────────────────────────
+
+
+@st.dialog("Modifier l'icône", width="large")
+def _show_icon_dialog(selected_name: str, tpl_name: str, add_log) -> None:
+    """Modal dialog for changing the icon of a template.
+
+    If the icomoon font is available a full browsable grid is shown.  Clicking
+    any icon navigates the page to ``?icon=HEX&tpl_icon_for=STEM`` which the
+    page-level handler picks up on the next run to apply the change.
+    The dialog also exposes a direct hex-code text input + OK button as an
+    alternative (no navigation required).
+    """
+    entry = get_template_entry(selected_name, tpl_name)
+    current_code = entry.get("iconCode", "\ue9fe") if entry else "\ue9fe"
+    current_hex = f"{ord(current_code):04X}" if current_code else "E9FE"
+    stem = os.path.splitext(tpl_name)[0]
+
+    font_available = os.path.exists(get_icon_font_path())
+
+    st.caption("Entrez directement un code hexadécimal ou cliquez sur une icône ci-dessous :")
+
+    new_hex_input = st.text_input(
+        "Code hex (ex\u00a0: E9FE)",
+        value=current_hex,
+        max_chars=5,
+        key=f"icon_hex_input_{tpl_name}",
+    )
+    col_ok, col_cancel = st.columns(2)
+    with col_ok:
+        if st.button("Valider", key=f"icon_ok_{tpl_name}", type="primary", width="stretch"):
+            try:
+                cp = int(new_hex_input.strip(), 16)
+                icon_code = chr(cp)
+            except ValueError:
+                st.error("Code hexadécimal invalide.")
+                return
+            update_template_icon_code(selected_name, tpl_name, icon_code)
+            add_log(
+                f"Icône mise à jour pour '{tpl_name}' ({selected_name}) : \\u{new_hex_input.strip().upper()}"
+            )
+            st.rerun()
+    with col_cancel:
+        if st.button("Annuler", key=f"icon_cancel_{tpl_name}", width="stretch"):
+            st.rerun()
+
+    if font_available:
+        st.caption("Cliquez sur une icône pour l’appliquer directement\u00a0:")
+        st.html(
+            render_icon_grid_html(
+                selected_cp=ord(current_code) if current_code else None,
+                href_extra=f"&tpl_icon_for={stem}",
+            )
+        )
+    else:
+        st.info(
+            "La police icomoon n'est pas encore extraite. "
+            "Utilisez la page \u00ab\u202fPolice d'icônes\u202f\u00bb pour l'extraire.",
+            icon=":material/info:",
+        )
+
+
 # ── Reload dialog ────────────────────────────────────────────────────────────
 
 
@@ -180,7 +250,9 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     """Render one template card: name/rename, SVG preview, categories, upload & delete actions."""
     tpl_path = os.path.join(get_device_templates_dir(selected_name), tpl_name)
     renaming = st.session_state.get("tpl_renaming") == tpl_name
-
+    stem = os.path.splitext(tpl_name)[0]
+    entry = get_template_entry(selected_name, tpl_name)
+    current_icon_code = entry.get("iconCode", "\ue9fe") if entry else "\ue9fe"
     # ── name / inline rename ──────────────────────────────────────────────
     if renaming:
 
@@ -215,15 +287,30 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     else:
         bare = os.path.splitext(tpl_name)[0]
         display_name = bare if len(bare) <= 20 else bare[:17] + "..."
-        if st.button(
-            f"**{display_name}**",
-            key=f"tpl_name_{tpl_name}",
-            help="Cliquez pour renommer",
-            type="tertiary",
-            width="stretch",
-        ):
-            st.session_state["tpl_renaming"] = tpl_name
-            st.rerun()
+        col_icon, col_name = st.columns([0.5, 5], vertical_alignment="center")
+        with col_icon:
+            _icon_link = render_icon_link_html(current_icon_code, f"?edit_icon={stem}")
+            if _icon_link:
+                st.html(_icon_link)
+            else:
+                if st.button(
+                    "",
+                    key=f"tpl_icon_btn_fallback_{tpl_name}",
+                    icon=":material/palette:",
+                    help="Modifier l'icône",
+                    type="tertiary",
+                ):
+                    _show_icon_dialog(selected_name, tpl_name, add_log)
+        with col_name:
+            if st.button(
+                f"**{display_name}**",
+                key=f"tpl_name_{tpl_name}",
+                help="Cliquez pour renommer",
+                type="tertiary",
+                width="stretch",
+            ):
+                st.session_state["tpl_renaming"] = tpl_name
+                st.rerun()
 
     # ── SVG preview ───────────────────────────────────────────────────────
     st.image(tpl_path, width="stretch")
@@ -253,7 +340,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             st.rerun()
 
     # ── categories button → modal ─────────────────────────────────────────
-    entry = get_template_entry(selected_name, tpl_name)
     current_cats = entry.get("categories", []) if entry else []
     cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
     if st.button(
@@ -303,7 +389,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         format_func=lambda o: option_map[o],
         key=action_key,
         selection_mode="single",
-        label_visibility="hidden",
+        label_visibility="collapsed",
         on_change=on_tpl_action,
         width="stretch",
     )
@@ -337,6 +423,27 @@ def _render_template_upload_section(selected_name, add_log):
         placeholder="Color, Perso, ...",
     )
 
+    # ── Icon picker ─────────────────────────────────────────────────────────────────
+    icon_hex_input = st.text_input(
+        "Code d'icône (hex)",
+        value="E9FE",
+        max_chars=5,
+        key=f"tpl_new_icon_{selected_name}_{gen}",
+        help="Code hexadécimal de l'icône icomoon (ex\u00a0: E9FE). Parcourez les icônes ci-dessous.",
+    )
+    _icn_preview = ""
+    with suppress(ValueError, OverflowError):
+        _icn_preview = render_icon_preview_html(chr(int(icon_hex_input.strip(), 16)))
+    if _icn_preview:
+        st.html(_icn_preview)
+    _grid_html = render_icon_grid_html(
+        selected_cp=int(icon_hex_input.strip(), 16) if icon_hex_input.strip() else None,
+        clickable=False,
+    )
+    if _grid_html:
+        with st.expander("Parcourir les icônes", icon=":material/grid_view:"):
+            st.html(_grid_html)
+
     if st.button(
         f"Sauvegarder ({len(uploaded_files)} fichier(s))",
         key=f"ui_tpl_save_{selected_name}_{gen}",
@@ -350,12 +457,16 @@ def _render_template_upload_section(selected_name, add_log):
             else []
         )
         categories = list(sel_cats) + extra_list
+        try:
+            icon_code = chr(int(icon_hex_input.strip(), 16))
+        except (ValueError, OverflowError):
+            icon_code = "\ue9fe"
         saved = []
         for uf in uploaded_files:
             content = uf.read()
             filename = normalise_filename(uf.name, ext=".svg")
             save_device_template(selected_name, content, filename)
-            add_template_entry(selected_name, filename, categories)
+            add_template_entry(selected_name, filename, categories, icon_code)
             add_log(f"{filename} template saved for '{selected_name}'")
             saved.append(filename)
         if len(saved) == 1:
@@ -380,6 +491,27 @@ DEVICES = config.get("devices", {})
 require_device(DEVICES, selected_name)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
+
+# ── Handle icon change from grid navigation ───────────────────────────────────────
+# Clicking an icon in the dialog grid (?tpl_icon_for=STEM) navigates here with ?icon=HEX.
+_tpl_icon_for = st.query_params.get("tpl_icon_for")
+_icon_hex = st.query_params.get("icon")
+if _tpl_icon_for and _icon_hex:
+    try:
+        _icon_cp = int(_icon_hex, 16)
+        update_template_icon_code(selected_name, _tpl_icon_for, chr(_icon_cp))
+        add_log(
+            f"Icône mise à jour pour '{_tpl_icon_for}' ({selected_name}) : \\u{_icon_hex.upper()}"
+        )
+    except ValueError:
+        pass
+    del st.query_params["tpl_icon_for"]
+    del st.query_params["icon"]
+    st.rerun()
+elif st.query_params.get("edit_icon"):
+    _edit_stem = st.query_params["edit_icon"]
+    del st.query_params["edit_icon"]
+    _show_icon_dialog(selected_name, _edit_stem + ".svg", add_log)
 
 backup_path = get_device_templates_backup_path(selected_name)
 if not os.path.exists(backup_path):

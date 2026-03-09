@@ -12,6 +12,7 @@ COPY app.py .
 COPY assets ./assets
 COPY pages ./pages
 COPY src ./src
+COPY static ./static
 COPY VERSION .
 
 # Exposition du port Streamlit

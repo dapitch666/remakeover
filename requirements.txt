@@ -1,3 +1,5 @@
 streamlit
 paramiko
 Pillow
+fonttools
+zstandard

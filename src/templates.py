@@ -215,6 +215,16 @@ def update_template_categories(device_name: str, filename: str, categories: list
                 break
 
 
+def update_template_icon_code(device_name: str, filename: str, icon_code: str) -> None:
+    """Update the iconCode for *filename* in templates.json."""
+    stem = _stem(filename)
+    with _edit_templates_json(device_name) as data:
+        for t in data.get("templates", []):
+            if t.get("filename") == stem:
+                t["iconCode"] = icon_code
+                break
+
+
 # ---------------------------------------------------------------------------
 # Remote helpers
 # ---------------------------------------------------------------------------
