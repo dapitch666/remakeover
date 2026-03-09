@@ -224,12 +224,10 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
                 device.ip, device.password or "", selected_name, tpl_name
             )
             if ok:
-                deferred_toast(
-                    f"{tpl_name} mis \u00e0 jour sur la tablette !", ":material/task_alt:"
-                )
-                add_log(f"Template {tpl_name} envoy\u00e9 sur '{selected_name}'")
+                deferred_toast(f"{tpl_name} mis à jour sur la tablette !", ":material/task_alt:")
+                add_log(f"Template {tpl_name} sent to '{selected_name}'")
             else:
-                add_log(f"Envoi de {tpl_name} \u00e9chou\u00e9\u00a0: {msg}")
+                add_log(f"Failed to send {tpl_name} to '{selected_name}': {msg}")
                 deferred_toast(f"Erreur lors de l'envoi de {tpl_name}", ":material/error:")
             st.session_state["tpl_reloading"] = None
             st.rerun()
@@ -470,9 +468,9 @@ def _render_template_upload_section(selected_name, add_log):
             add_log(f"{filename} template saved for '{selected_name}'")
             saved.append(filename)
         if len(saved) == 1:
-            deferred_toast(f"Template saved\u00a0: {saved[0]}", ":material/task_alt:")
+            deferred_toast(f"Template {saved[0]} sauvegardé", ":material/task_alt:")
         else:
-            deferred_toast(f"{len(saved)} templates saved!", ":material/task_alt:")
+            deferred_toast(f"{len(saved)} templates sauvegardés", ":material/task_alt:")
         st.session_state[f"tpl_upload_gen_{selected_name}"] = gen + 1
         st.rerun()
 
@@ -500,9 +498,7 @@ if _tpl_icon_for and _icon_hex:
     try:
         _icon_cp = int(_icon_hex, 16)
         update_template_icon_code(selected_name, _tpl_icon_for, chr(_icon_cp))
-        add_log(
-            f"Icône mise à jour pour '{_tpl_icon_for}' ({selected_name}) : \\u{_icon_hex.upper()}"
-        )
+        add_log(f"Icon updated for '{_tpl_icon_for}' ({selected_name}) : \\u{_icon_hex.upper()}")
     except ValueError:
         pass
     del st.query_params["tpl_icon_for"]
@@ -529,11 +525,11 @@ if not os.path.exists(backup_path):
         with st.spinner("Importation en cours…"):
             ok, msg = fetch_and_init_templates(device.ip, device.password or "", selected_name)
         if ok:
-            add_log(f"Templates initialisés pour '{selected_name}' : {msg}")
-            deferred_toast("Templates importés avec succès !", ":material/task_alt:")
+            add_log(f"Templates initialized for '{selected_name}' : {msg}")
+            deferred_toast("Templates importés avec succès", ":material/task_alt:")
             st.rerun()
         else:
-            add_log(f"Erreur init templates pour '{selected_name}' : {msg}")
+            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
             st.error(f"Erreur : {msg}", icon=":material/error:")
 else:
     stored_templates = list_device_templates(selected_name)
@@ -557,8 +553,10 @@ else:
                     ok = _sync_templates_to_tablet(selected_name, device, add_log)
                 if ok:
                     deferred_toast("Templates synchronisés !", ":material/task_alt:")
+                    add_log(f"Templates synced to tablet for '{selected_name}'")
                 else:
                     deferred_toast("Erreur lors de la synchronisation", ":material/error:")
+                    add_log(f"Error syncing templates to tablet for '{selected_name}'")
                 st.rerun()
 
     if stored_templates:
