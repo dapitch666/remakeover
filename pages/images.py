@@ -46,7 +46,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                         f"Preferred image renamed '{_old}' \u2192 '{new_name}' for '{selected_name}'"
                     )
                 add_log(f"Renamed image '{_old}' to '{new_name}' for '{selected_name}'")
-            st.session_state["img_renaming"] = None
+                deferred_toast(f"Image renomm\u00e9e : '{new_name}'", ":material/task_alt:")
 
         with st.form(key=f"img_rename_form_{img_name}", border=False):
             col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
@@ -100,6 +100,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                     f"Preferred image renamed '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'"
                 )
             add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{selected_name}'")
+            deferred_toast(f"Image renommée : '{_new_r}'", ":material/task_alt:")
             st.session_state.pop("confirm_rename_img", None)
             st.session_state["img_pending_rename"] = None
             st.session_state["img_renaming"] = None
@@ -128,6 +129,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                     f"Preferred image removed for '{selected_name}' because {img_name} was deleted"
                 )
             add_log(f"Deleted {img_name} from '{selected_name}'")
+            deferred_toast(f"{img_name} supprimée", ":material/delete:")
             st.session_state.pop("confirm_del_img", None)
             st.session_state["img_pending_delete"] = None
             st.rerun()
@@ -159,9 +161,11 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
                     add_log(f"Preferred image removed for '{selected_name}'")
+                    st.toast("Image préférée retirée", icon=":material/star_border:")
                 else:
                     device.set_preferred(_img_name)
                     add_log(f"Preferred image set: {_img_name} for '{selected_name}'")
+                    st.toast(f"{_img_name} définie comme image préférée", icon=":material/star:")
                 config["devices"][selected_name] = device.to_dict()
                 save_config(config)
             elif selection == 2:
@@ -297,14 +301,12 @@ with col1:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}.png"
             _images.save_device_image(selected_name, img_data, filename)
-            add_log(f"suspended.png from téléchargé de '{selected_name}' sous {filename}")
+            add_log(f"suspended.png downloaded from '{selected_name}' as {filename}")
             st.toast(f":green[Image sauvegardée : {filename}]", icon=":material/task_alt:")
             st.rerun()
         except Exception as e:
             st.error(f"Erreur : {str(e)}", icon=":material/error:")
-            add_log(
-                f"Erreur lors du téléchargement de suspended.png depuis '{selected_name}': {str(e)}"
-            )
+            add_log(f"Error downloading suspended.png from '{selected_name}': {str(e)}")
 
 with col2:
     _render_upload_section(selected_name, device, add_log)

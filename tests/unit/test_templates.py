@@ -142,7 +142,7 @@ class TestJsonHelpers:
         data = tpl.load_templates_json(DEVICE)
         reds = [t for t in data["templates"] if t["filename"] == "Red"]
         assert len(reds) == 1
-        assert reds[0]["categories"] == ["New", "Categories"]
+        assert reds[0]["categories"] == ["Categories", "New"]
 
     def test_remove_template_entry(self):
         tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
@@ -170,10 +170,29 @@ class TestJsonHelpers:
         tpl.rename_template_entry(DEVICE, "Ghost.svg", "New.svg")  # must not raise
         assert tpl.get_template_entry(DEVICE, "A.svg") is not None
 
+    def test_add_template_entry_sorts_categories(self):
+        """Categories passed in any order are stored sorted alphabetically."""
+        tpl.add_template_entry(DEVICE, "Red.svg", ["Zebra", "Color", "Lines"])
+        assert tpl.get_template_entry(DEVICE, "Red.svg")["categories"] == [
+            "Color",
+            "Lines",
+            "Zebra",
+        ]
+
     def test_update_template_categories(self):
         tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
         tpl.update_template_categories(DEVICE, "Red.svg", ["Color", "Perso"])
         assert tpl.get_template_entry(DEVICE, "Red.svg")["categories"] == ["Color", "Perso"]
+
+    def test_update_template_categories_sorts_alphabetically(self):
+        """update_template_categories stores categories sorted alphabetically."""
+        tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
+        tpl.update_template_categories(DEVICE, "Red.svg", ["Zebra", "Lines", "Color"])
+        assert tpl.get_template_entry(DEVICE, "Red.svg")["categories"] == [
+            "Color",
+            "Lines",
+            "Zebra",
+        ]
 
     def test_update_template_categories_missing_is_noop(self):
         tpl.update_template_categories(DEVICE, "Ghost.svg", ["X"])  # must not raise
@@ -619,3 +638,108 @@ class TestIsDirtyAndMarkSynced:
         sync_path.write_text("oldhash", encoding="utf-8")
         tpl.mark_templates_synced(DEVICE)
         assert not sync_path.exists()
+
+
+# ---------------------------------------------------------------------------
+# .template file support in list_device_templates
+# ---------------------------------------------------------------------------
+
+
+class TestListDeviceTemplatesJsonTemplates:
+    def test_includes_template_extension(self):
+        tpl.save_device_template(DEVICE, b'{"orientation":"portrait"}', "My.template")
+        result = tpl.list_device_templates(DEVICE)
+        assert "My.template" in result
+
+    def test_includes_both_svg_and_template(self):
+        tpl.save_device_template(DEVICE, SVG_CONTENT, "A.svg")
+        tpl.save_device_template(DEVICE, b'{"orientation":"portrait"}', "B.template")
+        result = tpl.list_device_templates(DEVICE)
+        assert "A.svg" in result
+        assert "B.template" in result
+
+    def test_excludes_txt_when_template_present(self):
+        tpl.save_device_template(DEVICE, b'{"orientation":"portrait"}', "C.template")
+        tpl.save_device_template(DEVICE, b"notes", "readme.txt")
+        result = tpl.list_device_templates(DEVICE)
+        assert "readme.txt" not in result
+        assert "C.template" in result
+
+
+# ---------------------------------------------------------------------------
+# upload_template_svgs also handles .template files
+# ---------------------------------------------------------------------------
+
+
+class TestUploadTemplateSvgsWithJsonTemplates:
+    def test_uploads_template_file(self, tmp_path):
+        tpl_dir = tmp_path / "tpl"
+        tpl_dir.mkdir()
+        (tpl_dir / "My.template").write_bytes(b'{"orientation":"portrait"}')
+
+        uploaded_paths: list[str] = []
+        with patch(
+            "src.templates.upload_file_ssh",
+            side_effect=lambda ip, pw, data, path: uploaded_paths.append(path) or (True, "ok"),
+        ):
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
+
+        assert count == 1
+        assert any("My.template" in p for p in uploaded_paths)
+
+    def test_uploads_both_svg_and_template(self, tmp_path):
+        tpl_dir = tmp_path / "tpl"
+        tpl_dir.mkdir()
+        (tpl_dir / "Grid.svg").write_bytes(SVG_CONTENT)
+        (tpl_dir / "Lines.template").write_bytes(b'{"orientation":"portrait"}')
+
+        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
+            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
+
+        assert count == 2
+
+
+# ---------------------------------------------------------------------------
+# JSON template storage helpers (save / load / list)
+# ---------------------------------------------------------------------------
+
+
+class TestJsonTemplateStorage:
+    """save_json_template / load_json_template / list_json_templates all use the
+    shared templates dir (data/<device>/templates/), not a separate subdir."""
+
+    _CONTENT = '{"orientation": "portrait", "items": []}'
+
+    def test_save_and_load_roundtrip(self):
+        tpl.save_json_template(DEVICE, "T1.template", self._CONTENT)
+        assert tpl.load_json_template(DEVICE, "T1.template") == self._CONTENT
+
+    def test_save_goes_to_templates_dir(self, tmp_path):
+        tpl.save_json_template(DEVICE, "T2.template", self._CONTENT)
+        expected_path = tmp_path / DEVICE / "templates" / "T2.template"
+        assert expected_path.exists()
+
+    def test_list_json_templates_returns_only_template_files(self):
+        tpl.save_device_template(DEVICE, SVG_CONTENT, "grid.svg")
+        tpl.save_json_template(DEVICE, "lines.template", self._CONTENT)
+        result = tpl.list_json_templates(DEVICE)
+        assert "lines.template" in result
+        assert "grid.svg" not in result
+
+    def test_list_json_templates_empty(self):
+        assert tpl.list_json_templates(DEVICE) == []
+
+    def test_list_json_templates_sorted(self):
+        tpl.save_json_template(DEVICE, "z.template", self._CONTENT)
+        tpl.save_json_template(DEVICE, "a.template", self._CONTENT)
+        result = tpl.list_json_templates(DEVICE)
+        assert result == ["a.template", "z.template"]
+
+    def test_no_separate_json_templates_subdir_created(self, tmp_path):
+        tpl.save_json_template(DEVICE, "T3.template", self._CONTENT)
+        separate_dir = tmp_path / DEVICE / "json_templates"
+        assert not separate_dir.exists()
+
+    def test_stem_handles_template_extension(self):
+        assert tpl._stem("MyFile.template") == "MyFile"
+        assert tpl._stem("MyFile.TEMPLATE") == "MyFile"

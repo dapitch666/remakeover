@@ -4,6 +4,8 @@ All paths and commands are relative to the reMarkable tablet filesystem.
 Import from here rather than hard-coding strings in individual modules.
 """
 
+import json
+
 # ---------------------------------------------------------------------------
 # Remote filesystem paths
 # ---------------------------------------------------------------------------
@@ -62,3 +64,40 @@ DEFAULT_DEVICE_TYPE: str = "reMarkable Paper Pro"
 
 # Number of columns in the image / template grid
 GRID_COLUMNS = 5
+
+# ---------------------------------------------------------------------------
+# Template editor
+# ---------------------------------------------------------------------------
+
+# Default JSON used when creating a new template from scratch.
+DEFAULT_TEMPLATE_JSON: str = json.dumps(
+    {
+        "name": "Mon template",
+        "author": "",
+        "templateVersion": "1.0.0",
+        "formatVersion": 1,
+        "categories": ["Perso"],
+        "orientation": "portrait",
+        "constants": [{"marginLeft": 120}, {"lineSpacing": 62}],
+        "items": [
+            {
+                "type": "group",
+                "boundingBox": {
+                    "x": 0,
+                    "y": "lineSpacing",
+                    "width": "templateWidth",
+                    "height": "lineSpacing",
+                },
+                "repeat": {"rows": "down"},
+                "children": [
+                    {
+                        "type": "path",
+                        "data": ["M", "marginLeft", 0, "L", "parentWidth", 0],
+                    }
+                ],
+            }
+        ],
+    },
+    indent=2,
+    ensure_ascii=False,
+)

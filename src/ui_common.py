@@ -64,7 +64,7 @@ def rainbow_divider():
     )
 
 
-_KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp"}
+_KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
 
 
 def normalise_filename(filename: str, ext: str = ".png") -> str:

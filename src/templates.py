@@ -61,9 +61,9 @@ def get_backup_stems(device_name: str) -> set[str]:
 
 
 def list_device_templates(device_name: str) -> list[str]:
-    """Return sorted list of .svg filenames stored locally for *device_name*."""
+    """Return sorted list of .svg and .template filenames stored locally for *device_name*."""
     device_dir = get_device_templates_dir(device_name)
-    files = [f for f in os.listdir(device_dir) if f.lower().endswith(".svg")]
+    files = [f for f in os.listdir(device_dir) if f.lower().endswith((".svg", ".template"))]
     return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
 
 
@@ -109,8 +109,10 @@ def rename_device_template(device_name: str, old_filename: str, new_filename: st
 
 
 def _stem(filename: str) -> str:
-    """Return filename without .svg extension (case-insensitive)."""
-    return Path(filename).stem if filename.lower().endswith(".svg") else filename
+    """Return filename stem (strips .svg or .template extension, case-insensitive)."""
+    if filename.lower().endswith((".svg", ".template")):
+        return Path(filename).stem
+    return filename
 
 
 def load_templates_json(device_name: str) -> dict[str, Any]:
@@ -177,7 +179,12 @@ def add_template_entry(
     with _edit_templates_json(device_name) as data:
         data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
         data["templates"].append(
-            {"name": stem, "filename": stem, "iconCode": icon_code, "categories": categories}
+            {
+                "name": stem,
+                "filename": stem,
+                "iconCode": icon_code,
+                "categories": sorted(categories),
+            }
         )
         stock = [t for t in data["templates"] if t.get("filename") in backup_stems]
         custom = sorted(
@@ -211,7 +218,7 @@ def update_template_categories(device_name: str, filename: str, categories: list
     with _edit_templates_json(device_name) as data:
         for t in data.get("templates", []):
             if t.get("filename") == stem:
-                t["categories"] = categories
+                t["categories"] = sorted(categories)
                 break
 
 
@@ -246,13 +253,13 @@ def ensure_remote_template_dirs(
 def upload_template_svgs(
     ip: str, password: str, local_dirs: list[str], remote_custom_dir: str
 ) -> int:
-    """Upload SVG files from local_dirs to remote_custom_dir. Return count uploaded."""
+    """Upload SVG and JSON .template files from local_dirs to remote_custom_dir. Return count uploaded."""
     sent_count = 0
     for local_templates_dir in local_dirs:
         if not os.path.exists(local_templates_dir):
             continue
         for fname in os.listdir(local_templates_dir):
-            if not fname.lower().endswith(".svg"):
+            if not fname.lower().endswith((".svg", ".template")):
                 continue
             local_path = os.path.join(local_templates_dir, fname)
             try:
@@ -477,3 +484,28 @@ def mark_templates_synced(device_name: str) -> None:
         current_hash = hashlib.md5(f.read()).hexdigest()
     with open(sync_path, "w", encoding="utf-8") as sf:
         sf.write(current_hash)
+
+
+# ---------------------------------------------------------------------------
+# JSON template source storage (editor — stored alongside SVG templates)
+# ---------------------------------------------------------------------------
+
+
+def list_json_templates(device_name: str) -> list[str]:
+    """Return sorted list of ``.template`` filenames stored locally for *device_name*."""
+    d = get_device_templates_dir(device_name)
+    return sorted(f for f in os.listdir(d) if f.lower().endswith(".template"))
+
+
+def load_json_template(device_name: str, filename: str) -> str:
+    """Read and return a JSON template source file as a UTF-8 string."""
+    path = os.path.join(get_device_templates_dir(device_name), filename)
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def save_json_template(device_name: str, filename: str, content: str) -> None:
+    """Write *content* to the templates directory as *filename*."""
+    path = os.path.join(get_device_templates_dir(device_name), filename)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)

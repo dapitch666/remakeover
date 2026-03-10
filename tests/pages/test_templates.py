@@ -626,3 +626,172 @@ class TestTemplateIconCode:
         assert not at.exception
         # render_icon_link_html("") == "" → the fallback button is rendered instead
         assert any(b.key and b.key.startswith("tpl_icon_btn_fallback_") for b in at.button)
+
+
+# ---------------------------------------------------------------------------
+# .template files alongside SVG files
+# ---------------------------------------------------------------------------
+
+# Minimal reMarkable JSON template
+_JSON_TEMPLATE = '{"orientation":"portrait","constants":[],"items":[]}'
+
+
+def _make_json_template(tmp_path, device: str = "D1", name: str = "MyLines.template") -> str:
+    """Create a .template JSON file in the device templates dir and return its name."""
+    tdir = tmp_path / device / "templates"
+    tdir.mkdir(parents=True, exist_ok=True)
+    backup = tmp_path / device / "templates.backup.json"
+    if not backup.exists():
+        backup.write_text("[]", encoding="utf-8")
+    (tdir / name).write_text(_JSON_TEMPLATE, encoding="utf-8")
+    return name
+
+
+class TestTemplatePageJsonTemplates:
+    """Tests that verify .template (JSON) files appear and behave correctly on the templates page."""
+
+    def test_json_template_card_renders(self, tmp_path):
+        """A .template file creates a card on the templates page."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "grid.template")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any("grid" in b.label.lower() for b in at.button)
+
+    def test_both_svg_and_json_template_cards_render(self, tmp_path):
+        """SVG and .template files coexist on the page."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["my_svg.svg"])
+        _make_json_template(tmp_path, "D1", "my_json.template")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("my_svg" in lbl for lbl in labels)
+        assert any("my_json" in lbl for lbl in labels)
+
+    def test_json_template_rename_preserves_template_extension(self, tmp_path):
+        """Renaming a .template card stores the new name with .template extension."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "old.template")
+        env = make_env(tmp_path, cfg_path)
+        renamed: list[tuple] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch(
+                "src.templates.rename_device_template",
+                side_effect=lambda n, o, f: renamed.append((o, f)),
+            ),
+            patch("src.templates.rename_template_entry"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_renaming"] = "old.template"
+            at.session_state["tpl_rename_input_old.template"] = "new_name"
+            at.session_state["tpl_pending_rename"] = ("old.template", "new_name.template")
+            at.session_state["confirm_rename_tpl"] = True
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # The new filename must preserve the .template extension
+        if renamed:
+            _, new_name = renamed[0]
+            assert new_name.endswith(".template")
+
+    def test_upload_section_accepts_both_svg_and_template(self, tmp_path):
+        """The file uploader label mentions both svg and template."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=[]),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # The "Ajouter" subheader triggers the upload section to render
+        assert any("Ajouter" in s.value for s in at.subheader)
+
+    def test_json_template_delete_removes_file(self, tmp_path):
+        """Confirming deletion of a .template file calls delete_device_template."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "todel.template")
+        env = make_env(tmp_path, cfg_path)
+        deleted: list[str] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch(
+                "src.templates.delete_device_template",
+                side_effect=lambda n, f: deleted.append(f),
+            ),
+            patch("src.templates.remove_template_entry"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_pending_delete_local"] = "todel.template"
+            at.session_state["confirm_del_tpl_local"] = True
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert "todel.template" in deleted
+
+
+# ---------------------------------------------------------------------------
+# Segmented control options per file type
+# ---------------------------------------------------------------------------
+
+
+class TestSegmentedControlOptions:
+    """The edit option must be present for .template files and absent for .svg files."""
+
+    def test_svg_card_has_no_edit_option(self, tmp_path):
+        """An SVG template card's action control has upload and delete, but no edit."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["photo.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        sc = next((s for s in at.button_group if s.key == "tpl_action_photo.svg"), None)
+        assert sc is not None
+        # SVG cards: upload + delete only (2 options, no edit)
+        assert len(sc.options) == 2
+
+    def test_json_template_card_has_edit_option(self, tmp_path):
+        """A .template card's action control includes the edit option (3 options total)."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "lines.template")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        sc = next((s for s in at.button_group if s.key == "tpl_action_lines.template"), None)
+        assert sc is not None
+        # .template cards: upload + edit + delete (3 options)
+        assert len(sc.options) == 3
