@@ -1,12 +1,15 @@
-"""SSH helpers scaffold.
+"""SSH helpers for reMarkable tablet communication.
 
-This module should implement SSH operations used by the app:
+All public functions open a fresh SSH connection, remount the root
+filesystem read-write if necessary (via ``_ensure_rw``), perform their
+operation, and return an ``(ok, msg)`` or ``(output, error)`` pair.
+
+Public API
+----------
 - run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
+- ssh_connectivity_test(ip, password) -> (ok, msg)
 - upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
 - download_file_ssh(ip, password, remote_path) -> (bytes | None, msg)
-
-Current file contains function signatures and docs; implementations
-should be moved here from `app.py` incrementally.
 """
 
 import logging

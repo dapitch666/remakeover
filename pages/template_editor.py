@@ -5,9 +5,9 @@ reMarkable native JSON vector format, see an instant SVG preview, and
 save the result so it can be deployed to the tablet from the Templates page.
 
 The JSON source (``.template``) files are stored under
-``data/<device>/json_templates/`` and deployed as-is to the tablet —
-the reMarkable firmware renders them natively.  The SVG preview shown in
-the editor is generated locally for visual feedback only.
+``data/<device>/templates/`` (alongside SVG files) and deployed as-is to
+the tablet — the reMarkable firmware renders them natively.  The SVG
+preview shown in the editor is generated locally for visual feedback only.
 """
 
 import json

@@ -29,9 +29,20 @@ Template version: **1.0.0** (`"templateVersion": "1.0.0"`)
 | `formatVersion` | integer | yes | File format version (`1`) |
 | `categories` | array of strings | yes | One or more category tags (see below) |
 | `orientation` | string | yes | `"portrait"` or `"landscape"` |
-| `supportedDevices` | array of strings | no | Restricts template to specific devices (e.g. `["rm2", "rmPP"]`) |
+| `supportedDevices` | array of strings | no | Restricts template to specific devices on the firmware (e.g. `["rm2", "rmPP"]`). **Not used by the local SVG renderer** — the preview always renders regardless of this field. |
 | `constants` | array of objects | no | Named values and expressions used throughout the template |
 | `items` | array of item objects | yes | Top-level list of graphical elements |
+
+### Canvas dimensions
+
+The local SVG renderer always uses reMarkable 2 canvas dimensions regardless of `supportedDevices`:
+
+| Orientation | Width × Height |
+|---|---|
+| `"portrait"` | 1404 × 1872 px |
+| `"landscape"` | 1872 × 1404 px |
+
+These are reMarkable 2 / Paper Pro dimensions. If you are targeting a Paper Pro Move (954×1696) the local preview will not match the on-device rendering.
 
 ### Known categories
 
@@ -162,6 +173,8 @@ Renders a static text label.
 
 `position.x` and `position.y` accept number literals or expression strings. The built-in `textWidth` variable can be used in `position.x` to centre-align text.
 
+> **Fixed rendering properties:** The local SVG renderer always renders text with `fill="#000000"` (black) and `font-family="sans-serif"`. These properties cannot be customised via the template JSON.
+
 ---
 
 ### `group`
@@ -226,6 +239,7 @@ Controls tiling of the group's bounding box across the canvas.
 | `rows` | expression string | Number of repetitions from a constant/expression |
 | `columns` | integer | Repeat exactly N times to the right |
 | `columns` | `"right"` | Repeat rightward until the canvas right edge is reached |
+| `columns` | `"left"` | Repeat leftward until the canvas left edge is reached |
 | `columns` | `"infinite"` | Repeat in both horizontal directions |
 
 Both `rows` and `columns` are optional. A group without `repeat` renders exactly once.
@@ -264,7 +278,8 @@ Constants, coordinates, sizes, and positions all accept expression strings where
 |---|---|
 | Arithmetic | `"templateWidth / 2 - boxSize"` |
 | Ternary | `"templateWidth > mobileMaxWidth ? 240 : 120"` |
-| Comparison | `>`, `<`, `>=`, `<=` |
+| Comparison | `>`, `<`, `>=`, `<=`, `==`, `!=` |
+| Boolean (JS-style) | `&&` (and), `\|\|` (or) |
 | Parentheses | `"(templateWidth - timeColumnWidth) / 7"` |
 | String literal (numeric) | `"-5"` (negative constant) |
 

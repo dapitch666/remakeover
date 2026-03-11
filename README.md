@@ -48,11 +48,11 @@ Open your browser at http://localhost:8501
 
 ### First-time setup
 1. Go to **⚙️ Configuration** (sidebar)
-2. Select "-- Create a new device --"
+2. The page shows an edit form for the currently selected device, or a creation form when no device is configured yet
 3. Fill in the fields:
    - **Name**: a free-form label to identify the device
    - **IP address**: the tablet's IP (USB or Wi-Fi)
-   - **SSH password**: the tablet's root password (visible in Settings > Help > About)
+   - **SSH password**: the tablet's root password (visible in Settings > Help > About > Copyrights and licences)
    - **Tablet type**: select from the supported models
    - **Enable templates** / **Disable carousel**: as needed
 4. Click **Save**
@@ -74,9 +74,10 @@ data/
 ├── config.json             # Device configuration (created automatically)
 ├── MyDevice/               # One sub-folder per device
 │   ├── images/             # Sleep-screen images saved locally
-│   ├── templates/          # Local SVG templates
+│   ├── templates/          # Local SVG and .template (JSON) files
 │   ├── templates.json      # Local template index
-│   └── templates.backup.json  # Backup of the remote templates.json
+│   ├── templates.backup.json  # Backup of the remote templates.json
+│   └── .tpl_sync           # Sync-state sentinel (MD5 of last pushed templates.json)
 └── ...
 ```
 
@@ -93,22 +94,30 @@ Manage sleep-screen images (`suspended.png`):
 - **Rename** or **delete** local images
 
 ### 📄 Templates
-Manage custom SVG templates:
+Manage custom templates (SVG and `.template` JSON format):
 - **Import** templates from the tablet (initial setup)
-- **Add** new SVG templates
-- **Edit categories** for each template
-- **Rename** or **delete** templates
-- **Sync** changes to the tablet
+- **Add** new SVG or `.template` files
+- **Edit categories** and **icon code** for each template
+- **Rename**, **delete**, or **reload** templates
+- **Sync** changes to the tablet (a warning badge appears when local templates are out of sync with the last deployed state)
 
 ### 🚀 Deployment
 Re-deploy your configuration after a firmware update (which resets all customisations):
 - Sends the preferred sleep-screen image (or a random one)
-- Deploys SVG templates and updates `templates.json`
+- Uploads SVG / `.template` files, creates symlinks in the device's templates directory, and pushes `templates.json`
 - Disables the carousel (moves stock illustrations to a backup folder)
 - Restarts `xochitl` to apply the changes
 
+> **Note:** All SSH operations automatically remount the root filesystem read-write before executing, and restore the read-only state if it was changed.
+
 ### ⚙️ Configuration
 Add, edit, or delete devices.
+
+### ✏️ Éditeur de templates
+Create and edit `.template` JSON-format files with a live SVG preview. Save results to the local device library for deployment from the Templates page.
+
+### 🔤 Police d'icônes
+Extract the icomoon TTF font from the xochitl binary and browse all available icon glyphs. Filter by in-use or unused glyphs, and copy icon codes for use in template definitions.
 
 ### 📋 Logs
 View the history of operations for the current session.

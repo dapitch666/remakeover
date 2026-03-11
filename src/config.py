@@ -66,8 +66,7 @@ def load_config(path: str | None = None) -> dict[str, Any]:
     """Load and return the device configuration.
 
     *path* overrides the default ``CONFIG_PATH`` (useful in tests).
-    Falls back to a built-in default config for local development when the
-    file does not exist and the app is not running inside Docker.
+    Returns ``{"devices": {}}`` when the file does not exist.
     """
     if path is None:
         path = _active_config_path()

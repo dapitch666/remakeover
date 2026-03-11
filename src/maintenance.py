@@ -7,8 +7,9 @@ post-update routine by calling into `src.ssh`, `src.images` and
 The routine includes:
 1. Uploading a `suspended.png` image (preferred from device images,
    fallback to a random library image, skipped if none available)
-2. Uploading local SVG templates, creating symlinks, and pushing
-   `templates.json`  — only when device.templates is True
+2. Uploading local SVG templates, creating symlinks (only when at least
+   one SVG was uploaded), and pushing `templates.json`
+   — only when `device.templates` is True
 3. Disabling the carousel by moving illustrations to a backup folder
    — only when device.carousel is True
 4. Restarting `xochitl` to apply changes
@@ -56,7 +57,7 @@ def run_maintenance(
     device_name : str
         Key used to locate local data (images, templates, …).
     device : Device
-        Must provide ``ip``, optional ``password``, ``templates``, ``carousel``.
+        Must provide ``ip``, ``password`` (required string field), ``templates``, ``carousel``.
     image : str, optional
         Filename of the image to upload as ``suspended.png``.  When omitted the
         preferred image is used; if none is set a random library image is picked;
