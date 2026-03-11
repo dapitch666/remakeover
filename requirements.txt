@@ -1,5 +1,5 @@
 streamlit==1.55.0
 paramiko==4.0.0
 pillow==12.1.1
-fonttools==4.61.1
+fonttools==4.62.0
 zstandard==0.25.0
