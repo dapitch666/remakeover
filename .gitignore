@@ -1,5 +1,6 @@
 # Configuration locale
 data/
+.github/*.md
 
 # Python
 __pycache__/

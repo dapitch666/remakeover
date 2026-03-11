@@ -5,8 +5,6 @@ from unittest.mock import MagicMock, patch
 from src.ssh import (
     _ensure_rw,
     download_file_ssh,
-    ensure_rw_filesystem,
-    list_remote_dir_ssh,
     run_ssh_cmd,
     ssh_connectivity_test,
     upload_file_ssh,
@@ -110,29 +108,6 @@ class TestEnsureRw:
         ok, msg = _ensure_rw(client)
         assert ok is False
         assert "remount failed hard" in msg
-
-
-# ---------------------------------------------------------------------------
-# ensure_rw_filesystem
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureRwFilesystem:
-    def test_already_rw(self):
-        inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec((b"writable", b""))
-        with _patched_client(inst):
-            ok, msg = ensure_rw_filesystem(IP, PW)
-        assert ok is True
-        assert msg == "already_rw"
-
-    def test_connect_error_returns_false(self):
-        inst = MagicMock()
-        inst.connect.side_effect = OSError("connection refused")
-        with _patched_client(inst):
-            ok, msg = ensure_rw_filesystem(IP, PW)
-        assert ok is False
-        assert "connection refused" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -339,37 +314,3 @@ class TestDownloadFileSsh:
             data, err = download_file_ssh(IP, PW, "/remote/file")
         assert data is None
         assert "timeout" in err
-
-
-# ---------------------------------------------------------------------------
-# list_remote_dir_ssh
-# ---------------------------------------------------------------------------
-
-
-class TestListRemoteDirSsh:
-    def test_happy_path_sorted(self):
-        inst = MagicMock()
-        sftp = MagicMock()
-        sftp.listdir.return_value = ["b.svg", "a.svg", "c.png"]
-        inst.open_sftp.return_value = sftp
-        with _patched_client(inst):
-            entries, err = list_remote_dir_ssh(IP, PW, "/templates")
-        assert entries == ["a.svg", "b.svg", "c.png"]
-        assert err == ""
-
-    def test_listdir_error(self):
-        inst = MagicMock()
-        sftp = MagicMock()
-        sftp.listdir.side_effect = OSError("no such directory")
-        inst.open_sftp.return_value = sftp
-        with _patched_client(inst):
-            entries, err = list_remote_dir_ssh(IP, PW, "/bad/dir")
-        assert entries == []
-        assert "no such directory" in err
-
-    def test_connect_error(self):
-        inst = MagicMock()
-        inst.connect.side_effect = OSError("refused")
-        with _patched_client(inst):
-            entries, err = list_remote_dir_ssh(IP, PW, "/templates")
-        assert entries == []

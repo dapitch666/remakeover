@@ -3,12 +3,10 @@
 import src.config as config_mod
 from src.config import (
     load_config,
-    resolve_device_type,
     save_config,
     truncate_display_name,
 )
-from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES
-from src.models import Device
+from src.constants import DEVICE_SIZES
 
 # ---------------------------------------------------------------------------
 # truncate_display_name
@@ -50,25 +48,6 @@ class TestDeviceSizes:
         for _model, size in DEVICE_SIZES.items():
             assert isinstance(size, tuple) and len(size) == 2
             assert all(isinstance(v, int) for v in size)
-
-
-# ---------------------------------------------------------------------------
-# resolve_device_type
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDeviceType:
-    def test_known_type_returned_unchanged(self):
-        dev = Device.from_dict("X", {"device_type": "reMarkable 2"})
-        assert resolve_device_type(dev) == "reMarkable 2"
-
-    def test_unknown_type_falls_back_to_default(self):
-        dev = Device.from_dict("X", {"device_type": "Unknown Device"})
-        assert resolve_device_type(dev) == DEFAULT_DEVICE_TYPE
-
-    def test_empty_type_falls_back_to_default(self):
-        dev = Device.from_dict("X", {})
-        assert resolve_device_type(dev) == DEFAULT_DEVICE_TYPE
 
 
 # ---------------------------------------------------------------------------

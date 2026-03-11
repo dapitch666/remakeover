@@ -8,8 +8,6 @@ import json
 import os
 from typing import Any
 
-from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES  # re-exported for back-compat
-
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -86,16 +84,3 @@ def save_config(config: dict[str, Any], path: str | None = None) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2, ensure_ascii=False)
-
-
-# ---------------------------------------------------------------------------
-# Device-type resolution
-# ---------------------------------------------------------------------------
-
-
-def resolve_device_type(device: Any) -> str:
-    """Return the device's type string if known, otherwise ``DEFAULT_DEVICE_TYPE``."""
-    device_type = getattr(device, "device_type", None)
-    if device_type in DEVICE_SIZES:
-        return device_type
-    return DEFAULT_DEVICE_TYPE

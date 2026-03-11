@@ -1,7 +1,6 @@
 """SSH helpers scaffold.
 
 This module should implement SSH operations used by the app:
-- ensure_rw_filesystem(ip, password) -> (ok, msg)
 - run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
 - upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
 - download_file_ssh(ip, password, remote_path) -> (bytes | None, msg)
@@ -61,22 +60,6 @@ def _ensure_rw(client: paramiko.SSHClient) -> tuple[bool, str]:
         return True, "remounted"
     except Exception as e:
         logger.error("remount failed: %s", e)
-        return False, str(e)
-
-
-def ensure_rw_filesystem(ip: str, password: str) -> tuple[bool, str]:
-    """Open a fresh SSH connection, check if `/` is RW, remount if needed.
-
-    Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
-    Use this when you need to guarantee a writable filesystem before a sequence
-    of operations (e.g. before opening an SFTP session).
-    """
-    logger.info("ensure_rw_filesystem: connecting to %s", ip)
-    try:
-        with _ssh_client(ip, password) as client:
-            return _ensure_rw(client)
-    except Exception as e:
-        logger.error("ensure_rw_filesystem connect error on %s: %s", ip, e)
         return False, str(e)
 
 
@@ -182,27 +165,3 @@ def download_file_ssh(ip: str, password: str, remote_path: str) -> tuple[bytes |
     except Exception as e:
         logger.error("SFTP download error from %s:%s: %s", ip, remote_path, e)
         return None, str(e)
-
-
-def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> tuple[list[str], str]:
-    """Return a sorted list of filenames in *remote_dir* via SFTP.
-
-    Returns (filenames, error_message). On success *error_message* is empty.
-    """
-    logger.info("SFTP listdir start from %s:%s", ip, remote_dir)
-    try:
-        with _ssh_client(ip, password) as client:
-            sftp = client.open_sftp()
-            try:
-                entries = sftp.listdir(remote_dir)
-            except Exception as e:
-                logger.error("SFTP listdir error on %s:%s: %s", ip, remote_dir, e)
-                return [], str(e)
-            finally:
-                with suppress(Exception):
-                    sftp.close()
-        logger.info("SFTP listdir OK from %s:%s (%d entries)", ip, remote_dir, len(entries))
-        return sorted(entries), ""
-    except Exception as e:
-        logger.error("SFTP listdir connect error on %s: %s", ip, e)
-        return [], str(e)

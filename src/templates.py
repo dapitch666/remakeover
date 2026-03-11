@@ -434,33 +434,6 @@ def upload_template_to_tablet(
     return True, "ok"
 
 
-def remove_template_from_tablet(
-    ip: str, password: str, device_name: str, filename: str
-) -> tuple[bool, str]:
-    """Remove an SVG and its symlink from the tablet, then push updated templates.json.
-
-    The local templates.json must already have been updated (entry removed) before
-    calling this function so the pushed version reflects the deletion.
-    """
-    remote_svg = f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{filename}"
-    remote_link = f"{REMOTE_TEMPLATES_DIR}/{filename}"
-    try:
-        run_ssh_cmd(ip, password, [f"rm -f '{remote_svg}' '{remote_link}'"])
-    except Exception as e:
-        return False, f"remove_failed: {e}"
-
-    local_json_path = get_device_templates_json_path(device_name)
-    if os.path.exists(local_json_path):
-        with open(local_json_path, "rb") as f:
-            json_content = f.read()
-        ok, msg = upload_file_ssh(ip, password, json_content, REMOTE_TEMPLATES_JSON)
-        if not ok:
-            return False, f"upload_json_failed: {msg}"
-        logger.info("templates.json pushed to tablet after removing %s", filename)
-
-    return True, "ok"
-
-
 # ---------------------------------------------------------------------------
 # Sync-state helpers
 # ---------------------------------------------------------------------------

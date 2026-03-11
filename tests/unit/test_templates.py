@@ -443,42 +443,6 @@ class TestUploadTemplateToTablet:
         assert "read_local_failed" in msg
 
 
-class TestRemoveTemplateFromTablet:
-    def _setup(self, tmp_path):
-        tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
-        tpl.add_template_entry(DEVICE, "Red.svg", ["Color"])
-
-    def test_happy_path(self, tmp_path):
-        self._setup(tmp_path)
-        with (
-            patch("src.templates.run_ssh_cmd") as mock_cmd,
-            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
-        ):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "Red.svg")
-        assert ok is True
-        assert msg == "ok"
-        mock_cmd.assert_called_once()
-        mock_up.assert_called_once()
-
-    def test_ssh_remove_fails(self):
-        with patch("src.templates.run_ssh_cmd", side_effect=Exception("ssh down")):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "icon.svg")
-        assert ok is False
-        assert "remove_failed" in msg
-
-    def test_json_upload_fails(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        with (
-            patch("src.templates.run_ssh_cmd"),
-            patch("src.templates.upload_file_ssh", return_value=(False, "upload error")),
-        ):
-            ok, msg = tpl.remove_template_from_tablet("1.2.3.4", "pw", DEVICE, "icon.svg")
-        assert ok is False
-        assert "upload_json_failed" in msg
-
-
 # ---------------------------------------------------------------------------
 # ensure_remote_template_dirs
 # ---------------------------------------------------------------------------
