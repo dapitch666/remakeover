@@ -1,6 +1,7 @@
 """Tests for the main app entry-point (app.py) behaviour.
 
-Covers: initial render, auto-redirect to configuration, sidebar state propagation.
+Covers: initial render, auto-redirect to configuration, sidebar state propagation,
+SSH connectivity result display.
 """
 
 import os
@@ -11,6 +12,7 @@ from streamlit.testing.v1 import AppTest
 from tests.pages.helpers import (
     empty_cfg,
     make_env,
+    with_device,
     with_two_devices,
 )
 
@@ -47,3 +49,55 @@ def test_pending_selected_tablet_is_applied_to_sidebar(tmp_path):
     assert not at.exception
     assert at.session_state["selected_tablet_select"] == "D2"
     assert "pending_selected_tablet" not in at.session_state
+
+
+def test_ssh_test_success_shows_sidebar_success(tmp_path):
+    """Clicking the SSH test button stores a success result shown in the sidebar."""
+    cfg_path = with_device(tmp_path)
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.button(key="sidebar_test_ssh").click().run()
+
+    assert not at.exception
+    assert at.session_state["_ssh_test_result"] == {"ok": True, "err": "", "tablet": "D1"}
+    assert any("Connexion SSH OK" in s.body for s in at.success)
+
+
+def test_ssh_test_failure_shows_sidebar_error(tmp_path):
+    """Clicking the SSH test button stores a failure result shown in the sidebar."""
+    cfg_path = with_device(tmp_path)
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch("src.ssh.ssh_connectivity_test", return_value=(False, "Connection refused")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.button(key="sidebar_test_ssh").click().run()
+
+    assert not at.exception
+    assert at.session_state["_ssh_test_result"]["ok"] is False
+    assert any("Connection refused" in e.body for e in at.error)
+
+
+def test_ssh_result_cleared_on_tablet_change(tmp_path):
+    """Changing the selected tablet clears a stale SSH test result."""
+    cfg_path = with_two_devices(tmp_path)
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        # Test SSH on D1
+        at.button(key="sidebar_test_ssh").click().run()
+        assert at.session_state["_ssh_test_result"]["tablet"] == "D1"
+        # Switch to D2 — stale result should be cleared
+        at.session_state["_ssh_test_result"] = {"ok": True, "err": "", "tablet": "D1"}
+        at.selectbox(key="selected_tablet_select").set_value("D2").run()
+
+    assert not at.exception
+    assert "_ssh_test_result" not in at.session_state

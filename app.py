@@ -162,12 +162,28 @@ def main():
                 ):
                     _device = _Device.from_dict(selected_name, DEVICES[selected_name])
                     ok, err = ssh_connectivity_test(_device.ip, _device.password or "")
+                    st.session_state["_ssh_test_result"] = {
+                        "ok": ok,
+                        "err": err,
+                        "tablet": selected_name,
+                    }
                     if ok:
-                        st.toast(":green[Connexion SSH OK]", icon=":material/task_alt:")
                         _add_log(f"SSH connection successful to '{selected_name}'")
                     else:
-                        st.toast(f":red[Connexion SSH impossible : {err}]", icon=":material/error:")
                         _add_log(f"SSH connection failed to '{selected_name}': {err}")
+
+            _ssh_result = st.session_state.get("_ssh_test_result")
+            if _ssh_result and _ssh_result.get("tablet") != selected_name:
+                del st.session_state["_ssh_test_result"]
+                _ssh_result = None
+            if _ssh_result:
+                if _ssh_result["ok"]:
+                    st.success("Connexion SSH OK", icon=":material/task_alt:")
+                else:
+                    st.error(
+                        f"Connexion SSH impossible : {_ssh_result['err']}",
+                        icon=":material/error:",
+                    )
 
         # Persist selection in URL and session state for pages to consume.
         st.query_params["tablet"] = selected_name
