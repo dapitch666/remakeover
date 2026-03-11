@@ -36,6 +36,10 @@ JSON_LOCAL = json.dumps(
 def _patch_data_dir(tmp_path, monkeypatch):
     """Redirect get_device_data_dir to tmp_path so no real data/ is touched."""
     monkeypatch.setattr(tpl, "get_device_data_dir", lambda name: str(tmp_path / name))
+    yield
+    # Clear the st.cache_data cache so cached results from one test don't
+    # leak into the next (all tests share the same device name "TestDevice").
+    tpl.load_templates_json.clear()
 
 
 # ---------------------------------------------------------------------------

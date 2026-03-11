@@ -80,6 +80,7 @@ with col_load:
         width="stretch",
         disabled=not existing or load_choice == "— Nouveau —",
     ):
+        assert isinstance(selected_name, str)
         st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, load_choice)
         st.rerun()
 

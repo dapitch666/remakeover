@@ -6,14 +6,9 @@ from contextlib import suppress
 import streamlit as st
 
 import src.dialog as _dialog
-import src.ssh as _ssh
 from src.constants import (
-    CMD_RESTART_XOCHITL,
     DEFAULT_TEMPLATE_JSON,
     GRID_COLUMNS,
-    REMOTE_CUSTOM_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_JSON,
 )
 from src.icon_font import (
     get_icon_font_path,
@@ -22,77 +17,26 @@ from src.icon_font import (
     render_icon_preview_html,
 )
 from src.models import Device
+from src.template_sync import sync_templates_to_tablet
 from src.templates import (
     add_template_entry,
     delete_device_template,
-    ensure_remote_template_dirs,
     fetch_and_init_templates,
     get_all_categories,
     get_device_templates_backup_path,
     get_device_templates_dir,
-    get_device_templates_json_path,
     get_template_entry,
     is_templates_dirty,
     list_device_templates,
-    mark_templates_synced,
     remove_template_entry,
     rename_device_template,
     rename_template_entry,
     save_device_template,
-    symlink_templates_on_device,
     update_template_categories,
     update_template_icon_code,
-    upload_template_svgs,
     upload_template_to_tablet,
 )
 from src.ui_common import deferred_toast, normalise_filename, rainbow_divider, require_device
-
-# ── Sync helper ───────────────────────────────────────────────────────────────
-
-
-def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
-    """Push all local SVG and JSON templates + templates.json to the tablet, restart xochitl."""
-    ip = device.ip
-    pw = device.password or ""
-
-    ok, msg = ensure_remote_template_dirs(ip, pw, REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR)
-    if not ok:
-        add_log(f"Sync templates — ensure dirs: {msg}")
-        return False
-
-    # Upload SVG + .template files from the single templates directory
-    device_templates_dir = get_device_templates_dir(selected_name)
-    sent = upload_template_svgs(ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR)
-
-    if sent:
-        ok, msg = symlink_templates_on_device(ip, pw)
-        if not ok:
-            add_log(f"Sync templates — symlinks: {msg}")
-            return False
-
-    local_json_path = get_device_templates_json_path(selected_name)
-    if os.path.exists(local_json_path):
-        with open(local_json_path, "rb") as f:
-            json_content = f.read()
-        ok, msg = _ssh.upload_file_ssh(ip, pw, json_content, REMOTE_TEMPLATES_JSON)
-        if not ok:
-            add_log(f"Sync templates — templates.json upload: {msg}")
-            return False
-
-    try:
-        _ssh.run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
-    except Exception as e:
-        add_log(f"Sync templates — restart xochitl: {e}")
-        return False
-
-    mark_templates_synced(selected_name)
-    add_log(
-        f"Templates synced on '{selected_name}' "
-        f"({sent} file(s) uploaded, "
-        f"templates.json {'uploaded' if os.path.exists(local_json_path) else 'not found locally'})"
-    )
-    return True
-
 
 # ── Category dialog ───────────────────────────────────────────────────────────
 
@@ -217,6 +161,7 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             disabled=reload_file is None,
             width="stretch",
         ):
+            assert reload_file is not None
             content = reload_file.read()
             save_device_template(selected_name, content, tpl_name)
             add_log(f"Template '{tpl_name}' reloaded locally for '{selected_name}'")
@@ -544,6 +489,7 @@ selected_name = st.session_state.get("selected_name")
 DEVICES = config.get("devices", {})
 
 require_device(DEVICES, selected_name)
+assert isinstance(selected_name, str)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 
@@ -608,7 +554,7 @@ else:
                 width="stretch",
             ):
                 with st.spinner("Synchronisation en cours..."):
-                    ok = _sync_templates_to_tablet(selected_name, device, add_log)
+                    ok = sync_templates_to_tablet(selected_name, device, add_log)
                 if ok:
                     deferred_toast("Templates synchronisés !", ":material/task_alt:")
                 else:

@@ -251,6 +251,7 @@ selected_name = st.session_state.get("selected_name")
 DEVICES = config.get("devices", {})
 
 require_device(DEVICES, selected_name)
+assert isinstance(selected_name, str)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 

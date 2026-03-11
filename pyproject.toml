@@ -20,8 +20,4 @@ known-first-party = ["src", "pages"]
 
 [tool.mypy]
 python_version = "3.11"
-ignore_missing_imports = true
-strict = false
 warn_unused_ignores = true
-warn_return_any = false
-disallow_untyped_defs = false

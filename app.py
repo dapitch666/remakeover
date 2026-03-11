@@ -102,8 +102,12 @@ def main():
     st.session_state["add_log"] = _add_log
     st.session_state["BASE_DIR"] = BASE_DIR
 
-    config = load_config()
-    st.session_state["config"] = config
+    # Load config from disk only on the very first run of this session.
+    # Pages keep st.session_state["config"] up-to-date when they mutate it,
+    # so re-reading from disk on every rerun is unnecessary.
+    if "config" not in st.session_state:
+        st.session_state["config"] = load_config()
+    config = st.session_state["config"]
 
     # ── Navigation ────────────────────────────────────────────────────────
     config_page = st.Page(

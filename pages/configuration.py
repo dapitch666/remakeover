@@ -24,6 +24,7 @@ selected_name = st.session_state.get("selected_name")
 creating_new = st.session_state.get("config_creating_new", False)
 
 if DEVICES and selected_name in DEVICES and not creating_new:
+    assert isinstance(selected_name, str)
     col_title, col_btn = st.columns([3, 1], vertical_alignment="bottom")
     with col_title:
         st.subheader(f"Modifier : {selected_name}", divider="rainbow")

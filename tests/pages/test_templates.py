@@ -800,3 +800,180 @@ class TestSegmentedControlOptions:
         assert sc is not None
         # .template cards: upload + edit + delete (3 options)
         assert len(sc.options) == 3
+
+
+# ---------------------------------------------------------------------------
+# icon query-param handlers
+# ---------------------------------------------------------------------------
+
+
+class TestIconQueryParams:
+    """Tests for ?tpl_icon_for, ?icon, and ?edit_icon query-param page-level handlers."""
+
+    def test_icon_update_via_query_param(self, tmp_path):
+        """?tpl_icon_for=STEM&icon=HEX updates the icon code and clears params."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["chart.svg"])
+        env = make_env(tmp_path, cfg_path)
+        updated: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch(
+                "src.templates.update_template_icon_code",
+                side_effect=lambda n, stem, code: updated.append((stem, code)),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.query_params["tpl_icon_for"] = "chart"
+            at.query_params["icon"] = "E9FE"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any(stem == "chart" for stem, _ in updated)
+
+    def test_invalid_hex_in_icon_query_param_is_silently_ignored(self, tmp_path):
+        """?tpl_icon_for with a non-hex icon value does not crash (ValueError caught)."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["chart.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.query_params["tpl_icon_for"] = "chart"
+            at.query_params["icon"] = "NOTAHEX!!"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+
+    def test_edit_icon_query_param_clears_param(self, tmp_path):
+        """?edit_icon=STEM clears the query param and opens the icon dialog."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.query_params["edit_icon"] = "mystem"
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # The query param must have been consumed by the page
+        assert at.query_params.get("edit_icon") is None
+
+
+# ---------------------------------------------------------------------------
+# Multi-row grid (> GRID_COLUMNS templates)
+# ---------------------------------------------------------------------------
+
+
+class TestMultiRowGrid:
+    """Tests for template grids spanning more than one row."""
+
+    def test_multi_row_grid_renders_divider(self, tmp_path):
+        """When there are more than GRID_COLUMNS (5) templates, a divider is rendered."""
+        cfg_path = with_device(tmp_path, "D1")
+        # Create 6 SVG files so the grid spans two rows (GRID_COLUMNS = 5)
+        _make_svgs(tmp_path, "D1", [f"t{i}.svg" for i in range(6)])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # All 6 cards must appear
+        for i in range(6):
+            assert any(f"t{i}" in b.label for b in at.button)
+
+
+# ---------------------------------------------------------------------------
+# Long template name truncation
+# ---------------------------------------------------------------------------
+
+
+class TestLongTemplateName:
+    """Tests for display_name truncation in the template card header."""
+
+    def test_name_over_20_chars_is_truncated(self, tmp_path):
+        """A template stem longer than 20 chars is shown as first-17-chars + '...'."""
+        long_stem = "a_very_long_template_name_indeed"  # 32 chars
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", [f"{long_stem}.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        # Button label must use the truncated form
+        truncated = long_stem[:17] + "..."
+        assert any(truncated in b.label for b in at.button)
+
+
+# ---------------------------------------------------------------------------
+# Category dialog
+# ---------------------------------------------------------------------------
+
+
+class TestCategoryDialog:
+    """Tests for _show_category_dialog triggered from the template card."""
+
+    def test_category_button_shows_dialog_controls(self, tmp_path):
+        """Clicking the category button renders the dialog multiselect and action buttons."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=["Lines", "Dots"]),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            cats_btn = next(
+                (b for b in at.button if b.key and b.key.startswith("tpl_cats_btn_")), None
+            )
+            assert cats_btn is not None
+            cats_btn.click().run()
+        assert not at.exception
+        # Dialog should render the Valider / Annuler buttons
+        assert any(b.label == "Valider" for b in at.button)
+        assert any(b.label == "Annuler" for b in at.button)
+
+    def test_category_dialog_annuler_closes_without_saving(self, tmp_path):
+        """Clicking Annuler in the category dialog does not call update_template_categories."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        env = make_env(tmp_path, cfg_path)
+        calls: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=[]),
+            patch(
+                "src.templates.update_template_categories",
+                side_effect=lambda *a: calls.append(a),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            cats_btn = next(
+                (b for b in at.button if b.key and b.key.startswith("tpl_cats_btn_")), None
+            )
+            assert cats_btn is not None
+            cats_btn.click().run()
+            annuler_btn = next((b for b in at.button if b.label == "Annuler"), None)
+            assert annuler_btn is not None
+            annuler_btn.click().run()
+        assert not at.exception
+        assert not calls

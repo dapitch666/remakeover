@@ -32,7 +32,7 @@ def _make_exec(*responses: tuple[bytes, bytes]):
     """Return a side_effect callable that yields successive responses to exec_command."""
     it = iter(responses)
 
-    def _exec(cmd):
+    def _exec(cmd, **kwargs):
         out_bytes, err_bytes = next(it)
         return _exec_response(out_bytes, err_bytes)
 
@@ -83,7 +83,7 @@ class TestEnsureRw:
         client = MagicMock()
         call_count = [0]
 
-        def _exec(cmd):
+        def _exec(cmd, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise OSError("pipe broken")
@@ -98,7 +98,7 @@ class TestEnsureRw:
         client = MagicMock()
         call_count = [0]
 
-        def _exec(cmd):
+        def _exec(cmd, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return _exec_response(b"readonly", b"")
@@ -149,7 +149,7 @@ class TestRunSshCmd:
         inst = MagicMock()
         call_count = [0]
 
-        def _exec(cmd):
+        def _exec(cmd, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return _exec_response(b"readonly", b"")
@@ -165,7 +165,7 @@ class TestRunSshCmd:
         inst = MagicMock()
         call_count = [0]
 
-        def _exec(cmd):
+        def _exec(cmd, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return _exec_response(b"writable", b"")
@@ -190,7 +190,7 @@ class TestRunSshCmd:
         inst = MagicMock()
         captured = []
 
-        def _exec(cmd):
+        def _exec(cmd, **kwargs):
             captured.append(cmd)
             return _exec_response(b"writable" if not captured[1:] else b"done", b"")
 

@@ -22,6 +22,12 @@ from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW
 
 logger = logging.getLogger(__name__)
 
+# Timeout (seconds) applied to exec_command calls.
+# Quick: short-lived shell one-liners (RW check, remount, connectivity probe).
+# Long: operations that may block — systemctl restart, symlink loops, etc.
+_CMD_TIMEOUT_QUICK: int = 10
+_CMD_TIMEOUT_LONG: int = 60
+
 
 @contextmanager
 def _ssh_client(ip: str, password: str) -> Generator[paramiko.SSHClient, None, None]:
@@ -43,7 +49,7 @@ def _ensure_rw(client: paramiko.SSHClient) -> tuple[bool, str]:
     Reuses the provided open connection — no extra TCP round-trip.
     """
     try:
-        _, stdout, _ = client.exec_command(CMD_CHECK_RW)
+        _, stdout, _ = client.exec_command(CMD_CHECK_RW, timeout=_CMD_TIMEOUT_QUICK)
         status = stdout.read().decode().strip()
     except Exception as e:
         logger.warning("RW check failed, assuming read-only: %s", e)
@@ -55,7 +61,7 @@ def _ensure_rw(client: paramiko.SSHClient) -> tuple[bool, str]:
 
     logger.info("Filesystem is read-only, remounting read-write")
     try:
-        _, stdout, stderr = client.exec_command(CMD_REMOUNT_RW)
+        _, stdout, stderr = client.exec_command(CMD_REMOUNT_RW, timeout=_CMD_TIMEOUT_QUICK)
         stdout.read()
         err = stderr.read().decode().strip()
         if err:
@@ -80,7 +86,7 @@ def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
                 return "", ""
 
             try:
-                _, stdout, stderr = client.exec_command(full_cmd)
+                _, stdout, stderr = client.exec_command(full_cmd, timeout=_CMD_TIMEOUT_LONG)
                 output = stdout.read().decode()
                 error = stderr.read().decode()
             except Exception as e:
@@ -105,7 +111,7 @@ def ssh_connectivity_test(ip: str, password: str) -> tuple[bool, str]:
     logger.info("SSH connectivity test start for %s", ip)
     try:
         with _ssh_client(ip, password) as client:
-            _, stdout, stderr = client.exec_command("echo ok")
+            _, stdout, stderr = client.exec_command("echo ok", timeout=_CMD_TIMEOUT_QUICK)
             output = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
         logger.info("SSH connectivity test OK for %s (out=%s, err_len=%d)", ip, output, len(error))

@@ -13,6 +13,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import streamlit as st
+
 from src.config import get_device_data_dir
 from src.constants import (
     CMD_RESTART_XOCHITL,
@@ -115,8 +117,14 @@ def _stem(filename: str) -> str:
     return filename
 
 
+@st.cache_data(ttl=5)
 def load_templates_json(device_name: str) -> dict[str, Any]:
-    """Load and return data/{{device}}/templates.json, or {{"templates": []}} if absent."""
+    """Load and return data/{{device}}/templates.json, or {{"templates": []}} if absent.
+
+    Results are cached for up to 5 seconds (Streamlit cache_data).  Every
+    call to :func:`save_templates_json` clears the cache so mutations are
+    always visible on the very next read.
+    """
     path = get_device_templates_json_path(device_name)
     if not os.path.exists(path):
         return {"templates": []}
@@ -130,11 +138,15 @@ def save_templates_json(device_name: str, data: dict[str, Any]) -> None:
     Uses ensure_ascii=True so Private Use Area icon codes (e.g. \\ue9fd) are
     written as JSON \\uXXXX escape sequences rather than the bare glyph, which
     matches the format shipped by reMarkable and avoids rendering as empty squares.
+
+    Clears the :func:`load_templates_json` cache so the freshly written data
+    is visible on the very next read.
     """
     path = get_device_templates_json_path(device_name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=True)
+    load_templates_json.clear()
 
 
 def get_all_categories(device_name: str) -> list[str]:
@@ -447,7 +459,7 @@ def _get_sync_state_path(device_name: str) -> str:
 def is_templates_dirty(device_name: str) -> bool:
     """Return True if templates.json has changed since the last recorded sync.
 
-    Compares the MD5 of the current templates.json against a hash written by
+    Compares the SHA-256 of the current templates.json against a hash written by
     :func:`mark_templates_synced`.  Returns False when there is no local
     templates.json (nothing to sync yet).
     """
@@ -455,7 +467,7 @@ def is_templates_dirty(device_name: str) -> bool:
     if not os.path.exists(json_path):
         return False
     with open(json_path, "rb") as f:
-        current_hash = hashlib.md5(f.read()).hexdigest()
+        current_hash = hashlib.sha256(f.read()).hexdigest()
     sync_path = _get_sync_state_path(device_name)
     if not os.path.exists(sync_path):
         # Never synced: consider dirty only if there is at least one entry.
@@ -466,7 +478,7 @@ def is_templates_dirty(device_name: str) -> bool:
 
 
 def mark_templates_synced(device_name: str) -> None:
-    """Record the current templates.json MD5 as the last-known-synced hash."""
+    """Record the current templates.json SHA-256 as the last-known-synced hash."""
     json_path = get_device_templates_json_path(device_name)
     sync_path = _get_sync_state_path(device_name)
     if not os.path.exists(json_path):
@@ -474,7 +486,7 @@ def mark_templates_synced(device_name: str) -> None:
             os.remove(sync_path)
         return
     with open(json_path, "rb") as f:
-        current_hash = hashlib.md5(f.read()).hexdigest()
+        current_hash = hashlib.sha256(f.read()).hexdigest()
     with open(sync_path, "w", encoding="utf-8") as sf:
         sf.write(current_hash)
 
