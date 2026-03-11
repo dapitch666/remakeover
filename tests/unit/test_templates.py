@@ -349,7 +349,7 @@ class TestCompareAndBackupTemplatesJson:
         with open(tpl_json_path, "wb") as f:
             f.write(JSON_STOCK)
 
-        with patch("src.templates.download_file_ssh", return_value=JSON_STOCK):
+        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
 
         assert ok is True
@@ -362,7 +362,7 @@ class TestCompareAndBackupTemplatesJson:
             f.write(JSON_LOCAL)
 
         with (
-            patch("src.templates.download_file_ssh", return_value=JSON_STOCK),
+            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
             patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_upload,
         ):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
@@ -376,13 +376,13 @@ class TestCompareAndBackupTemplatesJson:
         mock_upload.assert_called_once()
 
     def test_no_local_file(self):
-        with patch("src.templates.download_file_ssh", return_value=JSON_STOCK):
+        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
         assert ok is False
         assert msg == "no_local"
 
     def test_download_failure(self):
-        with patch("src.templates.download_file_ssh", side_effect=Exception("timeout")):
+        with patch("src.templates.download_file_ssh", return_value=(None, "timeout")):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
         assert ok is False
         assert msg.startswith("download_failed")
@@ -394,7 +394,7 @@ class TestCompareAndBackupTemplatesJson:
             f.write(JSON_LOCAL)
 
         with (
-            patch("src.templates.download_file_ssh", return_value=JSON_STOCK),
+            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
             patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
         ):
             ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
@@ -547,13 +547,13 @@ class TestUploadTemplateSvgs:
 
 class TestFetchAndInitTemplates:
     def test_download_failure(self):
-        with patch("src.templates.download_file_ssh", side_effect=Exception("timeout")):
+        with patch("src.templates.download_file_ssh", return_value=(None, "timeout")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is False
         assert "download_failed" in msg
 
     def test_backup_parse_failed(self):
-        with patch("src.templates.download_file_ssh", return_value=b"not-valid-json"):
+        with patch("src.templates.download_file_ssh", return_value=(b"not-valid-json", "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is False
         assert "backup_parse_failed" in msg
@@ -562,7 +562,7 @@ class TestFetchAndInitTemplates:
         # Ensure the device directory exists so the backup file can be written
         (tmp_path / DEVICE).mkdir(parents=True, exist_ok=True)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=remote_json):
+        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "fetched" in msg
@@ -572,7 +572,7 @@ class TestFetchAndInitTemplates:
         svgs_dir.mkdir(parents=True)
         (svgs_dir / "custom.svg").write_bytes(SVG_CONTENT)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=remote_json):
+        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "1 local SVG" in msg
@@ -590,7 +590,7 @@ class TestFetchAndInitTemplates:
                 ]
             }
         ).encode()
-        with patch("src.templates.download_file_ssh", return_value=remote_json):
+        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "0 local SVG" in msg

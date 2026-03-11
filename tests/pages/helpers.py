@@ -129,7 +129,7 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
             "src.ssh.upload_file_ssh",
             side_effect=lambda ip, pw, blob, path: upload_calls.append((ip, path)) or (True, "ok"),
         ),
-        patch("src.ssh.download_file_ssh", return_value=PNG_BYTES),
+        patch("src.ssh.download_file_ssh", return_value=(PNG_BYTES, "")),
         patch(
             "src.ssh.run_ssh_cmd",
             side_effect=lambda ip, pw, cmds: run_cmds.append((ip, tuple(cmds))),

@@ -8,7 +8,7 @@ import streamlit as st
 import src.dialog as _dialog
 import src.images as _images
 import src.ssh as _ssh
-from src.config import save_config
+from src.config import save_config, truncate_display_name
 from src.constants import DEVICE_SIZES, GRID_COLUMNS, SUSPENDED_PNG_PATH
 from src.models import Device
 from src.ui_common import (
@@ -22,7 +22,7 @@ from src.ui_common import (
 # ── Image card ────────────────────────────────────────────────────────────────
 
 
-def _render_image_card(img_name, selected_name, device, config, save_config, add_log):
+def _render_image_card(img_name, selected_name, device, config, add_log):
     """Render one image card: name/rename button, thumbnail, and action controls."""
     img_data = _images.load_device_image(selected_name, img_name)
     star_icon = ":material/star:" if device.is_preferred(img_name) else None
@@ -66,7 +66,7 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
                 )
     else:
         bare = os.path.splitext(img_name)[0]
-        display_name = bare if len(bare) <= 13 else bare[:10] + "..."
+        display_name = truncate_display_name(bare)
         if st.button(
             f"**{display_name}**",
             key=f"name_{img_name}",
@@ -149,23 +149,21 @@ def _render_image_card(img_name, selected_name, device, config, save_config, add
         try:
             if selection == 0:
                 if send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
-                    st.toast(
-                        f":green[{_img_name} envoyée à {selected_name} !]",
-                        icon=":material/task_alt:",
+                    deferred_toast(
+                        f"{_img_name} envoyée à {selected_name} !",
+                        ":material/task_alt:",
                     )
                 else:
-                    st.toast(
-                        f":red[Erreur lors de l'envoi de {_img_name}]", icon=":material/error:"
-                    )
+                    deferred_toast(f"Erreur lors de l'envoi de {_img_name}", ":material/error:")
             elif selection == 1:
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
                     add_log(f"Preferred image removed for '{selected_name}'")
-                    st.toast("Image préférée retirée", icon=":material/star_border:")
+                    deferred_toast("Image préférée retirée", ":material/star_border:")
                 else:
                     device.set_preferred(_img_name)
                     add_log(f"Preferred image set: {_img_name} for '{selected_name}'")
-                    st.toast(f"{_img_name} définie comme image préférée", icon=":material/star:")
+                    deferred_toast(f"{_img_name} définie comme image préférée", ":material/star:")
                 config["devices"][selected_name] = device.to_dict()
                 save_config(config)
             elif selection == 2:
@@ -276,7 +274,7 @@ if stored_images:
         cols = st.columns(GRID_COLUMNS, gap="medium")
         for col_idx, img_name in enumerate(row_items):
             with cols[col_idx]:
-                _render_image_card(img_name, selected_name, device, config, save_config, add_log)
+                _render_image_card(img_name, selected_name, device, config, add_log)
         if row_start + GRID_COLUMNS < len(stored_images):
             st.divider()
 else:
@@ -296,17 +294,17 @@ with col1:
         width="stretch",
         help="Télécharger l'image actuelle de l'écran de veille depuis la tablette",
     ):
-        try:
-            img_data = _ssh.download_file_ssh(device.ip, device.password or "", SUSPENDED_PNG_PATH)
+        img_data, err = _ssh.download_file_ssh(device.ip, device.password or "", SUSPENDED_PNG_PATH)
+        if img_data is None:
+            st.error(f"Erreur : {err}", icon=":material/error:")
+            add_log(f"Error downloading suspended.png from '{selected_name}': {err}")
+        else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}.png"
             _images.save_device_image(selected_name, img_data, filename)
             add_log(f"suspended.png downloaded from '{selected_name}' as {filename}")
-            st.toast(f":green[Image sauvegardée : {filename}]", icon=":material/task_alt:")
+            deferred_toast(f"Image sauvegardée : {filename}", ":material/task_alt:")
             st.rerun()
-        except Exception as e:
-            st.error(f"Erreur : {str(e)}", icon=":material/error:")
-            add_log(f"Error downloading suspended.png from '{selected_name}': {str(e)}")
 
 with col2:
     _render_upload_section(selected_name, device, add_log)

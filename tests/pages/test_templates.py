@@ -423,6 +423,7 @@ class TestSyncBranches:
             [
                 patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
                 patch("src.templates.upload_template_svgs", return_value=2),
+                patch("src.templates.symlink_templates_on_device", return_value=(True, "ok")),
                 patch("src.ssh.run_ssh_cmd"),
                 patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
                 patch("src.templates.mark_templates_synced"),
@@ -431,13 +432,17 @@ class TestSyncBranches:
         assert not at.exception
 
     def test_sync_symlink_exception_returns_false(self, tmp_path):
-        """If run_ssh_cmd raises during symlink creation, sync fails gracefully."""
+        """If symlink_templates_on_device fails, sync fails gracefully."""
         at = self._run_sync(
             tmp_path,
             [
                 patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
                 patch("src.templates.upload_template_svgs", return_value=1),
-                patch("src.ssh.run_ssh_cmd", side_effect=Exception("symlink error")),
+                patch(
+                    "src.templates.symlink_templates_on_device",
+                    return_value=(False, "symlink error"),
+                ),
+                patch("src.ssh.run_ssh_cmd"),
                 patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
                 patch("src.templates.mark_templates_synced"),
             ],

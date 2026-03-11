@@ -287,11 +287,10 @@ def compare_and_backup_templates_json(ip: str, password: str, device_name: str) 
     local_json_path = get_device_templates_json_path(device_name)
     backup_path = get_device_templates_backup_path(device_name)
 
-    try:
-        remote_content = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    except Exception as e:
-        logger.info("No remote templates.json found or download failed: %s", e)
-        return False, f"download_failed: {e}"
+    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
+    if remote_content is None:
+        logger.info("No remote templates.json found or download failed: %s", err)
+        return False, f"download_failed: {err}"
 
     if not os.path.exists(local_json_path):
         return False, "no_local"
@@ -331,11 +330,10 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
     Returns (ok, message).
     """
     # 1 — Download remote templates.json
-    try:
-        remote_content = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    except Exception as e:
-        logger.error("fetch_and_init_templates — download failed: %s", e)
-        return False, f"download_failed: {e}"
+    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
+    if remote_content is None:
+        logger.error("fetch_and_init_templates — download failed: %s", err)
+        return False, f"download_failed: {err}"
 
     # 2 — Save as backup
     backup_path = get_device_templates_backup_path(device_name)
@@ -380,6 +378,28 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
         device_name,
     )
     return True, f"fetched ({appended} local SVG(s) appended)"
+
+
+def symlink_templates_on_device(ip: str, password: str) -> tuple[bool, str]:
+    """Create symlinks in REMOTE_TEMPLATES_DIR for all custom .svg and .template files.
+
+    For each file in REMOTE_CUSTOM_TEMPLATES_DIR with a .svg or .template extension,
+    a symlink is created in REMOTE_TEMPLATES_DIR pointing to the custom file.
+    Returns (True, "ok") on success, (False, error) on failure.
+    """
+    cmd = (
+        f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg "
+        f"{REMOTE_CUSTOM_TEMPLATES_DIR}/*.template; do "
+        f'[ -f "$file" ] || continue; '
+        f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
+        "done"
+    )
+    try:
+        run_ssh_cmd(ip, password, [cmd])
+        return True, "ok"
+    except Exception as e:
+        logger.error("symlink_templates_on_device failed: %s", e)
+        return False, str(e)
 
 
 def upload_template_to_tablet(

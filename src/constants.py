@@ -42,9 +42,9 @@ CMD_CHECK_RW = 'mount | grep "on / " | grep -q "(rw," && printf "writable" || pr
 CMD_REMOUNT_RW = "mount -o remount,rw /"
 
 # Disable carousel: back up illustrations then clear the source folder
-CMD_CAROUSEL_BACKUP_DIR = f"mkdir -p {REMOTE_CAROUSEL_BACKUP_DIR}"
+CMD_CAROUSEL_BACKUP_DIR = f"mkdir -p '{REMOTE_CAROUSEL_BACKUP_DIR}'"
 CMD_CAROUSEL_DISABLE = (
-    f"mv {REMOTE_CAROUSEL_DIR}/*.png {REMOTE_CAROUSEL_BACKUP_DIR}/ 2>/dev/null || true"
+    f"mv '{REMOTE_CAROUSEL_DIR}'/*.png '{REMOTE_CAROUSEL_BACKUP_DIR}/' 2>/dev/null || true"
 )
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ This module should implement SSH operations used by the app:
 - ensure_rw_filesystem(ip, password) -> (ok, msg)
 - run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
 - upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
-- download_file_ssh(ip, password, remote_path) -> bytes
+- download_file_ssh(ip, password, remote_path) -> (bytes | None, msg)
 
 Current file contains function signatures and docs; implementations
 should be moved here from `app.py` incrementally.
@@ -162,19 +162,26 @@ def upload_file_ssh(
         return False, str(e)
 
 
-def download_file_ssh(ip: str, password: str, remote_path: str) -> bytes:
-    """Download *remote_path* via SFTP. Raises on any connection or transfer error."""
+def download_file_ssh(ip: str, password: str, remote_path: str) -> tuple[bytes | None, str]:
+    """Download *remote_path* via SFTP.
+
+    Returns ``(content, "")`` on success, ``(None, error_message)`` on failure.
+    """
     logger.info("SFTP download start from %s:%s", ip, remote_path)
-    with _ssh_client(ip, password) as client:
-        sftp = client.open_sftp()
-        try:
-            with sftp.file(remote_path, "rb") as f:
-                content = f.read()
-        finally:
-            with suppress(Exception):
-                sftp.close()
-    logger.info("SFTP download OK from %s:%s (bytes=%d)", ip, remote_path, len(content))
-    return content
+    try:
+        with _ssh_client(ip, password) as client:
+            sftp = client.open_sftp()
+            try:
+                with sftp.file(remote_path, "rb") as f:
+                    content = f.read()
+            finally:
+                with suppress(Exception):
+                    sftp.close()
+        logger.info("SFTP download OK from %s:%s (bytes=%d)", ip, remote_path, len(content))
+        return content, ""
+    except Exception as e:
+        logger.error("SFTP download error from %s:%s: %s", ip, remote_path, e)
+        return None, str(e)
 
 
 def list_remote_dir_ssh(ip: str, password: str, remote_dir: str) -> tuple[list[str], str]:

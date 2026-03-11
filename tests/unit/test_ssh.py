@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from src.ssh import (
     _ensure_rw,
     download_file_ssh,
@@ -330,14 +328,17 @@ class TestDownloadFileSsh:
         sftp.file.return_value = fake_file
         inst.open_sftp.return_value = sftp
         with _patched_client(inst):
-            data = download_file_ssh(IP, PW, "/remote/file")
+            data, err = download_file_ssh(IP, PW, "/remote/file")
         assert data == b"file content"
+        assert err == ""
 
-    def test_connect_error_raises(self):
+    def test_connect_error_returns_none(self):
         inst = MagicMock()
         inst.connect.side_effect = OSError("timeout")
-        with _patched_client(inst), pytest.raises(OSError, match="timeout"):
-            download_file_ssh(IP, PW, "/remote/file")
+        with _patched_client(inst):
+            data, err = download_file_ssh(IP, PW, "/remote/file")
+        assert data is None
+        assert "timeout" in err
 
 
 # ---------------------------------------------------------------------------

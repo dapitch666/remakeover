@@ -19,9 +19,9 @@ import random as _random
 from contextlib import suppress
 
 from src.constants import (
+    CMD_CAROUSEL_BACKUP_DIR,
+    CMD_CAROUSEL_DISABLE,
     CMD_RESTART_XOCHITL,
-    REMOTE_CAROUSEL_BACKUP_DIR,
-    REMOTE_CAROUSEL_DIR,
     REMOTE_CUSTOM_TEMPLATES_DIR,
     REMOTE_TEMPLATES_DIR,
     SUSPENDED_PNG_PATH,
@@ -33,6 +33,7 @@ from src.templates import (
     compare_and_backup_templates_json,
     ensure_remote_template_dirs,
     get_device_templates_dir,
+    symlink_templates_on_device,
     upload_template_svgs,
 )
 
@@ -161,21 +162,11 @@ def run_maintenance(
                 ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR
             )
             if sent_count:
-                try:
-                    run_ssh_cmd(
-                        ip,
-                        pw,
-                        [
-                            f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg; do "
-                            f'[ -f "$file" ] || continue; '
-                            f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
-                            "done"
-                        ],
-                    )
-                    _log(f"{sent_count} SVG template(s) uploaded and linked")
-                except Exception as e:
-                    errors.append(f"symlink_failed: {e}")
+                ok_link, link_err = symlink_templates_on_device(ip, pw)
+                if not ok_link:
+                    errors.append(f"symlink_failed: {link_err}")
                     return {"ok": False, "errors": errors, "details": details}
+                _log(f"{sent_count} SVG template(s) uploaded and linked")
 
             # compare_and_backup_templates_json: downloads the remote templates.json,
             # saves it as templates.backup.json if different from the local copy,
@@ -194,13 +185,8 @@ def run_maintenance(
         # ── 3) Disable carousel ────────────────────────────────────────────
         if device.carousel:
             _advance("Désactivation du carrousel")
-            carousel_cmd = (
-                f"mkdir -p '{REMOTE_CAROUSEL_BACKUP_DIR}' && "
-                f"mv '{REMOTE_CAROUSEL_DIR}'/*.png '{REMOTE_CAROUSEL_BACKUP_DIR}/' "
-                f"2>/dev/null || true"
-            )
             try:
-                out, err = run_ssh_cmd(ip, pw, [carousel_cmd])
+                out, err = run_ssh_cmd(ip, pw, [CMD_CAROUSEL_BACKUP_DIR, CMD_CAROUSEL_DISABLE])
                 details["carousel_out"] = out.strip()
                 details["carousel_err"] = err.strip()
                 _log("Carousel disabled")

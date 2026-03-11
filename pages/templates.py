@@ -39,6 +39,7 @@ from src.templates import (
     rename_device_template,
     rename_template_entry,
     save_device_template,
+    symlink_templates_on_device,
     update_template_categories,
     update_template_icon_code,
     upload_template_svgs,
@@ -64,18 +65,9 @@ def _sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
     sent = upload_template_svgs(ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR)
 
     if sent:
-        # Symlink both .svg and .template files into the read-only templates dir
-        symlink_cmd = (
-            f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg "
-            f"{REMOTE_CUSTOM_TEMPLATES_DIR}/*.template; do "
-            f'[ -f "$file" ] || continue; '
-            f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
-            "done"
-        )
-        try:
-            _ssh.run_ssh_cmd(ip, pw, [symlink_cmd])
-        except Exception as e:
-            add_log(f"Sync templates — symlinks: {e}")
+        ok, msg = symlink_templates_on_device(ip, pw)
+        if not ok:
+            add_log(f"Sync templates — symlinks: {msg}")
             return False
 
     local_json_path = get_device_templates_json_path(selected_name)

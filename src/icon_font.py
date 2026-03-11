@@ -118,10 +118,9 @@ def fetch_icon_font(ip: str, password: str, device_name: str) -> tuple[bool, str
     Returns (ok, message).
     """
     logger.info("Downloading %s from %s …", REMOTE_XOCHITL, ip)
-    try:
-        xochitl_bytes = download_file_ssh(ip, password, REMOTE_XOCHITL)
-    except Exception as e:
-        return False, f"download_failed: {e}"
+    xochitl_bytes, err = download_file_ssh(ip, password, REMOTE_XOCHITL)
+    if xochitl_bytes is None:
+        return False, f"download_failed: {err}"
 
     ttf = _extract_icomoon_ttf(xochitl_bytes)
     if ttf is None:

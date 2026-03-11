@@ -208,7 +208,7 @@ class TestImagesPage:
             patch.dict(os.environ, env),
             patch("src.images.list_device_images", return_value=[]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
-            patch("src.ssh.download_file_ssh", return_value=PNG_BYTES),
+            patch("src.ssh.download_file_ssh", return_value=(PNG_BYTES, "")),
             patch(
                 "src.images.save_device_image",
                 side_effect=lambda n, d, f: saved.append(f),
@@ -232,7 +232,7 @@ class TestImagesPage:
         with (
             patch.dict(os.environ, env),
             patch("src.images.list_device_images", return_value=[]),
-            patch("src.ssh.download_file_ssh", side_effect=Exception("Connection refused")),
+            patch("src.ssh.download_file_ssh", return_value=(None, "Connection refused")),
         ):
             at = AppTest.from_file("app.py")
             at.run()
