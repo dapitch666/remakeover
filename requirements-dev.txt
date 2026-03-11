@@ -1,6 +1,5 @@
-# Development-only dependencies (not needed at runtime)
-ruff
-mypy
-types-paramiko
-pytest-cov
-pre-commit
+mypy==1.19.1
+pytest-cov==7.0.0
+ruff==0.15.4
+types-paramiko==4.0.0.20250822
+pre-commit==4.5.1
