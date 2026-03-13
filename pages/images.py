@@ -219,6 +219,9 @@ def _render_upload_section(selected_name, device, add_log):
                 device=selected_name
             ),
             key=f"img_send_confirm_{selected_name}",
+            cancel_label=_("No"),
+            confirm_label=_("Yes"),
+            help_text=_("You can still send it later from the image actions."),
         )
 
     def _reset_uploader():
@@ -233,7 +236,7 @@ def _render_upload_section(selected_name, device, add_log):
         if img_data and filename:
             if send_suspended_png(device, img_data, filename, selected_name, add_log):
                 deferred_toast(
-                    _("{name} sent to {device}!").format(name=filename, device=selected_name),
+                    _("{name} sent to {device}").format(name=filename, device=selected_name),
                     ":material/task_alt:",
                 )
             else:

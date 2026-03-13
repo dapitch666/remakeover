@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-12 15:36+0100\n"
+"POT-Creation-Date: 2026-03-13 14:02+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,33 +17,33 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: app.py:122
-msgid "Template Editor"
-msgstr ""
-
-#: app.py:125
-msgid "Icon Font"
-msgstr ""
-
-#: app.py:126
-msgid "Deployment"
-msgstr ""
-
-#: app.py:158
+#: app.py:192
 msgid "Tablet"
 msgstr ""
 
-#: app.py:166
+#: app.py:201
 msgid "Test SSH connection"
 msgstr ""
 
-#: app.py:186
+#: app.py:221
 msgid "SSH connection OK"
 msgstr ""
 
-#: app.py:189
+#: app.py:224
 #, python-brace-format
 msgid "SSH connection failed: {err}"
+msgstr ""
+
+#: app.py:266
+msgid "Template Editor"
+msgstr ""
+
+#: app.py:269
+msgid "Icon Font"
+msgstr ""
+
+#: app.py:270
+msgid "Deployment"
 msgstr ""
 
 #: pages/configuration.py:18
@@ -136,7 +136,7 @@ msgid "Delete this device and its local images"
 msgstr ""
 
 #: pages/configuration.py:135 pages/templates.py:75 pages/templates.py:123
-#: pages/templates.py:186 src/dialog.py:18 tests/unit/test_i18n.py:77
+#: pages/templates.py:186 src/dialog.py:25 tests/unit/test_i18n.py:79
 msgid "Cancel"
 msgstr ""
 
@@ -337,20 +337,32 @@ msgid ""
 "Do you also want to send it to **{device}**?"
 msgstr ""
 
-#: pages/images.py:236
+#: pages/images.py:222
+msgid "No"
+msgstr ""
+
+#: pages/images.py:223
+msgid "Yes"
+msgstr ""
+
+#: pages/images.py:224 tests/unit/test_i18n.py:93
+msgid "You can still send it later from the image actions."
+msgstr ""
+
+#: pages/images.py:239
 #, python-brace-format
 msgid "{name} sent to {device}!"
 msgstr ""
 
-#: pages/images.py:240
+#: pages/images.py:243
 msgid "Error sending image."
 msgstr ""
 
-#: pages/images.py:254
+#: pages/images.py:257
 msgid ":material/image: Images"
 msgstr ""
 
-#: pages/images.py:273
+#: pages/images.py:276
 msgid ""
 "Below you will find all images saved for this tablet. Click the **name** "
 "of an image to rename it. The three buttons under each image let you "
@@ -362,30 +374,30 @@ msgid ""
 "converted to the correct format and dimensions."
 msgstr ""
 
-#: pages/images.py:295
+#: pages/images.py:298
 msgid ""
 "No images saved for this tablet. Import the image currently on the tablet"
 " or add one from your computer below."
 msgstr ""
 
-#: pages/images.py:303
+#: pages/images.py:306
 msgid "Get current image"
 msgstr ""
 
-#: pages/images.py:305
+#: pages/images.py:308
 msgid "Import from tablet"
 msgstr ""
 
-#: pages/images.py:309
+#: pages/images.py:312
 msgid "Download the current suspended image from the tablet"
 msgstr ""
 
-#: pages/images.py:313
+#: pages/images.py:316
 #, python-brace-format
 msgid "Error: {err}"
 msgstr ""
 
-#: pages/images.py:320
+#: pages/images.py:323
 #, python-brace-format
 msgid "Image saved: {name}"
 msgstr ""
@@ -694,7 +706,7 @@ msgstr ""
 msgid "No templates found for this device."
 msgstr ""
 
-#: src/dialog.py:22 tests/unit/test_i18n.py:81
+#: src/dialog.py:26 tests/unit/test_i18n.py:83
 msgid "Confirm"
 msgstr ""
 
@@ -710,7 +722,15 @@ msgstr ""
 msgid "Some unknown string xyz"
 msgstr ""
 
-#: tests/unit/test_i18n.py:73
+#: tests/unit/test_i18n.py:74
 msgid "Unknown string not in catalog xyz"
+msgstr ""
+
+#: tests/unit/test_i18n.py:87
+msgid "Keep local only"
+msgstr ""
+
+#: tests/unit/test_i18n.py:88
+msgid "Send to tablet"
 msgstr ""
 

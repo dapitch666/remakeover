@@ -70,3 +70,33 @@ def test_confirm_message_is_displayed():
 
     st.dialog.assert_called_once_with("My Title")
     st.write.assert_called_once_with("Hello world")
+
+
+def test_confirm_uses_default_labels():
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=False)
+    with patcher:
+        dialog_mod.confirm("Title", "Message", key="k")
+
+    c_cancel = st.columns.return_value[1]
+    c_ok = st.columns.return_value[3]
+    assert c_cancel.button.call_args.args[0] == "Cancel"
+    assert c_ok.button.call_args.args[0] == "Confirm"
+
+
+def test_confirm_supports_custom_labels_and_help_text():
+    patcher, st = _patched_st(cancel_clicked=False, confirm_clicked=False)
+    with patcher:
+        dialog_mod.confirm(
+            "Title",
+            "Message",
+            key="k",
+            cancel_label="Keep local only",
+            confirm_label="Send to tablet",
+            help_text="You can still send it later.",
+        )
+
+    c_cancel = st.columns.return_value[1]
+    c_ok = st.columns.return_value[3]
+    assert c_cancel.button.call_args.args[0] == "Keep local only"
+    assert c_ok.button.call_args.args[0] == "Send to tablet"
+    st.caption.assert_called_once_with("You can still send it later.")
