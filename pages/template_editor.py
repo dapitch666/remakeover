@@ -17,6 +17,7 @@ from contextlib import suppress
 import streamlit as st
 
 from src.constants import DEFAULT_TEMPLATE_JSON
+from src.i18n import _
 from src.icon_font import render_icon_grid_html, render_icon_preview_html
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
@@ -37,7 +38,7 @@ _DEFAULT_JSON: str = DEFAULT_TEMPLATE_JSON
 # Page
 # ---------------------------------------------------------------------------
 
-st.title(":material/edit_document: Éditeur de templates")
+st.title(_(":material/edit_document: Template Editor"))
 rainbow_divider()
 
 config = st.session_state.get("config", {})
@@ -53,32 +54,32 @@ col_sel, col_load, col_new = st.columns([4, 1, 1], vertical_alignment="bottom")
 
 # Apply any pre-run selectbox override before the widget is instantiated
 # (writing to a widget's session-state key after creation raises an error).
-# tpl_editor_reset_choice=True → reset to "— Nouveau —"
+# tpl_editor_reset_choice=True → reset to "— New —" (the sentinel first option)
 # tpl_editor_load_choice may also be pre-set by the Templates page to pre-select a file.
 if (
     st.session_state.pop("tpl_editor_reset_choice", False)
     and "tpl_editor_load_choice" not in st.session_state
 ):
-    st.session_state["tpl_editor_load_choice"] = "— Nouveau —"
+    st.session_state["tpl_editor_load_choice"] = _("— New —")
 
 with col_sel:
     existing: list[str] = []
     if selected_name and selected_name in DEVICES:
         existing = list_json_templates(selected_name)
     load_choice = st.selectbox(
-        "Charger un template JSON existant",
-        options=["— Nouveau —"] + existing,
+        _("Load an existing JSON template"),
+        options=[_("\u2014 New \u2014")] + existing,
         key="tpl_editor_load_choice",
         label_visibility="visible",
     )
 
 with col_load:
     if st.button(
-        "Charger",
+        _("Load"),
         key="tpl_editor_load_btn",
         icon=":material/folder_open:",
         width="stretch",
-        disabled=not existing or load_choice == "— Nouveau —",
+        disabled=not existing or load_choice == _("\u2014 New \u2014"),
     ):
         assert isinstance(selected_name, str)
         st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, load_choice)
@@ -86,7 +87,7 @@ with col_load:
 
 with col_new:
     if st.button(
-        "Nouveau",
+        _("New"),
         key="tpl_editor_new_btn",
         icon=":material/add:",
         width="stretch",
@@ -102,7 +103,7 @@ with col_new:
 col_edit, col_preview = st.columns(2, gap="medium")
 
 with col_edit:
-    st.subheader("JSON", divider="rainbow")
+    st.subheader(_("JSON"), divider="rainbow")
     if "tpl_editor_textarea" not in st.session_state:
         st.session_state["tpl_editor_textarea"] = _DEFAULT_JSON
     st.html(
@@ -115,18 +116,15 @@ with col_edit:
         "</style>"
     )
     json_str: str = st.text_area(
-        "Template JSON",
+        _("Template JSON"),
         height=650,
         key="tpl_editor_textarea",
         label_visibility="collapsed",
-        help=(
-            "Entrez ici le JSON de votre template reMarkable. "
-            "L'aperçu se met à jour automatiquement."
-        ),
+        help=_("Enter your reMarkable template JSON here. The preview updates automatically."),
     )
 
 with col_preview:
-    st.subheader("Aperçu", divider="rainbow")
+    st.subheader(_("Preview"), divider="rainbow")
     svg, render_error = render_template_json_str(json_str)
     if render_error:
         st.error(render_error, icon=":material/error:")
@@ -137,7 +135,7 @@ with col_preview:
 # Format documentation (collapsed by default)
 # ---------------------------------------------------------------------------
 
-with st.expander(":material/help: Documentation du format JSON reMarkable", expanded=False):
+with st.expander(_(":material/help: reMarkable JSON format documentation"), expanded=False):
     _spec_path = os.path.join(os.path.dirname(__file__), "..", "docs", "template-format-spec.md")
     with open(_spec_path, encoding="utf-8") as _f:
         st.markdown(_f.read())
@@ -146,11 +144,11 @@ with st.expander(":material/help: Documentation du format JSON reMarkable", expa
 # Save section  (requires a device to be selected)
 # ---------------------------------------------------------------------------
 
-st.subheader("Sauvegarder", divider="rainbow")
+st.subheader(_("Save"), divider="rainbow")
 
 if not (selected_name and selected_name in DEVICES):
     st.info(
-        "Sélectionnez une tablette dans la barre latérale pour sauvegarder le template.",
+        _("Select a tablet in the sidebar to save the template."),
         icon=":material/info:",
     )
     st.stop()
@@ -158,10 +156,10 @@ if not (selected_name and selected_name in DEVICES):
 # Pre-fill fields from the parsed JSON when possible
 try:
     _parsed = json.loads(json_str)
-    _default_name: str = _parsed.get("name", "Mon Template")
+    _default_name: str = _parsed.get("name", "My Template")
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
 except Exception:
-    _default_name = "Mon Template"
+    _default_name = "My Template"
     _default_cats = ["Perso"]
 
 _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
@@ -169,17 +167,17 @@ _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
 col_name, col_icon, col_icn_preview = st.columns([4, 2, 1], vertical_alignment="bottom")
 with col_name:
     tpl_filename: str = st.text_input(
-        "Nom du fichier (sans extension)",
+        _("Filename (without extension)"),
         value=_default_name,
         key=f"tpl_editor_name_{_gen}",
     )
 with col_icon:
     icon_hex: str = st.text_input(
-        "Code d'icône (hex)",
+        _("Icon code (hex)"),
         value="E9FE",
         max_chars=5,
         key=f"tpl_editor_icon_{_gen}",
-        help="Code hexadécimal de l'icône icomoon (ex : E9FE).",
+        help=_("Hexadecimal icomoon icon code (e.g. E9FE)."),
     )
 with col_icn_preview:
     _icn_preview = ""
@@ -194,7 +192,7 @@ _grid_html = render_icon_grid_html(
     clickable=False,
 )
 if _grid_html:
-    with st.expander("Parcourir les icônes", icon=":material/grid_view:"):
+    with st.expander(_("Browse icons"), icon=":material/grid_view:"):
         st.html(_grid_html)
 
 # Save / Download buttons
@@ -209,13 +207,13 @@ col_save, col_dl = st.columns(2)
 
 with col_save:
     if st.button(
-        "Sauvegarder",
+        _("Save"),
         key=f"tpl_editor_save_{_gen}",
         type="primary",
         icon=":material/save:",
         disabled=not _json_valid,
         width="stretch",
-        help="Enregistre le fichier .template dans la bibliothèque de l'appareil sélectionné.",
+        help=_("Save the .template file to the selected device's library."),
     ):
         _base = tpl_filename.strip() or _default_name
         filename_tpl = normalise_filename(_base, ext=".template")
@@ -235,7 +233,7 @@ with col_save:
         add_template_entry(selected_name, filename_tpl, cats, icon_code)
 
         add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
-        deferred_toast(f"Template {filename_tpl} sauvegardé", ":material/task_alt:")
+        deferred_toast(_("Template {name} saved").format(name=filename_tpl), ":material/task_alt:")
         st.session_state["tpl_editor_save_gen"] = _gen + 1
         st.rerun()
 
@@ -243,7 +241,7 @@ with col_dl:
     if _json_valid:
         _dl_name = normalise_filename((tpl_filename.strip() or _default_name), ext=".template")
         st.download_button(
-            "Télécharger .template",
+            _("Download .template"),
             data=json_str.encode("utf-8"),
             file_name=_dl_name,
             mime="application/json",

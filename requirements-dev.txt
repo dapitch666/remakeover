@@ -3,3 +3,4 @@ pytest-cov==7.0.0
 ruff==0.15.5
 types-paramiko==4.0.0.20250822
 pre-commit==4.5.1
+babel==2.17.0

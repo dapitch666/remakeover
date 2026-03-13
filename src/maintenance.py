@@ -63,7 +63,7 @@ def run_maintenance(
         preferred image is used; if none is set a random library image is picked;
         if the library is empty the step is skipped.
     step_fn : callable(msg)
-        Updates the progress status label (French UI string).
+        Updates the progress status label (English string).
     progress_fn : callable(pct: int)
         Updates the progress bar (0–100).
     toast_fn : callable(msg)
@@ -98,12 +98,12 @@ def run_maintenance(
                 image = _random.choice(imgs)
 
     if image:
-        active_steps.append("Upload de l'image de veille")
+        active_steps.append("Upload suspended image")
     if device.templates:
-        active_steps.append("Ajout des templates personnalisés")
+        active_steps.append("Upload custom templates")
     if device.carousel:
-        active_steps.append("Désactivation du carrousel")
-    active_steps.append("Redémarrage de xochitl")
+        active_steps.append("Disable carousel")
+    active_steps.append("Restart xochitl")
 
     total = len(active_steps)
     cur = 0
@@ -129,7 +129,7 @@ def run_maintenance(
     pw = device.password or ""
 
     try:
-        step_fn("Démarrage de la maintenance…")
+        step_fn("Starting maintenance…")
         progress_fn(0)
 
         # ── 1) Upload suspended.png ────────────────────────────────────────
@@ -216,9 +216,9 @@ def run_maintenance(
 
     try:
         if result["ok"]:
-            toast_fn("Maintenance terminée avec succès")
+            toast_fn("Deployment completed successfully")
         else:
-            toast_fn("Maintenance terminée (avec erreurs)")
+            toast_fn("Deployment completed (with errors)")
     except Exception:
         pass
 

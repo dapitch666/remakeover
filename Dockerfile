@@ -10,10 +10,16 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY .streamlit ./.streamlit
 COPY app.py .
 COPY assets ./assets
+COPY locales ./locales
 COPY pages ./pages
 COPY src ./src
 COPY static ./static
 COPY VERSION .
+
+# Compile translation catalogs (.po → .mo)
+RUN pip install --no-cache-dir babel && \
+    pybabel compile -d locales -D rmmanager && \
+    pip uninstall -y babel
 
 # Exposition du port Streamlit
 EXPOSE 8501

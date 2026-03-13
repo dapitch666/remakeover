@@ -4,6 +4,7 @@ import os
 
 import streamlit as st
 
+from src.i18n import _
 from src.icon_font import fetch_icon_font, get_icon_codepoints, get_icon_font_path
 from src.models import Device
 from src.templates import get_device_templates_json_path, load_templates_json
@@ -23,12 +24,12 @@ def _show_icon_detail(cp: int) -> None:
         f"</div>"
     )
     st.info(
-        f"Code `\\u{hex_str}` \u2014 copiez ce code pour l'utiliser dans un template.",
+        _("Code `\\u{hex}` — copy this code to use it in a template.").format(hex=hex_str),
         icon=":material/check_circle:",
     )
 
 
-st.title(":material/style: Police d'icônes")
+st.title(_(":material/style: Icon Font"))
 rainbow_divider()
 
 config = st.session_state.get("config", {})
@@ -48,23 +49,27 @@ font_path = get_icon_font_path()
 size_kb = os.path.getsize(font_path) // 1024
 col_info, col_btn = st.columns([3, 1], vertical_alignment="center")
 with col_info:
-    st.caption(f"Police icomoon · {size_kb} Ko · {len(codepoints)} glyphe(s)")
+    st.caption(
+        _("Icomoon font · {size_kb} KB · {count} glyph(s)").format(
+            size_kb=size_kb, count=len(codepoints)
+        )
+    )
 with col_btn:
     if st.button(
-        "Ré-extraire",
+        _("Re-extract"),
         key="icon_font_refetch",
         icon=":material/refresh:",
         width="stretch",
-        help="Télécharger xochitl depuis la tablette et réextraire la police",
+        help=_("Download xochitl from the tablet and re-extract the font"),
     ):
-        with st.spinner("Téléchargement de xochitl et extraction de la police…"):
+        with st.spinner(_("Downloading xochitl and extracting the font…")):
             ok, msg = fetch_icon_font(device.ip, device.password or "", selected_name)
         if ok:
             add_log(f"Icomoon font re-extracted for '{selected_name}' : {msg}")
-            deferred_toast("Police extraite avec succès !", ":material/task_alt:")
+            deferred_toast(_("Font extracted successfully"), ":material/task_alt:")
             st.rerun()
         else:
-            st.error(f"Erreur : {msg}", icon=":material/error:")
+            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
             add_log(f"Error extracting icon font for '{selected_name}' : {msg}")
 
 # ── Usage filter ─────────────────────────────────────────────────────────────
@@ -76,12 +81,12 @@ if os.path.exists(templates_json_path):
         ord(t["iconCode"]) for t in templates_data.get("templates", []) if t.get("iconCode")
     }
     _FILTER_OPTIONS = {
-        "Tous": None,
-        "Utilisés par la tablette": True,
-        "Non utilisés": False,
+        _("All"): None,
+        _("Used by the tablet"): True,
+        _("Unused"): False,
     }
     filter_label = st.radio(
-        "Afficher",
+        _("Show"),
         options=list(_FILTER_OPTIONS.keys()),
         horizontal=True,
         key="icon_filter",

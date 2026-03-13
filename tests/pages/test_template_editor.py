@@ -54,14 +54,14 @@ class TestTemplateEditorNoDevice:
         cfg_path = empty_cfg(tmp_path)
         at = _at_editor(tmp_path, cfg_path)
         assert not at.exception
-        assert any("Sélectionnez" in m.value for m in at.info)
+        assert any("Select" in m.value for m in at.info)
 
     def test_title_is_present(self, tmp_path):
-        """The 'Éditeur de templates' title is rendered on the page."""
+        """The 'Template Editor' title is rendered on the page."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path)
         assert not at.exception
-        assert any("diteur" in t.value for t in at.title)
+        assert any("Template Editor" in t.value for t in at.title)
 
 
 class TestTemplateEditorWithDevice:
@@ -70,7 +70,7 @@ class TestTemplateEditorWithDevice:
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        assert any("Sauvegarder" in s.value for s in at.subheader)
+        assert any("Save" in s.value for s in at.subheader)
 
     def test_text_area_present(self, tmp_path):
         """The JSON text area is always rendered."""
@@ -81,25 +81,25 @@ class TestTemplateEditorWithDevice:
         assert len(at.text_area) >= 1
 
     def test_preview_subheader_present(self, tmp_path):
-        """The 'Aperçu' (preview) subheader is present."""
+        """The 'Preview' subheader is present."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        assert any("Aper" in s.value for s in at.subheader)
+        assert any("Preview" in s.value for s in at.subheader)
 
     def test_save_button_present(self, tmp_path):
         """The Save button is rendered when a device is selected."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        assert any("Sauvegarder" in b.label for b in at.button)
+        assert any("Save" in b.label for b in at.button)
 
     def test_load_button_disabled_when_no_existing_templates(self, tmp_path):
         """The 'Charger' button is disabled when there are no saved templates."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        load_btn = next((b for b in at.button if "Charger" in b.label), None)
+        load_btn = next((b for b in at.button if "Load" in b.label), None)
         assert load_btn is not None
         assert load_btn.disabled
 
@@ -120,7 +120,7 @@ class TestTemplateEditorWithDevice:
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        assert any("Nouveau" in b.label for b in at.button)
+        assert any("New" in b.label for b in at.button)
 
 
 class TestTemplateEditorInvalidJson:
@@ -148,7 +148,7 @@ class TestTemplateEditorInvalidJson:
             at.switch_page("pages/template_editor.py").run()
             at.text_area[0].set_value(_INVALID_JSON).run()
         assert not at.exception
-        save_btn = next((b for b in at.button if "Sauvegarder" in b.label), None)
+        save_btn = next((b for b in at.button if "Save" in b.label), None)
         assert save_btn is not None
         assert save_btn.disabled
 
@@ -170,7 +170,7 @@ class TestTemplateEditorSave:
             # Set valid JSON into the text area
             at.text_area[0].set_value(_VALID_JSON).run()
 
-            save_btn = next((b for b in at.button if "Sauvegarder" in b.label), None)
+            save_btn = next((b for b in at.button if "Save" in b.label), None)
             assert save_btn is not None
             save_btn.click().run()
 
@@ -185,7 +185,7 @@ class TestTemplateEditorSave:
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
         # The "Nom du fichier" text input is rendered in the save section
-        assert any("Nom du fichier" in ti.label for ti in at.text_input)
+        assert any("Filename" in ti.label for ti in at.text_input)
 
 
 class TestTemplateEditorLoadExisting:
@@ -199,9 +199,9 @@ class TestTemplateEditorLoadExisting:
         assert found
 
     def test_new_button_is_present(self, tmp_path):
-        """The 'Nouveau' button is rendered when a saved template exists."""
+        """The 'New' button is rendered when a saved template exists."""
         cfg_path = with_device(tmp_path, "D1")
         _make_template_file(tmp_path, "D1", "lines.template", _VALID_JSON)
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        assert any("Nouveau" in b.label for b in at.button)
+        assert any("New" in b.label for b in at.button)

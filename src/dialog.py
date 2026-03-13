@@ -1,5 +1,7 @@
 import streamlit as st
 
+from src.i18n import _
+
 
 def confirm(title: str = "Confirmer", message: str = "Confirmer ?", key: str = "default") -> None:
     """
@@ -11,13 +13,13 @@ def confirm(title: str = "Confirmer", message: str = "Confirmer ?", key: str = "
     def _dialog():
         st.write(message)
 
-        _, c1, _, c2, _ = st.columns([0.3, 1, 0.5, 1, 0.3])
+        _l, c1, _m, c2, _r = st.columns([0.3, 1, 0.5, 1, 0.3])
 
-        if c1.button("Annuler", icon=":material/cancel:", width="stretch"):
+        if c1.button(_("Cancel"), icon=":material/cancel:", width="stretch"):
             st.session_state[key] = False
             st.rerun()
 
-        if c2.button("Confirmer", icon=":material/check:", width="stretch", type="primary"):
+        if c2.button(_("Confirm"), icon=":material/check:", width="stretch", type="primary"):
             st.session_state[key] = True
             st.rerun()
 

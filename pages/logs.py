@@ -3,24 +3,25 @@
 import streamlit as st
 
 import src.dialog as _dialog
+from src.i18n import _
 from src.ui_common import rainbow_divider
 
-st.title(":material/list: Logs de session")
+st.title(_(":material/list: Session Logs"))
 rainbow_divider()
 if not st.session_state.get("logs"):
-    st.info("Aucun log pour cette session.")
+    st.info(_("No logs for this session."))
 else:
     st.code("\n".join(reversed(st.session_state["logs"])), language=None)
     if st.button(
-        "Effacer les logs de cette session",
+        _("Clear session logs"),
         key="ui_clear_logs",
         icon=":material/delete:",
-        help="Efface les logs stockés dans la session en cours",
+        help=_("Clear logs stored in the current session"),
     ):
         st.session_state.clear_logs = None
-        _dialog.confirm("Effacer les logs", "Effacer les logs de cette session ?", key="clear_logs")
+        _dialog.confirm(_("Clear logs"), _("Clear logs for this session?"), key="clear_logs")
     if st.session_state.get("clear_logs") is True:
         st.session_state["logs"] = []
-        st.success("Logs effacés.", icon=":material/task_alt:")
+        st.success(_("Logs cleared."), icon=":material/task_alt:")
         del st.session_state.clear_logs
         st.rerun()

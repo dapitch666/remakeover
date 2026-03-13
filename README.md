@@ -207,6 +207,47 @@ pre-commit run --all-files
 
 This is the most reliable way to verify that a commit will pass before pushing.
 
+### 🌐 Localization
+
+The app uses [gettext](https://docs.python.org/3/library/gettext.html) via [Babel](https://babel.pocoo.org/) for localization. English is the default language (msgids are plain English strings). Translations live in `locales/<lang>/LC_MESSAGES/rmmanager.po`.
+
+#### After modifying UI strings in source files
+
+Re-extract the message catalog and update existing `.po` files:
+
+```bash
+# Re-extract all translatable strings into the .pot template
+pybabel extract -F babel.cfg -k _ -o locales/rmmanager.pot .
+
+# Update existing .po files (preserves existing translations, marks changed strings as fuzzy)
+pybabel update -i locales/rmmanager.pot -d locales -D rmmanager
+
+# Compile .po → .mo (required for non-English languages to take effect)
+pybabel compile -d locales -D rmmanager
+```
+
+Review any entries marked `#, fuzzy` in the `.po` file — they were matched approximately and may need manual correction. Remove the `#, fuzzy` flag once the translation is verified.
+
+#### Adding a new language
+
+```bash
+# Initialize a new .po file for the language (e.g. German)
+pybabel init -i locales/rmmanager.pot -d locales -D rmmanager -l de
+
+# Edit the generated locales/de/LC_MESSAGES/rmmanager.po and fill in msgstr values
+
+# Compile
+pybabel compile -d locales -D rmmanager
+```
+
+Then add the new language code to `SUPPORTED_LANGUAGES` in [src/i18n.py](src/i18n.py) and its display name to the `format_func` dict in [app.py](app.py).
+
+#### Rules
+
+- Wrap all UI-visible strings with `_("...")`.
+- **Never** wrap log strings (`add_log(...)`, `log_fn(...)`) — logs are always in English.
+- The `.mo` files are compiled artifacts — do not commit them; compile locally or in CI.
+
 ---
 
 ## 🔒 Security notes

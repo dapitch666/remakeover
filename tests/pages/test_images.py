@@ -27,14 +27,14 @@ from tests.pages.helpers import (
 
 
 def test_images_page_warns_when_no_devices(tmp_path):
-    """Images page shows 'Aucun appareil' message with an empty config."""
+    """Images page shows 'No device' message with an empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/images.py").run()
 
     assert not at.exception
-    assert any("Aucun appareil" in m.value for m in at.markdown)
+    assert any("No device" in m.value for m in at.markdown)
 
 
 # ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ def test_images_page_warns_when_no_devices(tmp_path):
 
 
 def test_upload_and_send_flow(tmp_path):
-    """Clicking 'Importer depuis la tablette' downloads and saves an image."""
+    """Clicking 'Import from tablet' downloads and saves an image."""
     cfg: dict = {
         "devices": {"D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"}}
     }
@@ -71,7 +71,7 @@ def test_upload_and_send_flow(tmp_path):
         at.sidebar.selectbox[0].set_value("D1").run()
 
         download_btn = next(
-            (b for b in at.button if getattr(b, "label", None) == "Importer depuis la tablette"),
+            (b for b in at.button if getattr(b, "label", None) == "Import from tablet"),
             None,
         )
         assert download_btn is not None, "Download button not found"
@@ -96,7 +96,7 @@ class TestImagesPage:
             patches=[patch("src.images.list_device_images", return_value=[])],
         )
         assert not at.exception
-        assert any("Aucune image" in m.value for m in at.info)
+        assert any("No images" in m.value for m in at.info)
 
     def test_with_images_grid_rendered(self, tmp_path):
         """When images exist, the page renders each image card without error."""
@@ -201,7 +201,7 @@ class TestImagesPage:
         assert at.session_state["img_pending_delete"] is None
 
     def test_import_from_tablet_saves_image(self, tmp_path):
-        """Clicking 'Importer depuis la tablette' downloads and saves the image."""
+        """Clicking 'Import from tablet' downloads and saves the image."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         saved: list = []
@@ -218,9 +218,7 @@ class TestImagesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/images.py").run()
-            import_btn = next(
-                (b for b in at.button if "Importer depuis la tablette" in b.label), None
-            )
+            import_btn = next((b for b in at.button if "Import from tablet" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
@@ -238,16 +236,14 @@ class TestImagesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/images.py").run()
-            import_btn = next(
-                (b for b in at.button if "Importer depuis la tablette" in b.label), None
-            )
+            import_btn = next((b for b in at.button if "Import from tablet" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
         assert any("Connection refused" in e.value for e in at.error)
 
     def test_upload_section_rendered(self, tmp_path):
-        """The 'Ajouter une image' file uploader section is always rendered."""
+        """The 'Add an image' file uploader section is always rendered."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with (
@@ -258,7 +254,7 @@ class TestImagesPage:
             at.run()
             at.switch_page("pages/images.py").run()
         assert not at.exception
-        assert any("Ajouter" in s.value for s in at.subheader)
+        assert any("Add" in s.value for s in at.subheader)
 
     def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
         """When img_pending_rename is set, the overwrite confirmation dialog is triggered."""

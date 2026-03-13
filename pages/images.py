@@ -10,6 +10,7 @@ import src.images as _images
 import src.ssh as _ssh
 from src.config import save_config, truncate_display_name
 from src.constants import DEVICE_SIZES, GRID_COLUMNS, SUSPENDED_PNG_PATH
+from src.i18n import _
 from src.models import Device
 from src.ui_common import (
     deferred_toast,
@@ -52,7 +53,7 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
             col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
             with col_in:
                 st.text_input(
-                    "Renommer l'image",
+                    _("Rename image"),
                     value="",
                     placeholder=os.path.splitext(img_name)[0],
                     key=f"rename_input_{img_name}",
@@ -70,7 +71,7 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
         if st.button(
             f"**{display_name}**",
             key=f"name_{img_name}",
-            help="Cliquez pour renommer",
+            help=_("Click to rename"),
             icon=star_icon,
             type="tertiary",
             width="stretch",
@@ -85,8 +86,8 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
     if pending_rename and pending_rename[0] == img_name:
         _old_r, _new_r = pending_rename
         _dialog.confirm(
-            "Confirmer le remplacement",
-            f"'{_new_r}' existe déjà. Voulez-vous remplacer ce fichier ?",
+            _("Confirm replacement"),
+            _("'{new}' already exists. Replace this file?").format(new=_new_r),
             key="confirm_rename_img",
         )
         result = st.session_state.get("confirm_rename_img")
@@ -114,8 +115,8 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
     # Deletion confirmation
     if st.session_state.get("img_pending_delete") == img_name:
         _dialog.confirm(
-            "Confirmer la suppression",
-            f"Confirmez-vous la suppression de {img_name} ?",
+            _("Confirm deletion"),
+            _("Confirm deletion of {name}?").format(name=img_name),
             key="confirm_del_img",
         )
         result = st.session_state.get("confirm_del_img")
@@ -150,20 +151,24 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
             if selection == 0:
                 if send_suspended_png(device, _img_data, _img_name, selected_name, add_log):
                     deferred_toast(
-                        f"{_img_name} envoyée à {selected_name} !",
+                        _("{name} sent to {device}").format(name=_img_name, device=selected_name),
                         ":material/task_alt:",
                     )
                 else:
-                    deferred_toast(f"Erreur lors de l'envoi de {_img_name}", ":material/error:")
+                    deferred_toast(
+                        _("Error sending {name}").format(name=_img_name), ":material/error:"
+                    )
             elif selection == 1:
                 if device.is_preferred(_img_name):
                     device.set_preferred(None)
                     add_log(f"Preferred image removed for '{selected_name}'")
-                    deferred_toast("Image préférée retirée", ":material/star_border:")
+                    deferred_toast(_("Preferred image removed"), ":material/star_border:")
                 else:
                     device.set_preferred(_img_name)
                     add_log(f"Preferred image set: {_img_name} for '{selected_name}'")
-                    deferred_toast(f"{_img_name} définie comme image préférée", ":material/star:")
+                    deferred_toast(
+                        _("{name} set as preferred image").format(name=_img_name), ":material/star:"
+                    )
                 config["devices"][selected_name] = device.to_dict()
                 save_config(config)
             elif selection == 2:
@@ -187,11 +192,11 @@ def _render_upload_section(selected_name, device, add_log):
     """Render the 'add an image' column: auto-save on upload, then ask to send."""
     width, height = DEVICE_SIZES[device.resolve_type()]
 
-    st.subheader("Ajouter une image", divider="rainbow")
+    st.subheader(_("Add an image"), divider="rainbow")
 
     uploader_key = f"img_uploader_{selected_name}_{st.session_state.get(f'img_uploader_rev_{selected_name}', 0)}"
     uploaded_file = st.file_uploader(
-        f"Glisser une image ici (sera convertie en PNG {width}x{height})",
+        _("Drag an image here (will be converted to PNG {w}x{h})").format(w=width, h=height),
         type=["png", "jpg", "jpeg"],
         key=uploader_key,
     )
@@ -209,8 +214,10 @@ def _render_upload_section(selected_name, device, add_log):
         st.session_state[upload_key] = uploaded_file.name
         st.session_state[f"img_send_data_{selected_name}"] = (img_data, filename)
         _dialog.confirm(
-            "Envoyer sur la tablette ?",
-            f"L'image a été sauvegardée localement.\nVoulez-vous aussi l'envoyer sur **{selected_name}** ?",
+            _("Send to tablet?"),
+            _("Image saved locally.\nDo you also want to send it to **{device}**?").format(
+                device=selected_name
+            ),
             key=f"img_send_confirm_{selected_name}",
         )
 
@@ -225,9 +232,12 @@ def _render_upload_section(selected_name, device, add_log):
         img_data, filename = st.session_state.get(f"img_send_data_{selected_name}", (None, None))
         if img_data and filename:
             if send_suspended_png(device, img_data, filename, selected_name, add_log):
-                deferred_toast(f"{filename} envoyée sur {selected_name} !", ":material/task_alt:")
+                deferred_toast(
+                    _("{name} sent to {device}!").format(name=filename, device=selected_name),
+                    ":material/task_alt:",
+                )
             else:
-                deferred_toast("Erreur lors de l'envoi.", ":material/error:")
+                deferred_toast(_("Error sending image."), ":material/error:")
         st.session_state.pop(f"img_send_confirm_{selected_name}", None)
         st.session_state.pop(f"img_send_data_{selected_name}", None)
         _reset_uploader()
@@ -241,7 +251,7 @@ def _render_upload_section(selected_name, device, add_log):
 
 # ── Page ─────────────────────────────────────────────────────────────────────
 
-st.title(":material/image: Images")
+st.title(_(":material/image: Images"))
 rainbow_divider()
 
 config = st.session_state.get("config", {})
@@ -259,14 +269,15 @@ stored_images = _images.list_device_images(selected_name)
 
 if stored_images:
     st.markdown(
-        "Retrouvez ci-dessous toutes les images enregistrées pour cette tablette. "
-        "Cliquez sur le **nom** d'une image pour la renommer. "
-        "Les trois boutons sous chaque image permettent de l'**envoyer comme écran de veille** "
-        "(:material/cloud_upload:), de la définir comme **image préférée** (:material/star:) "
-        "— utilisée en priorité lors d'un déploiement — ou de la **supprimer** (:material/delete:). "
-        "En bas de page, vous pouvez **récupérer l'image actuellement affichée sur la tablette** "
-        "ou **ajouter une nouvelle image depuis votre ordinateur** — elle sera automatiquement "
-        "convertie au bon format et aux bonnes dimensions."
+        _(
+            "Below you will find all images saved for this tablet. "
+            "Click the **name** of an image to rename it. "
+            "The three buttons under each image let you **send it as the suspended image** "
+            "(:material/cloud_upload:), set it as the **preferred image** (:material/star:) "
+            "— used as priority during deployment — or **delete** it (:material/delete:). "
+            "At the bottom of the page you can **retrieve the image currently displayed on the tablet** "
+            "or **add a new image from your computer** — it will be automatically converted to the correct format and dimensions."
+        )
     )
     st.divider()
 
@@ -280,31 +291,33 @@ if stored_images:
             st.divider()
 else:
     st.info(
-        "Aucune image enregistrée pour cette tablette. "
-        "Importez l'image actuellement sur la tablette ou ajoutez-en une depuis votre ordinateur ci-dessous.",
+        _(
+            "No images saved for this tablet. "
+            "Import the image currently on the tablet or add one from your computer below."
+        ),
         icon=":material/image:",
     )
 
 col1, col2 = st.columns(2, gap="large")
 with col1:
-    st.subheader("Récupérer l'image actuelle", divider="rainbow")
+    st.subheader(_("Get current image"), divider="rainbow")
     if st.button(
-        "Importer depuis la tablette",
+        _("Import from tablet"),
         key=f"ui_import_from_tablet_{selected_name}",
         icon=":material/download:",
         width="stretch",
-        help="Télécharger l'image actuelle de l'écran de veille depuis la tablette",
+        help=_("Download the current suspended image from the tablet"),
     ):
         img_data, err = _ssh.download_file_ssh(device.ip, device.password or "", SUSPENDED_PNG_PATH)
         if img_data is None:
-            st.error(f"Erreur : {err}", icon=":material/error:")
+            st.error(_("Error: {err}").format(err=err), icon=":material/error:")
             add_log(f"Error downloading suspended.png from '{selected_name}': {err}")
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{timestamp}.png"
             _images.save_device_image(selected_name, img_data, filename)
             add_log(f"suspended.png downloaded from '{selected_name}' as {filename}")
-            deferred_toast(f"Image sauvegardée : {filename}", ":material/task_alt:")
+            deferred_toast(_("Image saved: {name}").format(name=filename), ":material/task_alt:")
             st.rerun()
 
 with col2:

@@ -7,11 +7,12 @@ import streamlit as st
 
 import src.images as _images
 import src.maintenance as _maint
+from src.i18n import _
 from src.models import Device
 from src.templates import list_device_templates
 from src.ui_common import deferred_toast, rainbow_divider, require_device
 
-st.title(":material/rocket_launch: Déploiement")
+st.title(_(":material/rocket_launch: Deployment"))
 rainbow_divider()
 
 config = st.session_state.get("config", {})
@@ -26,9 +27,11 @@ assert isinstance(selected_name, str)
 device = Device.from_dict(selected_name, DEVICES[selected_name])
 
 st.markdown(
-    "Après chaque mise à jour du firmware, les personnalisations de la tablette "
-    "(image de veille, templates, carrousel) sont réinitialisées par le système. "
-    "Cette page vous permet de **redéployer votre configuration locale** sur l'appareil en une seule opération."
+    _(
+        "After each firmware update, the tablet's customisations "
+        "(suspended image, templates, carousel) are reset by the system. "
+        "This page lets you **redeploy your local configuration** to the device in one operation."
+    )
 )
 st.divider()
 
@@ -39,30 +42,34 @@ image: str | None
 image_desc: str | None
 if device.preferred_image:
     image = device.preferred_image
-    image_desc = f"l'image préférée (`{device.preferred_image}`)"
+    image_desc = f"the preferred image (`{device.preferred_image}`)"
 elif imgs_available:
     image = random.choice(imgs_available)
-    image_desc = f"`{image}` (choix aléatoire, aucune image préférée)"
+    image_desc = f"`{image}` (random choice, no preferred image)"
 else:
     image = None
     image_desc = None
 
 # ── Description block ────────────────────────────────────────────────
-lines = ["**Le déploiement va effectuer les opérations suivantes :**"]
+lines = [_("**The deployment will perform the following operations:**")]
 if image_desc:
-    lines.append(f"- Envoyer {image_desc} comme image de veille (`suspended.png`) sur la tablette")
+    lines.append(
+        _("- Send {image_desc} as the suspended image (`suspended.png`) to the tablet").format(
+            image_desc=image_desc
+        )
+    )
 else:
-    lines.append("- *(Aucune image locale — envoi de l'image de veille ignoré)*")
+    lines.append(_("- *(No local image — suspended image upload skipped)*"))
 if device.templates and bool(list_device_templates(selected_name)):
     lines.append(
-        "- Déployer les templates SVG locaux, créer les liens symboliques "
-        "et mettre à jour `templates.json` sur la tablette"
+        _(
+            "- Deploy local templates, create symbolic links "
+            "and update `templates.json` on the tablet"
+        )
     )
 if device.carousel:
-    lines.append(
-        "- Désactiver le carrousel en déplaçant les illustrations dans un dossier de sauvegarde"
-    )
-lines.append("- Redémarrer `xochitl` pour appliquer les changements")
+    lines.append(_("- Disable the carousel by moving illustrations to a backup folder"))
+lines.append(_("- Restart `xochitl` to apply changes"))
 
 templates_active = device.templates and bool(list_device_templates(selected_name))
 has_meaningful_actions = bool(image) or templates_active or device.carousel
@@ -71,9 +78,11 @@ if has_meaningful_actions:
     st.info("\n".join(lines))
 else:
     st.warning(
-        "Aucune action de déploiement configurée pour cette tablette "
-        "(pas d'image locale, templates désactivés ou inexistants, carrousel désactivé). "
-        "Le déploiement ne ferait que redémarrer `xochitl`.",
+        _(
+            "No deployment actions configured for this tablet "
+            "(no local image, templates disabled or empty, carousel disabled). "
+            "Deployment would only restart `xochitl`."
+        ),
         icon=":material/warning:",
     )
 
@@ -83,13 +92,13 @@ result = st.session_state.get(result_key)
 
 if result is not None:
     if result.get("ok"):
-        st.success("Maintenance terminée avec succès.", icon=":material/task_alt:")
+        st.success(_("Deployment completed successfully."), icon=":material/task_alt:")
     else:
-        st.error("Maintenance terminée avec des erreurs :", icon=":material/error:")
+        st.error(_("Deployment completed with errors:"), icon=":material/error:")
         for e in result.get("errors", []):
             st.markdown(f"- `{e}`")
     if st.button(
-        "Réinitialiser",
+        _("Reset"),
         key=f"maint_reset_{selected_name}",
         icon=":material/refresh:",
     ):
@@ -97,18 +106,18 @@ if result is not None:
         st.rerun()
 else:
     # ── Launch button ────────────────────────────────────────────────────
-    _, col, _ = st.columns([1, 3, 1])
+    _left, col, _right = st.columns([1, 3, 1])
     with col:
         if st.button(
-            "Déployer la configuration",
+            _("Deploy configuration"),
             key=f"ui_launch_maintenance_{selected_name}",
             icon=":material/autorenew:",
-            help="Redéployer la configuration locale sur la tablette après une mise à jour",
+            help=_("Redeploy your local configuration to the tablet after a firmware update"),
             type="primary",
             width="stretch",
             disabled=not has_meaningful_actions,
         ):
-            with st.status("Maintenance en cours…", expanded=True) as status:
+            with st.status(_("Deploying…"), expanded=True) as status:
                 progress = st.progress(0)
 
                 def _step(msg: str) -> None:

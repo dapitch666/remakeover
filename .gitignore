@@ -30,3 +30,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Localization build artifacts
+locales/**/LC_MESSAGES/*.mo

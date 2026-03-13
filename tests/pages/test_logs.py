@@ -17,14 +17,14 @@ from tests.pages.helpers import (
 
 
 def test_logs_page_renders_empty(tmp_path):
-    """Logs page renders without exception and shows 'Aucun log' info when empty."""
+    """Logs page renders without exception and shows 'No logs' info when empty."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/logs.py").run()
 
     assert not at.exception
-    assert any("Aucun log" in i.value for i in at.info)
+    assert any("No logs" in i.value for i in at.info)
 
 
 class TestLogsPage:
@@ -32,7 +32,7 @@ class TestLogsPage:
         """Logs page shows info banner when session has no logs."""
         at = at_page(tmp_path, "pages/logs.py", empty_cfg(tmp_path))
         assert not at.exception
-        assert any("Aucun log" in m.value for m in at.info)
+        assert any("No logs" in m.value for m in at.info)
 
     def test_with_logs_shows_code_block(self, tmp_path):
         """Logs page renders a code block and a clear button when logs exist."""
@@ -46,7 +46,7 @@ class TestLogsPage:
 
         assert not at.exception
         assert at.code, "Expected at least one st.code block"
-        assert any("Effacer" in b.label for b in at.button)
+        assert any("Clear" in b.label for b in at.button)
 
     def test_clear_logs_button_triggers_confirm(self, tmp_path):
         """Clicking the clear button sets clear_logs state for dialog."""
@@ -57,7 +57,7 @@ class TestLogsPage:
             at.run()
             at.session_state["logs"] = ["an entry"]
             at.switch_page("pages/logs.py").run()
-            clear_btn = next((b for b in at.button if "Effacer" in b.label), None)
+            clear_btn = next((b for b in at.button if "Clear" in b.label), None)
             assert clear_btn is not None
             clear_btn.click().run()
 

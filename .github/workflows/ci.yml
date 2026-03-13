@@ -22,6 +22,8 @@ jobs:
           python --version
           pip --version
           pip list
+      - name: Compile translations
+        run: pybabel compile -d locales -D rmmanager
       - name: Run tests
         env:
           PYTHONPATH: .

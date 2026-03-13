@@ -29,7 +29,7 @@ def test_configuration_save_requires_name(tmp_path):
         at.switch_page("pages/configuration.py").run()
         at.button[0].click().run()
 
-    assert at.error and any("Veuillez donner un nom" in e.value for e in at.error)
+    assert at.error and any("Please enter a name" in e.value for e in at.error)
 
 
 def test_configuration_save_rejects_duplicate_name(tmp_path):
@@ -38,14 +38,14 @@ def test_configuration_save_rejects_duplicate_name(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
-        new_btn = next(b for b in at.button if "nouvel appareil" in b.label.lower())
+        new_btn = next(b for b in at.button if "new device" in b.label.lower())
         new_btn.click().run()
         at.text_input[0].set_value("D1").run()
-        save_btn = next(b for b in at.button if "sauvegarder" in b.label.lower())
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
     assert not at.exception
-    assert at.error and any("existe déjà" in e.value for e in at.error)
+    assert at.error and any("already exists" in e.value for e in at.error)
 
 
 def test_configuration_save_rejects_empty_ip(tmp_path):
@@ -55,11 +55,11 @@ def test_configuration_save_rejects_empty_ip(tmp_path):
         at.run()
         at.switch_page("pages/configuration.py").run()
         at.text_input[0].set_value("MyTablet").run()
-        save_btn = next(b for b in at.button if "sauvegarder" in b.label.lower())
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
     assert not at.exception
-    assert at.error and any("adresse ip" in e.value.lower() for e in at.error)
+    assert at.error and any("ip address" in e.value.lower() for e in at.error)
 
 
 def test_configuration_save_rejects_invalid_ip(tmp_path):
@@ -70,11 +70,11 @@ def test_configuration_save_rejects_invalid_ip(tmp_path):
         at.switch_page("pages/configuration.py").run()
         at.text_input[0].set_value("MyTablet").run()
         at.text_input[1].set_value("not-an-ip").run()
-        save_btn = next(b for b in at.button if "sauvegarder" in b.label.lower())
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
     assert not at.exception
-    assert at.error and any("valide" in e.value.lower() for e in at.error)
+    assert at.error and any("valid" in e.value.lower() for e in at.error)
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def test_configuration_page_shows_device_selectbox(tmp_path):
         at.switch_page("pages/configuration.py").run()
 
     assert not at.exception
-    assert any("nouvel appareil" in b.label.lower() for b in at.button)
+    assert any("new device" in b.label.lower() for b in at.button)
 
 
 def test_configuration_device_type_selectbox_shows_all_models(tmp_path):
@@ -101,7 +101,7 @@ def test_configuration_device_type_selectbox_shows_all_models(tmp_path):
         at.switch_page("pages/configuration.py").run()
 
     assert not at.exception
-    type_selectbox = next((s for s in at.selectbox if "tablette" in s.label.lower()), None)
+    type_selectbox = next((s for s in at.selectbox if "tablet" in s.label.lower()), None)
     assert type_selectbox is not None, "Device-type selectbox not found"
     options = type_selectbox.options
     assert "reMarkable 2" in options
@@ -124,11 +124,11 @@ def test_saving_new_device_sets_pending_selected_tablet(tmp_path):
         at.switch_page("pages/configuration.py").run()
         at.text_input[0].set_value("NewTablet").run()
         at.text_input[1].set_value("192.168.1.1").run()
-        save_btn = next(b for b in at.button if "sauvegarder" in b.label.lower())
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
     assert not at.exception
-    assert at.session_state["selected_tablet_select"] == "NewTablet"
+    assert at.session_state["tablet"] == "NewTablet"
     assert "pending_selected_tablet" not in at.session_state
 
 
@@ -143,11 +143,11 @@ def test_cancel_button_shown_in_creation_mode_when_device_exists(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
-        new_btn = next(b for b in at.button if "nouvel appareil" in b.label.lower())
+        new_btn = next(b for b in at.button if "new device" in b.label.lower())
         new_btn.click().run()
 
     assert not at.exception
-    assert any("annuler" in b.label.lower() for b in at.button)
+    assert any("cancel" in b.label.lower() for b in at.button)
 
 
 def test_cancel_button_not_shown_on_first_device_creation(tmp_path):
@@ -158,7 +158,7 @@ def test_cancel_button_not_shown_on_first_device_creation(tmp_path):
         at.switch_page("pages/configuration.py").run()
 
     assert not at.exception
-    assert not any("annuler" in b.label.lower() for b in at.button)
+    assert not any("cancel" in b.label.lower() for b in at.button)
 
 
 def test_cancel_button_returns_to_edit_mode(tmp_path):
@@ -167,14 +167,14 @@ def test_cancel_button_returns_to_edit_mode(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
-        new_btn = next(b for b in at.button if "nouvel appareil" in b.label.lower())
+        new_btn = next(b for b in at.button if "new device" in b.label.lower())
         new_btn.click().run()
-        cancel_btn = next(b for b in at.button if "annuler" in b.label.lower())
+        cancel_btn = next(b for b in at.button if "cancel" in b.label.lower())
         cancel_btn.click().run()
 
     assert not at.exception
     assert "config_creating_new" not in at.session_state
-    assert any("nouvel appareil" in b.label.lower() for b in at.button)
+    assert any("new device" in b.label.lower() for b in at.button)
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ class TestConfigurationDeleteFlow:
         at = at_page(tmp_path, "pages/configuration.py", cfg_path)
         assert not at.exception
         labels = [b.label for b in at.button]
-        assert any("Supprimer" in lbl for lbl in labels), f"No delete button found: {labels}"
+        assert any("Delete" in lbl for lbl in labels), f"No delete button found: {labels}"
 
     def test_delete_button_click_sets_pending_state(self, tmp_path):
         """Clicking Delete sets pending_delete_device in session state."""
@@ -199,7 +199,7 @@ class TestConfigurationDeleteFlow:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/configuration.py").run()
-            del_btn = next((b for b in at.button if b.label == "Supprimer"), None)
+            del_btn = next((b for b in at.button if b.label == "Delete"), None)
             assert del_btn is not None
             del_btn.click().run()
 
@@ -238,17 +238,17 @@ class TestConfigurationDeleteFlow:
         assert "D1" in saved.get("devices", {})
 
     def test_cancel_new_device_returns_to_edit(self, tmp_path):
-        """The Annuler button in new-device mode clears the creating_new flag."""
+        """The Cancel button in new-device mode clears the creating_new flag."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/configuration.py").run()
-            new_btn = next((b for b in at.button if "nouvel appareil" in b.label.lower()), None)
+            new_btn = next((b for b in at.button if "new device" in b.label.lower()), None)
             assert new_btn is not None
             new_btn.click().run()
-            cancel_btn = next((b for b in at.button if "annuler" in b.label.lower()), None)
+            cancel_btn = next((b for b in at.button if "cancel" in b.label.lower()), None)
             assert cancel_btn is not None
             cancel_btn.click().run()
 

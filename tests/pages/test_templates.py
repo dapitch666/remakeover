@@ -39,14 +39,14 @@ def _make_svgs(tmp_path, device: str = "D1", names: list[str] | None = None) -> 
 
 
 def test_templates_page_warns_when_no_devices(tmp_path):
-    """Templates page shows 'Aucun appareil' message with empty config."""
+    """Templates page shows 'No device' message with empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/templates.py").run()
 
     assert not at.exception
-    assert any("Aucun appareil" in m.value for m in at.markdown)
+    assert any("No device" in m.value for m in at.markdown)
 
 
 class TestTemplatesPage:
@@ -57,8 +57,8 @@ class TestTemplatesPage:
         cfg_path = with_device(tmp_path, "D1")
         at = at_page(tmp_path, "pages/templates.py", cfg_path)
         assert not at.exception
-        assert any("n'a pas encore été importée" in w.value for w in at.warning)
-        assert any("Importer les templates" in b.label for b in at.button)
+        assert any("not been imported yet" in w.value for w in at.warning)
+        assert any("Import templates" in b.label for b in at.button)
 
     def test_import_button_click_success(self, tmp_path):
         """Clicking import triggers fetch_and_init_templates; no exception on success."""
@@ -71,7 +71,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            import_btn = next((b for b in at.button if "Importer les templates" in b.label), None)
+            import_btn = next((b for b in at.button if "Import templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
@@ -90,7 +90,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            import_btn = next((b for b in at.button if "Importer les templates" in b.label), None)
+            import_btn = next((b for b in at.button if "Import templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
@@ -99,7 +99,7 @@ class TestTemplatesPage:
     # -- backup exists, no templates ----------------------------------------
 
     def test_backup_exists_no_templates_shows_info(self, tmp_path):
-        """With backup but zero SVGs, page renders 'Aucun template' info."""
+        """With backup but zero SVGs, page renders 'No templates' info."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -112,7 +112,7 @@ class TestTemplatesPage:
             at.run()
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any("Aucun template" in m.value for m in at.info)
+        assert any("No templates" in m.value for m in at.info)
 
     # -- dirty banner -------------------------------------------------------
 
@@ -130,10 +130,10 @@ class TestTemplatesPage:
             at.run()
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any("Synchroniser" in b.label for b in at.button)
+        assert any("Sync" in b.label for b in at.button)
 
     def test_sync_button_click_success(self, tmp_path):
-        """Clicking Synchroniser triggers the sync pipeline successfully."""
+        """Clicking Sync triggers the sync pipeline successfully."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -150,7 +150,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            sync_btn = next((b for b in at.button if "Synchroniser" in b.label), None)
+            sync_btn = next((b for b in at.button if "Sync" in b.label), None)
             assert sync_btn is not None
             sync_btn.click().run()
         assert not at.exception
@@ -172,7 +172,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            sync_btn = next((b for b in at.button if "Synchroniser" in b.label), None)
+            sync_btn = next((b for b in at.button if "Sync" in b.label), None)
             assert sync_btn is not None
             sync_btn.click().run()
         assert not at.exception
@@ -193,7 +193,7 @@ class TestTemplatesPage:
             at.run()
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any("Ajouter" in s.value for s in at.subheader)
+        assert any("Add" in s.value for s in at.subheader)
 
     # -- template card grid ---------------------------------------------
 
@@ -361,7 +361,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            sc = next((s for s in at.button_group if "Trier" in s.label), None)
+            sc = next((s for s in at.button_group if "Sort" in s.label), None)
             assert sc is not None
             sc.set_value("A \u2192 Z").run()
         assert not at.exception
@@ -378,9 +378,9 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            sc = next((s for s in at.button_group if "Trier" in s.label), None)
+            sc = next((s for s in at.button_group if "Sort" in s.label), None)
             assert sc is not None
-            sc.set_value("Cat\u00e9gories").run()
+            sc.set_value("Categories").run()
         assert not at.exception
 
 
@@ -390,10 +390,10 @@ class TestTemplatesPage:
 
 
 class TestSyncBranches:
-    """Unit-style coverage of the private helper called when Synchroniser is clicked."""
+    """Unit-style coverage of the private helper called when Sync is clicked."""
 
     def _run_sync(self, tmp_path, extra_patches):
-        """Helper: render the templates page with a dirty device and click Synchroniser."""
+        """Helper: render the templates page with a dirty device and click Sync."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -406,7 +406,7 @@ class TestSyncBranches:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            sync_btn = next((b for b in at.button if "Synchroniser" in b.label), None)
+            sync_btn = next((b for b in at.button if "Sync" in b.label), None)
             assert sync_btn is not None
             sync_btn.click().run()
         return at
@@ -508,8 +508,8 @@ class TestTemplateReload:
             at.session_state["tpl_reloading"] = "my.svg"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any(b.label == "Sauvegarder" for b in at.button)
-        assert any(b.label == "Annuler" for b in at.button)
+        assert any(b.label == "Save" for b in at.button)
+        assert any(b.label == "Cancel" for b in at.button)
 
     def test_reload_save_button_present(self, tmp_path):
         """The Save button in the reload dialog is present (disabled until file selected)."""
@@ -527,10 +527,10 @@ class TestTemplateReload:
             at.session_state["tpl_reloading"] = "my.svg"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any(b.label == "Sauvegarder" for b in at.button)
+        assert any(b.label == "Save" for b in at.button)
 
     def test_reload_cancel_clears_state(self, tmp_path):
-        """Clicking Annuler in the reload dialog sets tpl_reloading to None."""
+        """Clicking Cancel in the reload dialog sets tpl_reloading to None."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["my.svg"])
         env = make_env(tmp_path, cfg_path)
@@ -542,7 +542,7 @@ class TestTemplateReload:
             at.run()
             at.session_state["tpl_reloading"] = "my.svg"
             at.switch_page("pages/templates.py").run()
-            cancel_btn = next((b for b in at.button if b.label == "Annuler"), None)
+            cancel_btn = next((b for b in at.button if b.label == "Cancel"), None)
             assert cancel_btn is not None
             cancel_btn.click().run()
         assert not at.exception
@@ -567,7 +567,7 @@ class TestTemplateReload:
             at.session_state["tpl_reloading"] = "my.svg"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert any(b.label == "Sauvegarder" for b in at.button)
+        assert any(b.label == "Save" for b in at.button)
 
 
 # ---------------------------------------------------------------------------
@@ -730,8 +730,8 @@ class TestTemplatePageJsonTemplates:
             at.run()
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        # The "Ajouter" subheader triggers the upload section to render
-        assert any("Ajouter" in s.value for s in at.subheader)
+        # The "Add a template" subheader triggers the upload section to render
+        assert any("Add" in s.value for s in at.subheader)
 
     def test_json_template_delete_removes_file(self, tmp_path):
         """Confirming deletion of a .template file calls delete_device_template."""
@@ -945,12 +945,12 @@ class TestCategoryDialog:
             assert cats_btn is not None
             cats_btn.click().run()
         assert not at.exception
-        # Dialog should render the Valider / Annuler buttons
-        assert any(b.label == "Valider" for b in at.button)
-        assert any(b.label == "Annuler" for b in at.button)
+        # Dialog should render the Apply / Cancel buttons
+        assert any(b.label == "Apply" for b in at.button)
+        assert any(b.label == "Cancel" for b in at.button)
 
     def test_category_dialog_annuler_closes_without_saving(self, tmp_path):
-        """Clicking Annuler in the category dialog does not call update_template_categories."""
+        """Clicking Cancel in the category dialog does not call update_template_categories."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["mycard.svg"])
         env = make_env(tmp_path, cfg_path)
@@ -972,7 +972,7 @@ class TestCategoryDialog:
             )
             assert cats_btn is not None
             cats_btn.click().run()
-            annuler_btn = next((b for b in at.button if b.label == "Annuler"), None)
+            annuler_btn = next((b for b in at.button if b.label == "Cancel"), None)
             assert annuler_btn is not None
             annuler_btn.click().run()
         assert not at.exception

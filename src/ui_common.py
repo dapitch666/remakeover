@@ -6,6 +6,7 @@ import streamlit as st
 
 import src.ssh as _ssh
 from src.constants import CMD_RESTART_XOCHITL, SUSPENDED_PNG_PATH
+from src.i18n import _
 
 _DEFERRED_TOAST_KEY = "_deferred_toast"
 
@@ -41,14 +42,14 @@ def require_device(devices: dict, selected_name) -> None:
       prompting the user to select a tablet in the sidebar and stops rendering.
     """
     if not devices:
-        _, col, _ = st.columns([0.5, 3, 0.5])
+        _left, col, _right = st.columns([0.5, 3, 0.5])
         with col, st.container(horizontal=True, width="content", gap="xsmall", border=True):
             st.markdown(":orange[:material/warning:]")
-            st.markdown("Aucun appareil configuré. Ajoutez-en un dans la page ")
+            st.markdown(_("No device configured. Add one in the page "))
             st.page_link("pages/configuration.py", icon=":material/settings:")
         st.stop()
     if not selected_name or selected_name not in devices:
-        st.info("Sélectionnez une tablette dans la barre latérale.")
+        st.info(_("Select a tablet in the sidebar."))
         st.stop()
 
 

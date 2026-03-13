@@ -59,10 +59,10 @@ def _run_page(tmp_path, cfg_path: str, extra_patches: list | None = None) -> App
 
 
 def test_icon_font_page_warns_when_no_devices(tmp_path):
-    """Icon font page shows the 'Aucun appareil' guard when config has no devices."""
+    """Icon font page shows the 'No device' guard when config has no devices."""
     at = _run_page(tmp_path, empty_cfg(tmp_path))
     assert not at.exception
-    assert any("Aucun appareil" in m.value for m in at.markdown)
+    assert any("No device" in m.value for m in at.markdown)
 
 
 # ── Basic rendering ───────────────────────────────────────────────────────────
@@ -73,13 +73,13 @@ class TestIconFontPageRender:
         """Caption shows the number of glyphs reported by get_icon_codepoints."""
         at = _run_page(tmp_path, with_device(tmp_path))
         assert not at.exception
-        assert any(f"{len(_FAKE_CPS)} glyphe" in c.value for c in at.caption)
+        assert any(f"{len(_FAKE_CPS)} glyph" in c.value for c in at.caption)
 
     def test_renders_reextract_button(self, tmp_path):
-        """Ré-extraire button is rendered on the page."""
+        """Re-extract button is rendered on the page."""
         at = _run_page(tmp_path, with_device(tmp_path))
         assert not at.exception
-        assert any("Ré-extraire" in b.label for b in at.button)
+        assert any("Re-extract" in b.label for b in at.button)
 
     def test_renders_one_button_per_codepoint(self, tmp_path):
         """Each codepoint from get_icon_codepoints has a matching button in the grid."""
@@ -102,14 +102,14 @@ class TestIconFontPageRender:
         _write_templates_json(tmp_path, "D1", [_CP_A])
         at = _run_page(tmp_path, with_device(tmp_path))
         assert not at.exception
-        assert any("Afficher" in r.label for r in at.radio)
+        assert any("Show" in r.label for r in at.radio)
 
 
 # ── Usage filter ──────────────────────────────────────────────────────────────
 
 
 class TestIconFontUsageFilter:
-    """Tests for the Tous / Utilisés par la tablette / Non utilisés radio filter."""
+    """Tests for the All / Used by the tablet / Unused radio filter."""
 
     def _at_with_filter(self, tmp_path, radio_value: str) -> AppTest:
         """Render page (templates.json contains only _CP_A), then select *radio_value*."""
@@ -132,20 +132,20 @@ class TestIconFontUsageFilter:
         }
 
     def test_filter_tous_shows_all_codepoints(self, tmp_path):
-        """Selecting 'Tous' keeps all codepoints visible in the grid."""
-        at = self._at_with_filter(tmp_path, "Tous")
+        """Selecting 'All' keeps all codepoints visible in the grid."""
+        at = self._at_with_filter(tmp_path, "All")
         assert not at.exception
         assert self._icon_button_keys(at) == {f"icon_{cp}" for cp in _FAKE_CPS}
 
     def test_filter_used_shows_only_used_codepoints(self, tmp_path):
-        """Selecting 'Utilisés par la tablette' shows only codepoints in templates.json."""
-        at = self._at_with_filter(tmp_path, "Utilisés par la tablette")
+        """Selecting 'Used by the tablet' shows only codepoints in templates.json."""
+        at = self._at_with_filter(tmp_path, "Used by the tablet")
         assert not at.exception
         assert self._icon_button_keys(at) == {f"icon_{_CP_A}"}
 
     def test_filter_unused_shows_only_unused_codepoints(self, tmp_path):
-        """Selecting 'Non utilisés' shows codepoints NOT present in templates.json."""
-        at = self._at_with_filter(tmp_path, "Non utilisés")
+        """Selecting 'Unused' shows codepoints NOT present in templates.json."""
+        at = self._at_with_filter(tmp_path, "Unused")
         assert not at.exception
         assert self._icon_button_keys(at) == {f"icon_{_CP_B}", f"icon_{_CP_C}"}
 
@@ -155,7 +155,7 @@ class TestIconFontUsageFilter:
 
 class TestIconFontRefetch:
     def _click_refetch(self, tmp_path, fetch_result: tuple) -> AppTest:
-        """Render the page for D1, click Ré-extraire with *fetch_result*, return AppTest."""
+        """Render the page for D1, click Re-extract with *fetch_result*, return AppTest."""
         font_path = _fake_font_path(tmp_path)
         extra = [patch("src.icon_font.fetch_icon_font", return_value=fetch_result)]
         env = make_env(tmp_path, with_device(tmp_path))
@@ -166,7 +166,7 @@ class TestIconFontRefetch:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/icon_font.py").run()
-            next(b for b in at.button if "Ré-extraire" in b.label).click().run()
+            next(b for b in at.button if "Re-extract" in b.label).click().run()
         return at
 
     def test_success_shows_no_error(self, tmp_path):

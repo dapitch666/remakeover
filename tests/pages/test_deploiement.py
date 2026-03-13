@@ -52,14 +52,14 @@ def _cfg_with_images(tmp_path, preferred: str | None = None) -> str:
 
 
 def test_deploiement_page_warns_when_no_devices(tmp_path):
-    """Deploiement page shows 'Aucun appareil' message with empty config."""
+    """Deploiement page shows 'No device' message with empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/deploiement.py").run()
 
     assert not at.exception
-    assert any("Aucun appareil" in m.value for m in at.markdown)
+    assert any("No device" in m.value for m in at.markdown)
 
 
 def test_deploiement_page_prompts_tablet_selection(tmp_path):
@@ -82,9 +82,7 @@ def test_deploiement_page_shows_info_when_actions_available(tmp_path):
         at.switch_page("pages/deploiement.py").run()
 
     assert not at.exception
-    deploy_btn = next(
-        (b for b in at.button if "d" in b.label.lower() and "ployer" in b.label.lower()), None
-    )
+    deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
     assert not deploy_btn.disabled
     assert not any("aucune action" in w.value.lower() for w in at.warning)
@@ -110,8 +108,10 @@ def test_deploiement_page_shows_warning_and_disables_button_when_no_actions(tmp_
         at.switch_page("pages/deploiement.py").run()
 
     assert not at.exception
-    assert any("aucune action" in w.value.lower() for w in at.warning)
-    deploy_btn = next((b for b in at.button if "ployer" in b.label.lower()), None)
+    assert any(
+        "aucune action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
+    )
+    deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
     assert deploy_btn.disabled
 
@@ -136,8 +136,10 @@ def test_deploiement_page_shows_warning_when_templates_enabled_but_no_local_file
         at.switch_page("pages/deploiement.py").run()
 
     assert not at.exception
-    assert any("aucune action" in w.value.lower() for w in at.warning)
-    deploy_btn = next((b for b in at.button if "ployer" in b.label.lower()), None)
+    assert any(
+        "aucune action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
+    )
+    deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
     assert deploy_btn.disabled
 
@@ -148,7 +150,7 @@ def test_deploiement_page_shows_warning_when_templates_enabled_but_no_local_file
 
 
 def test_run_maintenance_flow(tmp_path):
-    """Clicking 'Déployer la configuration' triggers run_maintenance."""
+    """Clicking 'Deploy configuration' triggers run_maintenance."""
     cfg = {
         "devices": {
             "D1": {
@@ -198,7 +200,7 @@ def test_run_maintenance_flow(tmp_path):
         at.switch_page("pages/deploiement.py").run()
 
         mbtn = next(
-            (b for b in at.button if getattr(b, "label", None) == "Déployer la configuration"),
+            (b for b in at.button if getattr(b, "label", None) == "Deploy configuration"),
             None,
         )
         assert mbtn is not None, "Maintenance button not found"
@@ -245,7 +247,7 @@ def test_random_image_shown_in_description(tmp_path):
 
     assert not at.exception
     all_text = " ".join(m.value for m in at.info)
-    assert "aléatoire" in all_text or "slide.png" in all_text
+    assert "random" in all_text or "slide.png" in all_text
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +289,7 @@ def test_maintenance_result_error_display(tmp_path):
 
 
 def test_maintenance_reset_button_clears_result(tmp_path):
-    """Clicking the Réinitialiser button removes maint_result from session state."""
+    """Clicking the Reset button removes maint_result from session state."""
     cfg_path = with_device(tmp_path)
     env = make_env(tmp_path, cfg_path)
     with patch.dict(os.environ, env):
@@ -295,7 +297,7 @@ def test_maintenance_reset_button_clears_result(tmp_path):
         at.run()
         at.session_state["maint_result_D1"] = {"ok": True, "errors": [], "details": {}}
         at.switch_page("pages/deploiement.py").run()
-        reset_btn = next((b for b in at.button if "init" in b.label.lower()), None)
+        reset_btn = next((b for b in at.button if "reset" in b.label.lower()), None)
         assert reset_btn is not None
         reset_btn.click().run()
 
