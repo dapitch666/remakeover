@@ -16,9 +16,10 @@ from contextlib import suppress
 
 import streamlit as st
 
-from src.constants import DEFAULT_TEMPLATE_JSON
+from src.constants import DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
 from src.i18n import _
 from src.icon_font import render_icon_grid_html, render_icon_preview_html
+from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
     add_template_entry,
@@ -46,21 +47,45 @@ add_log = st.session_state.get("add_log", lambda msg: None)
 selected_name = st.session_state.get("selected_name")
 DEVICES = config.get("devices", {})
 
+_selected_device = Device.from_dict(str(selected_name or ""), DEVICES.get(selected_name, {}))
+_portrait_w, _portrait_h = DEVICE_SIZES[_selected_device.resolve_type()]
+
+# Keep editor and preview visually aligned: derive textarea height from the
+# selected template canvas aspect ratio, anchored to the historical RM2 size.
+_rm2_w, _rm2_h = DEVICE_SIZES["reMarkable 2"]
+_base_editor_width = 650 * (_rm2_w / _rm2_h)
+_orientation = "portrait"
+with suppress(Exception):
+    _for_height = json.loads(st.session_state.get("tpl_editor_textarea", _DEFAULT_JSON))
+    if _for_height.get("orientation") == "landscape":
+        _orientation = "landscape"
+
+if _orientation == "landscape":
+    _canvas_w, _canvas_h = _portrait_h, _portrait_w
+else:
+    _canvas_w, _canvas_h = _portrait_w, _portrait_h
+
+_editor_height = int(round(_base_editor_width * (_canvas_h / _canvas_w)))
+_editor_height = max(450, min(1200, _editor_height))
+
 # ---------------------------------------------------------------------------
 # Load / New controls
 # ---------------------------------------------------------------------------
 
-col_sel, col_load, col_new = st.columns([4, 1, 1], vertical_alignment="bottom")
+col_sel, col_new = st.columns([5, 1], vertical_alignment="bottom")
+_new_choice_label = _("— New —")
 
 # Apply any pre-run selectbox override before the widget is instantiated
 # (writing to a widget's session-state key after creation raises an error).
 # tpl_editor_reset_choice=True → reset to "— New —" (the sentinel first option)
 # tpl_editor_load_choice may also be pre-set by the Templates page to pre-select a file.
-if (
-    st.session_state.pop("tpl_editor_reset_choice", False)
-    and "tpl_editor_load_choice" not in st.session_state
-):
-    st.session_state["tpl_editor_load_choice"] = _("— New —")
+if st.session_state.pop("tpl_editor_reset_choice", False):
+    st.session_state["tpl_editor_load_choice"] = _new_choice_label
+
+# Device change: reset one-time load guard for the selectbox autoload.
+if st.session_state.get("tpl_editor_selected_device") != selected_name:
+    st.session_state["tpl_editor_selected_device"] = selected_name
+    st.session_state.pop("tpl_editor_loaded_choice", None)
 
 with col_sel:
     existing: list[str] = []
@@ -68,22 +93,27 @@ with col_sel:
         existing = list_json_templates(selected_name)
     load_choice = st.selectbox(
         _("Load an existing JSON template"),
-        options=[_("\u2014 New \u2014")] + existing,
+        options=[_new_choice_label] + existing,
         key="tpl_editor_load_choice",
         label_visibility="visible",
     )
 
-with col_load:
-    if st.button(
-        _("Load"),
-        key="tpl_editor_load_btn",
-        icon=":material/folder_open:",
-        width="stretch",
-        disabled=not existing or load_choice == _("\u2014 New \u2014"),
-    ):
-        assert isinstance(selected_name, str)
-        st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, load_choice)
-        st.rerun()
+# Auto-load immediately when a template is selected from the dropdown.
+_already_loaded_choice = st.session_state.get("tpl_editor_loaded_choice")
+if (
+    selected_name
+    and selected_name in DEVICES
+    and existing
+    and load_choice != _new_choice_label
+    and load_choice != _already_loaded_choice
+):
+    st.session_state["tpl_editor_loaded_choice"] = load_choice
+    st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, load_choice)
+    st.rerun()
+elif load_choice == _new_choice_label:
+    if _already_loaded_choice != _new_choice_label:
+        st.session_state["tpl_editor_textarea"] = _DEFAULT_JSON
+    st.session_state["tpl_editor_loaded_choice"] = _new_choice_label
 
 with col_new:
     if st.button(
@@ -93,6 +123,7 @@ with col_new:
         width="stretch",
     ):
         st.session_state["tpl_editor_textarea"] = _DEFAULT_JSON
+        st.session_state["tpl_editor_loaded_choice"] = _new_choice_label
         st.session_state["tpl_editor_reset_choice"] = True
         st.rerun()
 
@@ -117,7 +148,7 @@ with col_edit:
     )
     json_str: str = st.text_area(
         _("Template JSON"),
-        height=650,
+        height=_editor_height,
         key="tpl_editor_textarea",
         label_visibility="collapsed",
         help=_("Enter your reMarkable template JSON here. The preview updates automatically."),
@@ -125,11 +156,13 @@ with col_edit:
 
 with col_preview:
     st.subheader(_("Preview"), divider="rainbow")
-    svg, render_error = render_template_json_str(json_str)
+    svg, render_error = render_template_json_str(
+        json_str, canvas_portrait=(_portrait_w, _portrait_h)
+    )
     if render_error:
         st.error(render_error, icon=":material/error:")
     else:
-        st.html(svg_as_img_tag(svg, max_height=650))
+        st.html(svg_as_img_tag(svg, max_height=_canvas_h, max_width=_canvas_w))
 
 # ---------------------------------------------------------------------------
 # Format documentation (collapsed by default)
@@ -156,7 +189,10 @@ if not (selected_name and selected_name in DEVICES):
 # Pre-fill fields from the parsed JSON when possible
 try:
     _parsed = json.loads(json_str)
-    _default_name: str = _parsed.get("name", "My Template")
+    _json_name = _parsed.get("name")
+    _default_name = (
+        _json_name.strip() if isinstance(_json_name, str) and _json_name.strip() else "My Template"
+    )
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
 except Exception:
     _default_name = "My Template"

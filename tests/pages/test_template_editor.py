@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
+from src.constants import DEFAULT_TEMPLATE_JSON
 from tests.pages.helpers import empty_cfg, make_env, with_device
 
 # Minimal valid template JSON
@@ -94,26 +95,28 @@ class TestTemplateEditorWithDevice:
         assert not at.exception
         assert any("Save" in b.label for b in at.button)
 
-    def test_load_button_disabled_when_no_existing_templates(self, tmp_path):
-        """The 'Charger' button is disabled when there are no saved templates."""
+    def test_load_button_removed(self, tmp_path):
+        """Loading is now automatic from the selectbox; no dedicated Load button is shown."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        load_btn = next((b for b in at.button if "Load" in b.label), None)
-        assert load_btn is not None
-        assert load_btn.disabled
+        assert not any("Load" in b.label for b in at.button)
 
-    def test_load_button_enabled_when_templates_exist(self, tmp_path):
-        """The 'Charger' button is enabled when at least one .template file exists."""
+    def test_existing_template_auto_loads_on_selection(self, tmp_path):
+        """Selecting an existing template directly loads it into the editor."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_template_file(tmp_path, "D1", "existing.template")
-        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
-        assert not at.exception
-        # Selectbox should list the saved template
-        selects = at.selectbox
-        assert any("existing.template" in (s.value or "") for s in selects) or any(
-            "existing.template" in str(s.options) for s in selects
+        loaded_json = json.dumps(
+            {"name": "loaded-template", "orientation": "portrait", "constants": [], "items": []},
+            indent=2,
         )
+        _make_template_file(tmp_path, "D1", "existing.template", loaded_json)
+        at = _at_editor(
+            tmp_path,
+            cfg_path,
+            {"selected_name": "D1", "tpl_editor_load_choice": "existing.template"},
+        )
+        assert not at.exception
+        assert at.text_area[0].value == loaded_json
 
     def test_new_button_present(self, tmp_path):
         """The 'Nouveau' button is always shown."""
@@ -184,7 +187,7 @@ class TestTemplateEditorSave:
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        # The "Nom du fichier" text input is rendered in the save section
+        # The filename text input is rendered in the save section
         assert any("Filename" in ti.label for ti in at.text_input)
 
 
@@ -205,3 +208,28 @@ class TestTemplateEditorLoadExisting:
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
         assert any("New" in b.label for b in at.button)
+
+    def test_selecting_new_resets_editor_to_default_template(self, tmp_path):
+        """Choosing '-- New --' in the selectbox restores the default template JSON."""
+        cfg_path = with_device(tmp_path, "D1")
+        loaded_json = json.dumps(
+            {"name": "loaded-template", "orientation": "portrait", "constants": [], "items": []},
+            indent=2,
+        )
+        _make_template_file(tmp_path, "D1", "lines.template", loaded_json)
+
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.session_state["tpl_editor_load_choice"] = "lines.template"
+            at.switch_page("pages/template_editor.py").run()
+
+            assert at.text_area[0].value == loaded_json
+
+            tpl_select = next((s for s in at.selectbox if "lines.template" in str(s.options)), None)
+            assert tpl_select is not None
+            tpl_select.set_value("— New —").run()
+
+            assert at.text_area[0].value == DEFAULT_TEMPLATE_JSON

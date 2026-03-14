@@ -353,12 +353,18 @@ def _render_item(item: dict[str, Any], ctx: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def render_template_to_svg(template_json: dict[str, Any]) -> str:
-    """Render a reMarkable template JSON dict to a self-contained SVG string."""
+def render_template_to_svg(
+    template_json: dict[str, Any],
+    canvas_portrait: tuple[int, int] | None = None,
+) -> str:
+    """Render a reMarkable template JSON dict to a self-contained SVG string.
+
+    ``canvas_portrait`` lets callers override the portrait canvas dimensions
+    (``width, height``). Landscape orientation swaps this pair automatically.
+    """
     orientation = template_json.get("orientation", "portrait")
-    cw, ch = (
-        (_LANDSCAPE_W, _LANDSCAPE_H) if orientation == "landscape" else (_PORTRAIT_W, _PORTRAIT_H)
-    )
+    portrait_w, portrait_h = canvas_portrait or (_PORTRAIT_W, _PORTRAIT_H)
+    cw, ch = (portrait_h, portrait_w) if orientation == "landscape" else (portrait_w, portrait_h)
     ctx = _build_ctx(template_json, float(cw), float(ch))
     elements = [s for item in template_json.get("items", []) for s in _render_item(item, ctx)]
     inner = "".join(elements)
@@ -371,7 +377,10 @@ def render_template_to_svg(template_json: dict[str, Any]) -> str:
     )
 
 
-def render_template_json_str(json_str: str) -> tuple[str, str | None]:
+def render_template_json_str(
+    json_str: str,
+    canvas_portrait: tuple[int, int] | None = None,
+) -> tuple[str, str | None]:
     """Parse *json_str* and render to SVG.
 
     Returns ``(svg_string, None)`` on success,
@@ -382,12 +391,12 @@ def render_template_json_str(json_str: str) -> tuple[str, str | None]:
     except json.JSONDecodeError as e:
         return "", f"JSON invalide : {e}"
     try:
-        return render_template_to_svg(data), None
+        return render_template_to_svg(data, canvas_portrait=canvas_portrait), None
     except Exception as e:
         return "", f"Erreur de rendu : {e}"
 
 
-def svg_as_img_tag(svg: str, max_height: int = 650) -> str:
+def svg_as_img_tag(svg: str, max_height: int = 650, max_width: int | None = None) -> str:
     """Return an ``<img>`` tag embedding *svg* as a base64 data URI.
 
     Using an ``<img>`` tag (rather than inline SVG) lets the browser derive
@@ -396,8 +405,9 @@ def svg_as_img_tag(svg: str, max_height: int = 650) -> str:
     import base64
 
     b64 = base64.b64encode(svg.encode("utf-8")).decode()
+    max_width_css = f"max-width:{max_width}px;" if max_width else ""
     return (
         f'<img src="data:image/svg+xml;base64,{b64}" '
-        f'style="width:100%;max-height:{max_height}px;object-fit:contain;'
+        f'style="width:100%;{max_width_css}max-height:{max_height}px;object-fit:contain;'
         f'border:1px solid rgba(49,51,63,0.2);border-radius:6px;background:#ffffff;"/>'
     )

@@ -385,6 +385,16 @@ class TestRenderTemplateToSvg:
         assert 'width="1872"' in svg
         assert 'height="1404"' in svg
 
+    def test_custom_portrait_canvas_dimensions(self):
+        svg = render_template_to_svg(self._minimal("portrait"), canvas_portrait=(954, 1696))
+        assert 'width="954"' in svg
+        assert 'height="1696"' in svg
+
+    def test_custom_landscape_canvas_dimensions_swapped(self):
+        svg = render_template_to_svg(self._minimal("landscape"), canvas_portrait=(954, 1696))
+        assert 'width="1696"' in svg
+        assert 'height="954"' in svg
+
     def test_output_is_valid_svg_open_tag(self):
         svg = render_template_to_svg(self._minimal())
         assert svg.startswith("<svg ")
@@ -490,6 +500,13 @@ class TestRenderTemplateJsonStr:
         assert svg == ""
         assert err is not None
 
+    def test_custom_canvas_dimensions_applied(self):
+        template = json.dumps({"orientation": "portrait", "constants": [], "items": []})
+        svg, err = render_template_json_str(template, canvas_portrait=(954, 1696))
+        assert err is None
+        assert 'width="954"' in svg
+        assert 'height="1696"' in svg
+
 
 # ---------------------------------------------------------------------------
 # svg_as_img_tag
@@ -523,3 +540,7 @@ class TestSvgAsImgTag:
     def test_default_max_height(self):
         tag = svg_as_img_tag(self._simple_svg())
         assert "650px" in tag
+
+    def test_max_width_in_style(self):
+        tag = svg_as_img_tag(self._simple_svg(), max_width=954)
+        assert "max-width:954px" in tag
