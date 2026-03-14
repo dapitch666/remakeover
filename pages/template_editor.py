@@ -187,25 +187,28 @@ if not (selected_name and selected_name in DEVICES):
     st.stop()
 
 # Pre-fill fields from the parsed JSON when possible
+_loaded_choice = st.session_state.get("tpl_editor_loaded_choice", _new_choice_label)
+_is_new_template = _loaded_choice == _new_choice_label
+_default_name = "" if _is_new_template else os.path.splitext(str(_loaded_choice))[0]
+if not _default_name and not _is_new_template:
+    _default_name = "My Template"
+
 try:
     _parsed = json.loads(json_str)
-    _json_name = _parsed.get("name")
-    _default_name = (
-        _json_name.strip() if isinstance(_json_name, str) and _json_name.strip() else "My Template"
-    )
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
 except Exception:
-    _default_name = "My Template"
     _default_cats = ["Perso"]
 
 _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
 
 col_name, col_icon, col_icn_preview = st.columns([4, 2, 1], vertical_alignment="bottom")
 with col_name:
+    _name_key = f"tpl_editor_name_{_gen}_{selected_name or ''}_{_loaded_choice}"
     tpl_filename: str = st.text_input(
         _("Filename (without extension)"),
         value=_default_name,
-        key=f"tpl_editor_name_{_gen}",
+        placeholder=_("Name of the template file"),
+        key=_name_key,
     )
 with col_icon:
     icon_hex: str = st.text_input(
@@ -251,7 +254,8 @@ with col_save:
         width="stretch",
         help=_("Save the .template file to the selected device's library."),
     ):
-        _base = tpl_filename.strip() or _default_name
+        _fallback_name = "My Template"
+        _base = tpl_filename.strip() or _default_name or _fallback_name
         filename_tpl = normalise_filename(_base, ext=".template")
 
         # Final categories — read directly from the JSON source
@@ -275,7 +279,11 @@ with col_save:
 
 with col_dl:
     if _json_valid:
-        _dl_name = normalise_filename((tpl_filename.strip() or _default_name), ext=".template")
+        _fallback_name = "My Template"
+        _dl_name = normalise_filename(
+            (tpl_filename.strip() or _default_name or _fallback_name),
+            ext=".template",
+        )
         st.download_button(
             _("Download .template"),
             data=json_str.encode("utf-8"),

@@ -66,6 +66,15 @@ class TestTemplateEditorNoDevice:
 
 
 class TestTemplateEditorWithDevice:
+    def test_filename_is_blank_for_new_template(self, tmp_path):
+        """For a new template, filename input starts blank and remains editable."""
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
+        assert not at.exception
+        filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
+        assert filename_input is not None
+        assert filename_input.value == ""
+
     def test_save_section_visible_with_device(self, tmp_path):
         """With a selected device, the Save subheader is present."""
         cfg_path = with_device(tmp_path, "D1")
@@ -117,6 +126,9 @@ class TestTemplateEditorWithDevice:
         )
         assert not at.exception
         assert at.text_area[0].value == loaded_json
+        filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
+        assert filename_input is not None
+        assert filename_input.value == "existing"
 
     def test_new_button_present(self, tmp_path):
         """The 'Nouveau' button is always shown."""
@@ -233,3 +245,50 @@ class TestTemplateEditorLoadExisting:
             tpl_select.set_value("— New —").run()
 
             assert at.text_area[0].value == DEFAULT_TEMPLATE_JSON
+
+    def test_switching_existing_templates_updates_filename_field(self, tmp_path):
+        """Filename input follows the selected existing file stem when switching templates."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_template_file(
+            tmp_path,
+            "D1",
+            "alpha.template",
+            json.dumps(
+                {
+                    "name": "json-name-alpha",
+                    "orientation": "portrait",
+                    "constants": [],
+                    "items": [],
+                },
+                indent=2,
+            ),
+        )
+        _make_template_file(
+            tmp_path,
+            "D1",
+            "beta.template",
+            json.dumps(
+                {"name": "json-name-beta", "orientation": "portrait", "constants": [], "items": []},
+                indent=2,
+            ),
+        )
+
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.session_state["tpl_editor_load_choice"] = "alpha.template"
+            at.switch_page("pages/template_editor.py").run()
+
+            filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
+            assert filename_input is not None
+            assert filename_input.value == "alpha"
+
+            tpl_select = next((s for s in at.selectbox if "alpha.template" in str(s.options)), None)
+            assert tpl_select is not None
+            tpl_select.set_value("beta.template").run()
+
+            filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
+            assert filename_input is not None
+            assert filename_input.value == "beta"
