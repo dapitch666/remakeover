@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY .streamlit ./.streamlit
 COPY app.py .
 COPY assets ./assets
+COPY docs ./docs
 COPY locales ./locales
 COPY pages ./pages
 COPY src ./src
