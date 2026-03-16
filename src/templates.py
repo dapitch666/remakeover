@@ -117,6 +117,23 @@ def _stem(filename: str) -> str:
     return filename
 
 
+def extract_categories_from_template_content(content: bytes) -> list[str] | None:
+    """Return categories from a `.template` JSON payload, or None when parsing fails.
+
+    Only string values are kept. Empty or missing category arrays are treated as
+    valid and therefore return an empty list.
+    """
+    try:
+        data = json.loads(content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
+        return None
+
+    categories = data.get("categories", [])
+    if not isinstance(categories, list):
+        return None
+    return [category for category in categories if isinstance(category, str)]
+
+
 @st.cache_data(ttl=5)
 def load_templates_json(device_name: str) -> dict[str, Any]:
     """Load and return data/{{device}}/templates.json, or {{"templates": []}} if absent.

@@ -23,6 +23,7 @@ from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
     add_template_entry,
+    get_template_entry,
     list_json_templates,
     load_json_template,
     save_json_template,
@@ -193,11 +194,19 @@ _default_name = "" if _is_new_template else os.path.splitext(str(_loaded_choice)
 if not _default_name and not _is_new_template:
     _default_name = "My Template"
 
+_template_entry = None
+if selected_name and selected_name in DEVICES and not _is_new_template:
+    _template_entry = get_template_entry(selected_name, str(_loaded_choice))
+
 try:
     _parsed = json.loads(json_str)
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
 except Exception:
     _default_cats = ["Perso"]
+
+_default_icon_hex = "E9FE"
+if _template_entry and _template_entry.get("iconCode"):
+    _default_icon_hex = f"{ord(_template_entry['iconCode']):04X}"
 
 _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
 
@@ -211,11 +220,12 @@ with col_name:
         key=_name_key,
     )
 with col_icon:
+    _icon_key = f"tpl_editor_icon_{_gen}_{selected_name or ''}_{_loaded_choice}"
     icon_hex: str = st.text_input(
         _("Icon code (hex)"),
-        value="E9FE",
+        value=_default_icon_hex,
         max_chars=5,
-        key=f"tpl_editor_icon_{_gen}",
+        key=_icon_key,
         help=_("Hexadecimal icomoon icon code (e.g. E9FE)."),
     )
 with col_icn_preview:

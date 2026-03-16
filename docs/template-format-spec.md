@@ -35,14 +35,20 @@ Template version: **1.0.0** (`"templateVersion": "1.0.0"`)
 
 ### Canvas dimensions
 
-The local SVG renderer always uses reMarkable 2 canvas dimensions regardless of `supportedDevices`:
+The local SVG preview uses the canvas dimensions of the currently selected tablet in rm-manager.
+
+`supportedDevices` in the template JSON does not affect the local preview. It is only firmware metadata for the device itself.
 
 | Orientation | Width × Height |
 |---|---|
-| `"portrait"` | 1404 × 1872 px |
-| `"landscape"` | 1872 × 1404 px |
+| `"portrait"` on reMarkable 2 | 1404 × 1872 px |
+| `"landscape"` on reMarkable 2 | 1872 × 1404 px |
+| `"portrait"` on reMarkable Paper Pro | 1620 × 2160 px |
+| `"landscape"` on reMarkable Paper Pro | 2160 × 1620 px |
+| `"portrait"` on reMarkable Paper Pro Move | 954 × 1696 px |
+| `"landscape"` on reMarkable Paper Pro Move | 1696 × 954 px |
 
-These are reMarkable 2 / Paper Pro dimensions. If you are targeting a Paper Pro Move (954×1696) the local preview will not match the on-device rendering.
+If no known device type is configured, rm-manager falls back to the default device canvas configured by the app.
 
 ### Known categories
 

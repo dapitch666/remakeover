@@ -22,6 +22,7 @@ from src.template_sync import sync_templates_to_tablet
 from src.templates import (
     add_template_entry,
     delete_device_template,
+    extract_categories_from_template_content,
     fetch_and_init_templates,
     get_all_categories,
     get_device_templates_backup_path,
@@ -357,7 +358,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         elif sel == "upload":
             st.session_state["tpl_reloading"] = _tpl
         elif sel == "edit":
-            st.session_state["tpl_editor_reset_choice"] = True
             st.session_state["tpl_editor_load_choice"] = _tpl
             st.session_state["tpl_edit_target"] = _tpl
         st.session_state[_akey] = None
@@ -414,6 +414,9 @@ def _render_template_upload_section(selected_name, add_log):
 
     with tab_import:
         gen = st.session_state.get(f"tpl_upload_gen_{selected_name}", 0)
+        cats_key = f"tpl_new_cats_{selected_name}_{gen}"
+        extra_cats_key = f"tpl_new_extra_cats_{selected_name}_{gen}"
+        prefill_signature_key = f"tpl_upload_prefill_sig_{selected_name}_{gen}"
 
         uploaded_files = st.file_uploader(
             _("Drag one or more SVG or `.template` files here"),
@@ -424,31 +427,85 @@ def _render_template_upload_section(selected_name, add_log):
         if not uploaded_files:
             return
 
-        all_cats = get_all_categories(selected_name)
-        sel_cats = st.multiselect(
-            _("Existing categories"),
-            options=all_cats,
-            key=f"tpl_new_cats_{selected_name}_{gen}",
-        )
-        extra_cats_input = st.text_input(
-            _("New categories (comma-separated)"),
-            key=f"tpl_new_extra_cats_{selected_name}_{gen}",
-            placeholder="Color, Perso, ...",
-        )
+        uploaded_payloads = []
+        template_categories: list[list[str]] = []
+        only_template_files = True
+        for uploaded_file in uploaded_files:
+            content = (
+                uploaded_file.getvalue()
+                if hasattr(uploaded_file, "getvalue")
+                else uploaded_file.read()
+            )
+            uploaded_payloads.append((uploaded_file, content))
+            if uploaded_file.name.lower().endswith(".template"):
+                categories = extract_categories_from_template_content(content)
+                if categories is None:
+                    only_template_files = False
+                    break
+                template_categories.append(sorted(set(categories)))
+            else:
+                only_template_files = False
 
-        # ── Icon picker ─────────────────────────────────────────────────────────────────
-        icon_hex_input = st.text_input(
-            _("Icon code (hex)"),
-            value="E9FE",
-            max_chars=5,
-            key=f"tpl_new_icon_{selected_name}_{gen}",
-            help=_("Hexadecimal icomoon icon code (e.g.\u00a0E9FE). Browse icons below."),
+        all_cats = get_all_categories(selected_name)
+        upload_signature = tuple(
+            (uploaded_file.name, len(content), tuple(categories))
+            for (uploaded_file, content), categories in zip(
+                uploaded_payloads,
+                template_categories
+                + [[]] * max(0, len(uploaded_payloads) - len(template_categories)),
+                strict=False,
+            )
         )
+        common_categories = None
+        if only_template_files and template_categories:
+            first_categories = template_categories[0]
+            if all(categories == first_categories for categories in template_categories[1:]):
+                common_categories = first_categories
+
+        if st.session_state.get(prefill_signature_key) != upload_signature:
+            if common_categories is not None:
+                st.session_state[cats_key] = [cat for cat in common_categories if cat in all_cats]
+                st.session_state[extra_cats_key] = ", ".join(
+                    cat for cat in common_categories if cat not in all_cats
+                )
+            else:
+                st.session_state[cats_key] = []
+                st.session_state[extra_cats_key] = ""
+            st.session_state[prefill_signature_key] = upload_signature
+
+        col_existing, col_new, col_icon, col_preview = st.columns(
+            [2.2, 2.2, 1.2, 0.9],
+            vertical_alignment="bottom",
+        )
+        with col_existing:
+            sel_cats = st.multiselect(
+                _("Existing categories"),
+                options=all_cats,
+                key=cats_key,
+            )
+        with col_new:
+            extra_cats_input = st.text_input(
+                _("New categories (comma-separated)"),
+                key=extra_cats_key,
+                placeholder="Color, Perso, ...",
+            )
+        with col_icon:
+            icon_hex_input = st.text_input(
+                _("Icon code (hex)"),
+                value="E9FE",
+                max_chars=5,
+                key=f"tpl_new_icon_{selected_name}_{gen}",
+                help=_("Hexadecimal icomoon icon code (e.g.\u00a0E9FE). Browse icons below."),
+            )
         _icn_preview = ""
         with suppress(ValueError, OverflowError):
             _icn_preview = render_icon_preview_html(chr(int(icon_hex_input.strip(), 16)))
-        if _icn_preview:
-            st.html(_icn_preview)
+        with col_preview:
+            st.caption(_("Icon preview"))
+            if _icn_preview:
+                st.html(_icn_preview)
+            else:
+                st.write("")
         _grid_html = render_icon_grid_html(
             selected_cp=int(icon_hex_input.strip(), 16) if icon_hex_input.strip() else None,
             clickable=False,
@@ -475,8 +532,7 @@ def _render_template_upload_section(selected_name, add_log):
             except (ValueError, OverflowError):
                 icon_code = "\ue9fe"
             saved = []
-            for uf in uploaded_files:
-                content = uf.read()
+            for uf, content in uploaded_payloads:
                 _ext = ".template" if uf.name.lower().endswith(".template") else ".svg"
                 filename = normalise_filename(uf.name, ext=_ext)
                 save_device_template(selected_name, content, filename)

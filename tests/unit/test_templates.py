@@ -114,6 +114,26 @@ class TestStem:
         assert tpl._stem("MyFile.png") == "MyFile.png"
 
 
+class TestTemplateContentParsing:
+    def test_extract_categories_from_template_content(self):
+        categories = tpl.extract_categories_from_template_content(
+            b'{"categories": ["Lines", "Perso"], "orientation": "portrait"}'
+        )
+        assert categories == ["Lines", "Perso"]
+
+    def test_extract_categories_from_template_content_missing_categories(self):
+        categories = tpl.extract_categories_from_template_content(
+            b'{"orientation": "portrait", "items": []}'
+        )
+        assert categories == []
+
+    def test_extract_categories_from_template_content_invalid_json(self):
+        assert tpl.extract_categories_from_template_content(b"not-json") is None
+
+    def test_extract_categories_from_template_content_rejects_non_list(self):
+        assert tpl.extract_categories_from_template_content(b'{"categories": "Lines"}') is None
+
+
 class TestJsonHelpers:
     def test_load_templates_json_missing_returns_empty(self):
         data = tpl.load_templates_json(DEVICE)

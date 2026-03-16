@@ -8,6 +8,7 @@ delete flow, sort-by, and upload section render.
 import json
 import os
 from contextlib import ExitStack
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
@@ -194,6 +195,114 @@ class TestTemplatesPage:
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any("Add" in s.value for s in at.subheader)
+
+    def test_import_tab_with_selected_file_renders_metadata_fields(self, tmp_path):
+        """Once a file is selected, import metadata widgets are rendered for the row layout."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        mock_upload = SimpleNamespace(
+            name="alpha.svg",
+            read=lambda: _SVG,
+        )
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=["Lines", "Grid"]),
+            patch("streamlit.file_uploader", return_value=[mock_upload]),
+        ):
+            at = AppTest.from_file("pages/templates.py")
+            at.session_state["config"] = {
+                "devices": {
+                    "D1": {
+                        "ip": "10.0.0.1",
+                        "password": "pw",
+                        "device_type": "reMarkable 2",
+                    }
+                }
+            }
+            at.session_state["selected_name"] = "D1"
+            at.session_state["add_log"] = lambda msg: None
+            at.run()
+        assert not at.exception
+        assert any(m.label == "Existing categories" for m in at.multiselect)
+        assert any(t.label == "New categories (comma-separated)" for t in at.text_input)
+        assert any(t.label == "Icon code (hex)" for t in at.text_input)
+        assert any("Icon preview" in c.value for c in at.caption)
+
+    def test_import_tab_prefills_categories_from_single_template_file(self, tmp_path):
+        """A single uploaded `.template` file prefills categories from its JSON metadata."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        mock_upload = SimpleNamespace(
+            name="alpha.template",
+            getvalue=lambda: json.dumps({"categories": ["Lines", "Perso"]}).encode("utf-8"),
+        )
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=["Grid", "Lines"]),
+            patch("streamlit.file_uploader", return_value=[mock_upload]),
+        ):
+            at = AppTest.from_file("pages/templates.py")
+            at.session_state["config"] = {
+                "devices": {
+                    "D1": {
+                        "ip": "10.0.0.1",
+                        "password": "pw",
+                        "device_type": "reMarkable 2",
+                    }
+                }
+            }
+            at.session_state["selected_name"] = "D1"
+            at.session_state["add_log"] = lambda msg: None
+            at.run()
+        assert not at.exception
+        assert any(multiselect.value == ["Lines"] for multiselect in at.multiselect)
+        assert any(
+            text_input.label == "New categories (comma-separated)" and text_input.value == "Perso"
+            for text_input in at.text_input
+        )
+
+    def test_import_tab_prefills_only_when_all_template_categories_match(self, tmp_path):
+        """Mixed category sets across uploaded `.template` files must not prefill the fields."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        upload_a = SimpleNamespace(
+            name="alpha.template",
+            getvalue=lambda: json.dumps({"categories": ["Lines"]}).encode("utf-8"),
+        )
+        upload_b = SimpleNamespace(
+            name="beta.template",
+            getvalue=lambda: json.dumps({"categories": ["Grid"]}).encode("utf-8"),
+        )
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=["Grid", "Lines"]),
+            patch("streamlit.file_uploader", return_value=[upload_a, upload_b]),
+        ):
+            at = AppTest.from_file("pages/templates.py")
+            at.session_state["config"] = {
+                "devices": {
+                    "D1": {
+                        "ip": "10.0.0.1",
+                        "password": "pw",
+                        "device_type": "reMarkable 2",
+                    }
+                }
+            }
+            at.session_state["selected_name"] = "D1"
+            at.session_state["add_log"] = lambda msg: None
+            at.run()
+        assert not at.exception
+        assert any(multiselect.value == [] for multiselect in at.multiselect)
+        assert any(
+            text_input.label == "New categories (comma-separated)" and text_input.value == ""
+            for text_input in at.text_input
+        )
 
     # -- template card grid ---------------------------------------------
 
@@ -800,6 +909,28 @@ class TestSegmentedControlOptions:
         assert sc is not None
         # .template cards: upload + edit + delete (3 options)
         assert len(sc.options) == 3
+
+    def test_json_template_edit_action_preserves_selected_template_for_editor(self, tmp_path):
+        """Choosing edit stores the selected template without forcing the editor back to New."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "lines.template")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            sc = next((s for s in at.button_group if s.key == "tpl_action_lines.template"), None)
+            assert sc is not None
+            sc.set_value("edit").run()
+        assert not at.exception
+        assert at.session_state["tpl_editor_load_choice"] == "lines.template"
+        assert (
+            "tpl_editor_reset_choice" not in at.session_state
+            or not at.session_state["tpl_editor_reset_choice"]
+        )
 
 
 # ---------------------------------------------------------------------------
