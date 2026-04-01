@@ -12,6 +12,27 @@ from src.models import Device
 from src.templates import list_device_templates
 from src.ui_common import deferred_toast, rainbow_divider, require_device
 
+
+def _localize_maintenance_error(err: str) -> str:
+    """Return a localized user-facing message for a maintenance error code."""
+    prefix, _sep, detail = err.partition(":")
+    labels = {
+        "load_image_failed": _("Failed to load local image"),
+        "upload_suspended_failed": _("Failed to upload suspended image"),
+        "ensure_remote_dirs_failed": _("Failed to prepare template directories on tablet"),
+        "symlink_failed": _("Failed to create template links on tablet"),
+        "templates_json_error": _("Error while syncing templates.json"),
+        "carousel_failed": _("Failed to disable carousel"),
+        "restart_failed": _("Failed to restart xochitl"),
+    }
+    if prefix not in labels:
+        return err
+    detail = detail.strip()
+    if detail:
+        return _("{label}: {detail}").format(label=labels[prefix], detail=detail)
+    return labels[prefix]
+
+
 st.title(_(":material/rocket_launch: Deployment"))
 rainbow_divider()
 
@@ -39,32 +60,37 @@ imgs_available = _images.list_device_images(selected_name)
 
 # Resolve the image that will be uploaded
 image: str | None
-image_desc: str | None
+choice: str | None
 if device.preferred_image:
     image = device.preferred_image
-    image_desc = f"the preferred image (`{device.preferred_image}`)"
+    choice = "preferred"
 elif imgs_available:
     image = random.choice(imgs_available)
-    image_desc = f"`{image}` (random choice, no preferred image)"
+    choice = "random"
 else:
     image = None
-    image_desc = None
+    choice = None
 
 # ── Description block ────────────────────────────────────────────────
 lines = [_("**The deployment will perform the following operations:**")]
-if image_desc:
+if choice == "preferred":
     lines.append(
-        _("- Send {image_desc} as the suspended image (`suspended.png`) to the tablet").format(
-            image_desc=image_desc
-        )
+        _(
+            "- Send the preferred image (`{image}`) as the suspended image (`suspended.png`) to the tablet"
+        ).format(image=image)
+    )
+elif choice == "random":
+    lines.append(
+        _(
+            "- Send `{image}` (random choice, no preferred image) as the suspended image (`suspended.png`) to the tablet"
+        ).format(image=image)
     )
 else:
     lines.append(_("- *(No local image — suspended image upload skipped)*"))
 if device.templates and bool(list_device_templates(selected_name)):
     lines.append(
         _(
-            "- Deploy local templates, create symbolic links "
-            "and update `templates.json` on the tablet"
+            "- Create symbolic links to the custom templates and update `templates.json` on the tablet"
         )
     )
 if device.carousel:
@@ -96,7 +122,11 @@ if result is not None:
     else:
         st.error(_("Deployment completed with errors:"), icon=":material/error:")
         for e in result.get("errors", []):
-            st.markdown(f"- `{e}`")
+            local_e = _localize_maintenance_error(e)
+            if local_e == e:
+                st.markdown(f"- `{e}`")
+            else:
+                st.markdown(f"- `{e}` - {local_e}")
     if st.button(
         _("Reset"),
         key=f"maint_reset_{selected_name}",
