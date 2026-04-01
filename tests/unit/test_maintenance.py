@@ -52,11 +52,9 @@ def _base_patches(
         ),
         patch("src.maintenance.run_ssh_cmd", return_value=run_cmd_out),
         patch("src.maintenance.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.maintenance.upload_template_svgs", return_value=0),
         patch(
             "src.maintenance.compare_and_backup_templates_json", return_value=(True, "identical")
         ),
-        patch("src.maintenance.get_device_templates_dir", return_value="/tmp/tpl"),
         patch("src.maintenance.symlink_templates_on_device", return_value=(True, "ok")),
     ]
 
@@ -279,8 +277,7 @@ class TestRunMaintenanceErrors:
         """symlink_templates_on_device failing aborts maintenance."""
         dev = _device(templates=True)
         patches = _base_patches()
-        patches[5] = patch("src.maintenance.upload_template_svgs", return_value=1)
-        patches[8] = patch(
+        patches[6] = patch(
             "src.maintenance.symlink_templates_on_device", return_value=(False, "symlink error")
         )
         with ExitStack() as stack:
