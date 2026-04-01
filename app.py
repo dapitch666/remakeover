@@ -173,6 +173,16 @@ def _device_selector(config: dict) -> str | None:
 
     device_names = list(devices.keys())
 
+    # Apply an explicit `?tablet=` URL selection only when session state
+    # has no valid selection yet, so user interactions keep priority.
+    qp_tablet = st.query_params.get("tablet")
+    if (
+        st.session_state.get("tablet") not in device_names
+        and qp_tablet
+        and qp_tablet in device_names
+    ):
+        st.session_state["tablet"] = qp_tablet
+
     # Consume pending selection set by another page (e.g. after saving a new device).
     pending = st.session_state.pop("pending_selected_tablet", None)
     if pending and pending in device_names:
@@ -192,7 +202,6 @@ def _device_selector(config: dict) -> str | None:
                 _("Tablet"),
                 device_names,
                 key="tablet",
-                bind="query-params",
             )
         with col2:
             if st.button(
@@ -227,6 +236,7 @@ def _device_selector(config: dict) -> str | None:
 
     # Persist selection in session state for pages to consume.
     st.session_state["selected_name"] = selected_name
+    st.query_params["tablet"] = selected_name
     return selected_name
 
 

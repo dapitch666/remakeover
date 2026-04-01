@@ -19,6 +19,7 @@ from tests.pages.helpers import (
     empty_cfg,
     make_env,
     with_device,
+    with_two_devices,
 )
 
 # Minimal valid SVG used as synthetic template content.
@@ -490,6 +491,24 @@ class TestTemplatesPage:
             sc = next((s for s in at.button_group if "Sort" in s.label), None)
             assert sc is not None
             sc.set_value("Categories").run()
+        assert not at.exception
+
+    def test_edit_template_with_non_default_tablet_does_not_crash(self, tmp_path):
+        """Editing a template after selecting a non-default tablet must not raise StreamlitAPIException."""
+        cfg_path = with_two_devices(tmp_path)
+        d2 = backup_dir(tmp_path, "D2")
+        (d2 / "templates" / "custom.template").write_text("{}", encoding="utf-8")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.load_json_template", return_value="{}"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.selectbox(key="tablet").set_value("D2").run()
+            at.session_state["tpl_edit_target"] = "custom.template"
+            at.switch_page("pages/templates.py").run()
         assert not at.exception
 
 
