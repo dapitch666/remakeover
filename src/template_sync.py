@@ -20,7 +20,7 @@ from src.constants import (
 )
 
 
-def sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
+def sync_templates_to_tablet(selected_name: str, device, add_log, force: bool = False) -> bool:
     """Push all local SVG and JSON templates + templates.json to the tablet, restart xochitl.
 
     Uses module-level references to ``src.templates`` and ``src.ssh`` so that
@@ -64,8 +64,10 @@ def sync_templates_to_tablet(selected_name: str, device, add_log) -> bool:
         return False
 
     _tpl.mark_templates_synced(selected_name)
+    mode = "forced" if force else "standard"
     add_log(
         f"Templates synced on '{selected_name}' "
+        f"[{mode}] "
         f"({sent} file(s) uploaded, "
         f"templates.json {'uploaded' if os.path.exists(local_json_path) else 'not found locally'})"
     )

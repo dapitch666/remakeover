@@ -22,6 +22,7 @@ from src.template_sync import sync_templates_to_tablet
 from src.templates import (
     add_template_entry,
     delete_device_template,
+    delete_template_from_tablet,
     extract_categories_from_template_content,
     fetch_and_init_templates,
     get_all_categories,
@@ -192,6 +193,126 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             st.rerun()
 
 
+@st.dialog(_("Import templates from tablet"))
+def _show_import_templates_dialog(selected_name: str, device, add_log) -> None:
+    """Offer import choices when templates are not initialized yet."""
+    st.write(
+        _(
+            "Choose how to initialize local templates from the tablet. "
+            "Both options import templates.json."
+        )
+    )
+
+    col_json, col_all = st.columns(2)
+    with col_json:
+        if st.button(
+            _("Import templates.json only"),
+            key=f"tpl_fetch_json_only_{selected_name}",
+            icon=":material/article:",
+            type="secondary",
+            width="stretch",
+        ):
+            with st.spinner(_("Importing…")):
+                ok, msg = fetch_and_init_templates(
+                    device.ip,
+                    device.password or "",
+                    selected_name,
+                    include_remote_custom_templates=False,
+                )
+            st.session_state["tpl_show_import_dialog"] = False
+            if ok:
+                add_log(f"Templates initialized for '{selected_name}' : {msg}")
+                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+                st.rerun()
+            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
+            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+
+    with col_all:
+        if st.button(
+            _("Import templates.json + custom templates"),
+            key=f"tpl_fetch_json_custom_{selected_name}",
+            icon=":material/download:",
+            type="primary",
+            width="stretch",
+        ):
+            with st.spinner(_("Importing…")):
+                ok, msg = fetch_and_init_templates(
+                    device.ip,
+                    device.password or "",
+                    selected_name,
+                    include_remote_custom_templates=True,
+                )
+            st.session_state["tpl_show_import_dialog"] = False
+            if ok:
+                add_log(f"Templates initialized for '{selected_name}' : {msg}")
+                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+                st.rerun()
+            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
+            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+
+    if st.button(
+        _("Cancel"),
+        key=f"tpl_fetch_cancel_{selected_name}",
+        width="stretch",
+    ):
+        st.session_state["tpl_show_import_dialog"] = False
+        st.rerun()
+
+
+@st.dialog(_("Delete template"))
+def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
+    """Confirm local deletion and optionally delete remotely on the tablet."""
+    st.write(_("Delete {name} locally?").format(name=tpl_name))
+    delete_remote = st.checkbox(
+        _("Also delete it from the tablet"),
+        value=True,
+        key=f"tpl_delete_remote_{tpl_name}",
+    )
+
+    col_cancel, col_delete = st.columns(2)
+    with col_cancel:
+        if st.button(
+            _("Cancel"),
+            key=f"tpl_del_cancel_{tpl_name}",
+            width="stretch",
+        ):
+            st.session_state["tpl_pending_delete_local"] = None
+            st.rerun()
+    with col_delete:
+        if st.button(
+            _("Delete"),
+            key=f"tpl_del_confirm_{tpl_name}",
+            icon=":material/delete:",
+            type="primary",
+            width="stretch",
+        ):
+            delete_device_template(selected_name, tpl_name)
+            remove_template_entry(selected_name, tpl_name)
+            add_log(f"Template '{tpl_name}' deleted locally from '{selected_name}'")
+
+            if delete_remote:
+                ok, msg = delete_template_from_tablet(
+                    device.ip, device.password or "", selected_name, tpl_name
+                )
+                if ok:
+                    add_log(f"Template '{tpl_name}' deleted from tablet for '{selected_name}'")
+                    deferred_toast(
+                        _("'{name}' deleted locally and on tablet").format(name=tpl_name),
+                        ":material/task_alt:",
+                    )
+                else:
+                    add_log(f"Remote delete failed for '{tpl_name}' on '{selected_name}': {msg}")
+                    deferred_toast(
+                        _("'{name}' deleted locally, tablet delete failed").format(name=tpl_name),
+                        ":material/error:",
+                    )
+            else:
+                deferred_toast(_("'{name}' deleted").format(name=tpl_name), ":material/delete:")
+
+            st.session_state["tpl_pending_delete_local"] = None
+            st.rerun()
+
+
 # ── Template card ─────────────────────────────────────────────────────────────
 
 
@@ -318,26 +439,9 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     ):
         _show_category_dialog(selected_name, tpl_name, add_log)
 
-    # Local delete confirmation
+    # Local delete confirmation (+ optional tablet delete)
     if st.session_state.get("tpl_pending_delete_local") == tpl_name:
-        _dialog.confirm(
-            _("Delete locally"),
-            _("Delete {name} locally?").format(name=tpl_name),
-            key="confirm_del_tpl_local",
-        )
-        result = st.session_state.get("confirm_del_tpl_local")
-        if result is True:
-            delete_device_template(selected_name, tpl_name)
-            remove_template_entry(selected_name, tpl_name)
-            add_log(f"Template '{tpl_name}' deleted locally from '{selected_name}'")
-            deferred_toast(_("'{name}' deleted").format(name=tpl_name), ":material/delete:")
-            st.session_state.pop("confirm_del_tpl_local", None)
-            st.session_state["tpl_pending_delete_local"] = None
-            st.rerun()
-        elif result is False:
-            st.session_state.pop("confirm_del_tpl_local", None)
-            st.session_state["tpl_pending_delete_local"] = None
-            st.rerun()
+        _show_delete_dialog(tpl_name, selected_name, device, add_log)
 
     # ── segmented control (reload + delete) ──────────────────────────────
     action_key = f"tpl_action_{tpl_name}"
@@ -602,16 +706,48 @@ if not os.path.exists(backup_path):
         type="primary",
         icon=":material/download:",
     ):
-        with st.spinner(_("Importing…")):
-            ok, msg = fetch_and_init_templates(device.ip, device.password or "", selected_name)
-        if ok:
-            add_log(f"Templates initialized for '{selected_name}' : {msg}")
-            deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-            st.rerun()
-        else:
-            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
-            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+        st.session_state["tpl_show_import_dialog"] = True
+
+    if st.session_state.get("tpl_show_import_dialog"):
+        _show_import_templates_dialog(selected_name, device, add_log)
 else:
+    col_reimport, col_force = st.columns(2)
+    with col_reimport:
+        if st.button(
+            _("Re-import all templates from tablet"),
+            key=f"tpl_reimport_all_{selected_name}",
+            icon=":material/download:",
+            width="stretch",
+        ):
+            with st.spinner(_("Importing…")):
+                ok, msg = fetch_and_init_templates(
+                    device.ip,
+                    device.password or "",
+                    selected_name,
+                    include_remote_custom_templates=True,
+                )
+            if ok:
+                add_log(f"Templates re-imported for '{selected_name}' : {msg}")
+                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+                st.rerun()
+            add_log(f"Error re-importing templates for '{selected_name}' : {msg}")
+            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+    with col_force:
+        if st.button(
+            _("Force push all templates to tablet"),
+            key=f"tpl_force_sync_{selected_name}",
+            icon=":material/publish:",
+            type="primary",
+            width="stretch",
+        ):
+            with st.spinner(_("Syncing…")):
+                ok = sync_templates_to_tablet(selected_name, device, add_log, force=True)
+            if ok:
+                deferred_toast(_("Templates synced"), ":material/task_alt:")
+            else:
+                deferred_toast(_("Sync error"), ":material/error:")
+            st.rerun()
+
     stored_templates = list_device_templates(selected_name)
 
     if is_templates_dirty(selected_name):
@@ -638,6 +774,16 @@ else:
                 st.rerun()
 
     if stored_templates:
+        st.markdown(
+            _(
+                "Below you will find all templates saved for this tablet. "
+                "Click a **name** to rename, edit categories with the category button, "
+                "customize the icon with the icon button, and use the action buttons "
+                "to reload, edit, or delete templates."
+            )
+        )
+        st.divider()
+
         col_title, col_sort = st.columns([2, 1], vertical_alignment="center")
         with col_title:
             st.subheader(_("Saved templates"), divider="rainbow")
@@ -669,6 +815,12 @@ else:
             if row_start + GRID_COLUMNS < len(stored_templates):
                 st.divider()
     else:
-        st.info(_("No templates found for this device."))
+        st.info(
+            _(
+                "No templates found for this device. "
+                "Import templates from the tablet or add files from your computer below."
+            ),
+            icon=":material/description:",
+        )
 
     _render_template_upload_section(selected_name, add_log)

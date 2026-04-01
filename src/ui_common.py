@@ -75,7 +75,6 @@ def normalise_filename(filename: str, ext: str = ".png") -> str:
     so that dots inside a user-supplied base name (e.g. ``alice.et.merlin``)
     are preserved rather than being mistakenly treated as an extension.
     """
-    filename = filename.replace(" ", "_")
     if filename.lower().endswith(ext.lower()):
         return filename
     current_ext = os.path.splitext(filename)[1].lower()

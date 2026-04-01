@@ -63,7 +63,7 @@ class TestTemplatesPage:
         assert any("Import templates" in b.label for b in at.button)
 
     def test_import_button_click_success(self, tmp_path):
-        """Clicking import triggers fetch_and_init_templates; no exception on success."""
+        """Clicking import then choosing an option triggers fetch_and_init_templates."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with (
@@ -76,6 +76,12 @@ class TestTemplatesPage:
             import_btn = next((b for b in at.button if "Import templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
+            option_btn = next(
+                (b for b in at.button if "templates.json + custom templates" in b.label),
+                None,
+            )
+            assert option_btn is not None
+            option_btn.click().run()
         assert not at.exception
 
     def test_import_button_click_failure_shows_error(self, tmp_path):
@@ -95,6 +101,12 @@ class TestTemplatesPage:
             import_btn = next((b for b in at.button if "Import templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
+            option_btn = next(
+                (b for b in at.button if "templates.json only" in b.label),
+                None,
+            )
+            assert option_btn is not None
+            option_btn.click().run()
         assert not at.exception
         assert any("SSH connection refused" in e.value for e in at.error)
 
@@ -355,30 +367,23 @@ class TestTemplatesPage:
         assert not at.exception
 
     def test_template_delete_confirmed_removes(self, tmp_path):
-        """confirm_del_tpl_local=True deletes the template file."""
+        """Pending local delete renders the delete dialog action buttons."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["gone.svg"])
         env = make_env(tmp_path, cfg_path)
-        deleted: list[str] = []
         with (
             patch.dict(os.environ, env),
             patch("src.templates.is_templates_dirty", return_value=False),
-            patch(
-                "src.templates.delete_device_template",
-                side_effect=lambda n, f: deleted.append(f),
-            ),
-            patch("src.templates.remove_template_entry"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "gone.svg"
-            at.session_state["confirm_del_tpl_local"] = True
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert "gone.svg" in deleted
+        assert any(b.label == "Delete" for b in at.button)
 
     def test_template_delete_cancelled_clears_state(self, tmp_path):
-        """confirm_del_tpl_local=False clears pending state without deleting."""
+        """Pending local delete renders a Cancel action in the delete dialog."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["keep.svg"])
         env = make_env(tmp_path, cfg_path)
@@ -389,10 +394,9 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "keep.svg"
-            at.session_state["confirm_del_tpl_local"] = False
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert at.session_state["tpl_pending_delete_local"] is None
+        assert any(b.label == "Cancel" for b in at.button)
 
     def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
         """When tpl_pending_rename is set, the overwrite confirmation dialog is triggered."""
@@ -862,7 +866,7 @@ class TestTemplatePageJsonTemplates:
         assert any("Add" in s.value for s in at.subheader)
 
     def test_json_template_delete_removes_file(self, tmp_path):
-        """Confirming deletion of a .template file calls delete_device_template."""
+        """Confirming deletion from the dialog calls delete_device_template."""
         cfg_path = with_device(tmp_path, "D1")
         _make_json_template(tmp_path, "D1", "todel.template")
         env = make_env(tmp_path, cfg_path)
@@ -875,12 +879,15 @@ class TestTemplatePageJsonTemplates:
                 side_effect=lambda n, f: deleted.append(f),
             ),
             patch("src.templates.remove_template_entry"),
+            patch("src.templates.delete_template_from_tablet", return_value=(True, "ok")),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "todel.template"
-            at.session_state["confirm_del_tpl_local"] = True
             at.switch_page("pages/templates.py").run()
+            delete_btn = next((b for b in at.button if b.label == "Delete"), None)
+            assert delete_btn is not None
+            delete_btn.click().run()
         assert not at.exception
         assert "todel.template" in deleted
 

@@ -156,6 +156,27 @@ class TestSyncSuccess:
 
         assert result is True
 
+    def test_force_mode_marks_log_as_forced(self, tmp_path):
+        """force=True produces a log entry marked as forced sync mode."""
+        logs, add_log = _logs()
+        device = _make_device()
+
+        with (
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
+            patch("src.templates.upload_template_svgs", return_value=0),
+            patch(
+                "src.templates.get_device_templates_json_path",
+                return_value=str(tmp_path / "missing.json"),
+            ),
+            patch("src.ssh.run_ssh_cmd"),
+            patch("src.templates.mark_templates_synced"),
+        ):
+            result = sync_templates_to_tablet("D1", device, add_log, force=True)
+
+        assert result is True
+        assert any("[forced]" in m for m in logs)
+
 
 # ---------------------------------------------------------------------------
 # Failure-path tests

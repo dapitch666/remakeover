@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import shlex
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -349,14 +350,40 @@ def compare_and_backup_templates_json(ip: str, password: str, device_name: str) 
     return True, "uploaded"
 
 
-def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[bool, str]:
-    """Download the tablet's templates.json, save it as templates.backup.json,
-    then compose the local templates.json by appending entries for any locally
-    stored SVG files that are not already listed in the backup.
+def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
+    """Return custom template filenames present on the tablet.
 
-    Each newly discovered SVG gets the "Perso" category by default.
+    The result only includes files from REMOTE_CUSTOM_TEMPLATES_DIR ending
+    with .svg or .template.
+    """
+    cmd = (
+        f"for file in {shlex.quote(REMOTE_CUSTOM_TEMPLATES_DIR)}/*.svg "
+        f"{shlex.quote(REMOTE_CUSTOM_TEMPLATES_DIR)}/*.template; do "
+        '[ -f "$file" ] || continue; '
+        'basename "$file"; '
+        "done"
+    )
+    try:
+        out, err = run_ssh_cmd(ip, password, [cmd])
+    except Exception as e:
+        return False, str(e)
+    if err.strip():
+        return False, err.strip()
+    names = [line.strip() for line in out.splitlines() if line.strip()]
+    return True, names
 
-    Returns (ok, message).
+
+def fetch_and_init_templates(
+    ip: str,
+    password: str,
+    device_name: str,
+    include_remote_custom_templates: bool = False,
+) -> tuple[bool, str]:
+    """Download tablet templates.json and initialize local template metadata.
+
+    When ``include_remote_custom_templates`` is True, custom .svg/.template
+    files already present on the tablet are also downloaded locally and added
+    to the resulting local templates.json when missing.
     """
     # 1 — Download remote templates.json
     remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
@@ -367,6 +394,7 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
     # 2 — Save as backup
     backup_path = get_device_templates_backup_path(device_name)
     try:
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
         with open(backup_path, "wb") as f:
             f.write(remote_content)
     except Exception as e:
@@ -378,15 +406,32 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
     except Exception as e:
         return False, f"backup_parse_failed: {e}"
 
-    # 4 — Append entries for local SVGs not already present in the backup
     templates_dir = get_device_templates_dir(device_name)
     existing_stems = {t.get("filename") for t in backup_data.get("templates", [])}
     appended = 0
+    remote_downloaded = 0
+
+    # 4 — Optionally download custom files from tablet first
+    if include_remote_custom_templates:
+        ok, payload = _list_remote_custom_templates(ip, password)
+        if not ok:
+            return False, f"list_remote_custom_failed: {payload}"
+        assert isinstance(payload, list)
+        for fname in payload:
+            content, dl_err = download_file_ssh(
+                ip, password, f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{fname}"
+            )
+            if content is None:
+                return False, f"download_custom_failed ({fname}): {dl_err}"
+            save_device_template(device_name, content, fname)
+            remote_downloaded += 1
+
+    # 5 — Append entries for local SVG/.template files not already present in backup
     if os.path.exists(templates_dir):
-        for svg in sorted(os.listdir(templates_dir)):
-            if not svg.lower().endswith(".svg"):
+        for file_name in sorted(os.listdir(templates_dir)):
+            if not file_name.lower().endswith((".svg", ".template")):
                 continue
-            stem = _stem(svg)
+            stem = _stem(file_name)
             if stem not in existing_stems:
                 backup_data.setdefault("templates", []).append(
                     {
@@ -399,14 +444,46 @@ def fetch_and_init_templates(ip: str, password: str, device_name: str) -> tuple[
                 existing_stems.add(stem)
                 appended += 1
 
-    # 5 — Persist as local templates.json
+    # 6 — Persist as local templates.json
     save_templates_json(device_name, backup_data)
     logger.info(
-        "fetch_and_init_templates: backup saved, %d local SVG(s) appended for '%s'",
+        "fetch_and_init_templates: backup saved, %d local custom template(s) appended for '%s'",
         appended,
         device_name,
     )
-    return True, f"fetched ({appended} local SVG(s) appended)"
+    return (
+        True,
+        f"fetched ({appended} local custom template(s) appended, {remote_downloaded} downloaded)",
+    )
+
+
+def delete_template_from_tablet(
+    ip: str, password: str, device_name: str, filename: str
+) -> tuple[bool, str]:
+    """Delete one template file on tablet, upload local templates.json, and restart xochitl."""
+    q_custom = shlex.quote(f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{filename}")
+    q_symlink = shlex.quote(f"{REMOTE_TEMPLATES_DIR}/{filename}")
+    try:
+        _, err = run_ssh_cmd(ip, password, [f"rm -f {q_custom} {q_symlink}"])
+    except Exception as e:
+        return False, f"delete_remote_failed: {e}"
+    if err.strip():
+        return False, f"delete_remote_failed: {err.strip()}"
+
+    local_json_path = get_device_templates_json_path(device_name)
+    if os.path.exists(local_json_path):
+        with open(local_json_path, "rb") as f:
+            json_content = f.read()
+        ok, msg = upload_file_ssh(ip, password, json_content, REMOTE_TEMPLATES_JSON)
+        if not ok:
+            return False, f"upload_json_failed: {msg}"
+
+    try:
+        run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
+    except Exception as e:
+        return False, f"restart_failed: {e}"
+
+    return True, "ok"
 
 
 def symlink_templates_on_device(ip: str, password: str) -> tuple[bool, str]:

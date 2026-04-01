@@ -9,8 +9,8 @@ from src.ui_common import normalise_filename, send_suspended_png
 class TestNormaliseFilename:
     # ── spaces ───────────────────────────────────────────────────────────
 
-    def test_spaces_replaced_by_underscores(self):
-        assert normalise_filename("my file.png") == "my_file.png"
+    def test_spaces_are_preserved(self):
+        assert normalise_filename("my file.png") == "my file.png"
 
     def test_already_normalised_unchanged(self):
         assert normalise_filename("my_file.png") == "my_file.png"

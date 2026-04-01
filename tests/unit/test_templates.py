@@ -467,6 +467,43 @@ class TestUploadTemplateToTablet:
         assert "read_local_failed" in msg
 
 
+class TestDeleteTemplateFromTablet:
+    def test_happy_path_with_json_upload(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+
+        with (
+            patch("src.templates.run_ssh_cmd", return_value=("", "")) as mock_cmd,
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
+        ):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my file.svg")
+
+        assert ok is True
+        assert msg == "ok"
+        assert mock_cmd.call_count == 2
+        mock_up.assert_called_once()
+
+    def test_remote_delete_failure(self):
+        with patch("src.templates.run_ssh_cmd", return_value=("", "permission denied")):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my.svg")
+        assert ok is False
+        assert "delete_remote_failed" in msg
+
+    def test_json_upload_failure(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+
+        with (
+            patch("src.templates.run_ssh_cmd", return_value=("", "")),
+            patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
+        ):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my.svg")
+        assert ok is False
+        assert "upload_json_failed" in msg
+
+
 # ---------------------------------------------------------------------------
 # ensure_remote_template_dirs
 # ---------------------------------------------------------------------------
@@ -563,7 +600,7 @@ class TestFetchAndInitTemplates:
         with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
-        assert "1 local SVG" in msg
+        assert "1 local custom template" in msg
         data = tpl.load_templates_json(DEVICE)
         assert any(t["filename"] == "custom" for t in data["templates"])
 
@@ -581,7 +618,51 @@ class TestFetchAndInitTemplates:
         with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
-        assert "0 local SVG" in msg
+        assert "0 local custom template" in msg
+
+    def test_include_remote_custom_downloads_files_and_appends_metadata(self, tmp_path):
+        remote_json = json.dumps({"templates": []}).encode()
+        remote_calls: list[str] = []
+
+        def _download_side_effect(_ip, _pw, remote_path):
+            remote_calls.append(remote_path)
+            if remote_path.endswith("templates.json"):
+                return remote_json, ""
+            if remote_path.endswith("remote one.svg"):
+                return SVG_CONTENT, ""
+            return b'{"items":[]}', ""
+
+        with (
+            patch("src.templates.download_file_ssh", side_effect=_download_side_effect),
+            patch(
+                "src.templates._list_remote_custom_templates",
+                return_value=(True, ["remote one.svg", "remote-two.template"]),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
+            )
+        assert ok is True
+        assert "2 downloaded" in msg
+        data = tpl.load_templates_json(DEVICE)
+        assert any(t["filename"] == "remote one" for t in data["templates"])
+        assert any(t["filename"] == "remote-two" for t in data["templates"])
+        assert any(call.endswith("remote one.svg") for call in remote_calls)
+
+    def test_include_remote_custom_returns_error_when_listing_fails(self):
+        remote_json = json.dumps({"templates": []}).encode()
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_custom_templates",
+                return_value=(False, "ssh error"),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
+            )
+        assert ok is False
+        assert "list_remote_custom_failed" in msg
 
 
 # ---------------------------------------------------------------------------
