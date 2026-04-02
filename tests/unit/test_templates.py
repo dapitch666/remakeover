@@ -468,45 +468,6 @@ class TestEnsureRemoteTemplateDirs:
 
 
 # ---------------------------------------------------------------------------
-# upload_template_svgs
-# ---------------------------------------------------------------------------
-
-
-class TestUploadTemplateSvgs:
-    def test_returns_count_of_uploaded(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "a.svg").write_bytes(b"<svg/>")
-        (svg_dir / "b.svg").write_bytes(b"<svg/>")
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 2
-
-    def test_skips_non_svg_files(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "note.txt").write_bytes(b"text")
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up:
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 0
-        mock_up.assert_not_called()
-
-    def test_skips_missing_dir(self):
-        with patch("src.templates.upload_file_ssh") as mock_up:
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", ["/no/such/dir"], "/remote/custom")
-        assert count == 0
-        mock_up.assert_not_called()
-
-    def test_upload_failure_not_counted(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "c.svg").write_bytes(b"<svg/>")
-        with patch("src.templates.upload_file_ssh", return_value=(False, "error")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 0
-
-
-# ---------------------------------------------------------------------------
 # fetch_and_init_templates
 # ---------------------------------------------------------------------------
 
@@ -707,22 +668,17 @@ class TestFetchAndInitTemplates:
 
 
 # ---------------------------------------------------------------------------
-# is_templates_dirty + mark_templates_synced (manifest-based)
+# is_templates_dirty (manifest-based)
 # ---------------------------------------------------------------------------
 
 
-class TestIsDirtyAndMarkSynced:
+class TestIsDirty:
     def test_missing_manifest_not_dirty(self):
         assert tpl.is_templates_dirty(DEVICE) is False
 
     def test_pending_entry_is_dirty(self):
         tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
         assert tpl.is_templates_dirty(DEVICE) is True
-
-    def test_mark_synced_clears_dirty_state(self):
-        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
-        tpl.mark_templates_synced(DEVICE)
-        assert tpl.is_templates_dirty(DEVICE) is False
 
     def test_deleted_entry_is_dirty(self):
         tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
@@ -754,69 +710,6 @@ class TestListDeviceTemplatesJsonTemplates:
         result = tpl.list_device_templates(DEVICE)
         assert "readme.txt" not in result
         assert "C.template" in result
-
-
-# ---------------------------------------------------------------------------
-# upload_template_svgs also handles .template files
-# ---------------------------------------------------------------------------
-
-
-class TestUploadTemplateSvgsWithJsonTemplates:
-    def test_uploads_template_file(self, tmp_path):
-        tpl_dir = tmp_path / "tpl"
-        tpl_dir.mkdir()
-        (tpl_dir / "My.template").write_bytes(b'{"orientation":"portrait"}')
-
-        uploaded_paths: list[str] = []
-        with patch(
-            "src.templates.upload_file_ssh",
-            side_effect=lambda ip, pw, data, path: uploaded_paths.append(path) or (True, "ok"),
-        ):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
-
-        assert count == 1
-        assert any("My.template" in p for p in uploaded_paths)
-
-    def test_uploads_both_svg_and_template(self, tmp_path):
-        tpl_dir = tmp_path / "tpl"
-        tpl_dir.mkdir()
-        (tpl_dir / "Grid.svg").write_bytes(SVG_CONTENT)
-        (tpl_dir / "Lines.template").write_bytes(b'{"orientation":"portrait"}')
-
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
-
-        assert count == 2
-
-
-class TestPruneRemoteCustomTemplates:
-    def test_prunes_only_obsolete_files(self):
-        with (
-            patch(
-                "src.templates.list_remote_custom_templates",
-                return_value=(True, {"old.svg", "keep.svg"}),
-            ),
-            patch(
-                "src.templates.remove_remote_custom_templates", return_value=(True, "ok")
-            ) as mock_rm,
-        ):
-            ok, removed, msg = tpl.prune_remote_custom_templates(
-                "1.2.3.4", "pw", {"keep.svg", "new.svg"}
-            )
-        assert ok is True
-        assert removed == 1
-        assert msg == "ok"
-        mock_rm.assert_called_once_with("1.2.3.4", "pw", {"old.svg"})
-
-    def test_list_failure_returns_error(self):
-        with patch(
-            "src.templates.list_remote_custom_templates",
-            return_value=(False, "ssh error"),
-        ):
-            ok, removed, msg = tpl.prune_remote_custom_templates("1.2.3.4", "pw", set())
-        assert ok is False
-        assert removed == 0
-        assert "ssh error" in msg
 
 
 # ---------------------------------------------------------------------------

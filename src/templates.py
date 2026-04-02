@@ -31,8 +31,6 @@ from src.manifest_templates import (
     get_sync_overview,
     get_sync_status,
     has_unsynced_changes,
-    list_manifest_entries,
-    mark_synced,
     mark_template_deleted,
     rename_entry,
     set_sync_status,
@@ -327,30 +325,6 @@ def ensure_remote_template_dirs(
         return False, str(e)
 
 
-def upload_template_svgs(
-    ip: str, password: str, local_dirs: list[str], remote_custom_dir: str
-) -> int:
-    """Upload SVG and JSON .template files from local_dirs to remote_custom_dir. Return count uploaded."""
-    sent_count = 0
-    for local_templates_dir in local_dirs:
-        if not os.path.exists(local_templates_dir):
-            continue
-        for fname in os.listdir(local_templates_dir):
-            if not fname.lower().endswith((".svg", ".template")):
-                continue
-            local_path = os.path.join(local_templates_dir, fname)
-            try:
-                with open(local_path, "rb") as lf:
-                    content = lf.read()
-                remote_path = f"{remote_custom_dir}/{fname}"
-                ok, msg = upload_file_ssh(ip, password, content, remote_path)
-                if ok:
-                    sent_count += 1
-            except Exception as e:
-                logger.warning("Failed to upload template %s: %s", local_path, e)
-    return sent_count
-
-
 def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
     """Return custom template filenames present on the tablet.
 
@@ -491,27 +465,6 @@ def remove_remote_custom_templates(
     return True, "ok"
 
 
-def prune_remote_custom_templates(
-    ip: str,
-    password: str,
-    keep_filenames: set[str],
-) -> tuple[bool, int, str]:
-    """Delete remote custom templates absent from *keep_filenames*.
-
-    Returns (ok, removed_count, message).
-    """
-    ok, payload = list_remote_custom_templates(ip, password)
-    if not ok:
-        assert isinstance(payload, str)
-        return False, 0, payload
-    assert isinstance(payload, set)
-    to_remove = payload - keep_filenames
-    ok_rm, msg_rm = remove_remote_custom_templates(ip, password, to_remove)
-    if not ok_rm:
-        return False, 0, msg_rm
-    return True, len(to_remove), "ok"
-
-
 def fetch_and_init_templates(
     ip: str,
     password: str,
@@ -646,28 +599,6 @@ def delete_template_from_tablet(
     return True, "ok"
 
 
-def symlink_templates_on_device(ip: str, password: str) -> tuple[bool, str]:
-    """Create symlinks in REMOTE_TEMPLATES_DIR for all custom .svg and .template files.
-
-    For each file in REMOTE_CUSTOM_TEMPLATES_DIR with a .svg or .template extension,
-    a symlink is created in REMOTE_TEMPLATES_DIR pointing to the custom file.
-    Returns (True, "ok") on success, (False, error) on failure.
-    """
-    cmd = (
-        f"for file in {REMOTE_CUSTOM_TEMPLATES_DIR}/*.svg "
-        f"{REMOTE_CUSTOM_TEMPLATES_DIR}/*.template; do "
-        f'[ -f "$file" ] || continue; '
-        f'ln -sf "$file" "{REMOTE_TEMPLATES_DIR}/"$(basename "$file"); '
-        "done"
-    )
-    try:
-        run_ssh_cmd(ip, password, [cmd])
-        return True, "ok"
-    except Exception as e:
-        logger.error("symlink_templates_on_device failed: %s", e)
-        return False, str(e)
-
-
 def upload_template_to_tablet(
     ip: str, password: str, device_name: str, filename: str
 ) -> tuple[bool, str]:
@@ -705,11 +636,6 @@ def is_templates_dirty(device_name: str) -> bool:
     return has_unsynced_changes(device_name)
 
 
-def mark_templates_synced(device_name: str) -> None:
-    """Transition pending templates to synced and update manifest lastSync."""
-    mark_synced(device_name)
-
-
 def get_template_sync_status(device_name: str, filename: str) -> str | None:
     """Return template sync status from manifest.json."""
     return get_sync_status(device_name, filename)
@@ -718,11 +644,6 @@ def get_template_sync_status(device_name: str, filename: str) -> str | None:
 def get_templates_sync_overview(device_name: str) -> dict[str, int]:
     """Return per-status template counts from manifest.json."""
     return get_sync_overview(device_name)
-
-
-def list_manifest_templates(device_name: str) -> list[dict[str, Any]]:
-    """Return all template entries from manifest.json."""
-    return list_manifest_entries(device_name)
 
 
 def set_template_sync_status(device_name: str, filename: str, status: str) -> bool:

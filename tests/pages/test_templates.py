@@ -7,7 +7,6 @@ delete flow, sort-by, and upload section render.
 
 import json
 import os
-from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -198,10 +197,6 @@ class TestTemplatesPage:
             patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(False, "SSH error")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch("src.templates.mark_templates_synced"),
-            patch("src.ssh.run_ssh_cmd"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -533,116 +528,6 @@ class TestTemplatesPage:
             at.selectbox(key="tablet").set_value("D2").run()
             at.session_state["tpl_edit_target"] = "custom.template"
             at.switch_page("pages/templates.py").run()
-        assert not at.exception
-
-
-# ---------------------------------------------------------------------------
-# _sync_templates_to_tablet branches
-# ---------------------------------------------------------------------------
-
-
-class TestSyncBranches:
-    """Unit-style coverage of the private helper called when Sync is clicked."""
-
-    def _run_sync(self, tmp_path, extra_patches):
-        """Helper: render the templates page with a dirty device and click Sync."""
-        cfg_path = with_device(tmp_path, "D1")
-        backup_dir(tmp_path, "D1")
-        env = make_env(tmp_path, cfg_path)
-        with ExitStack() as stack:
-            stack.enter_context(patch.dict(os.environ, env))
-            stack.enter_context(patch("src.templates.is_templates_dirty", return_value=True))
-            stack.enter_context(patch("src.templates.get_all_categories", return_value=[]))
-            stack.enter_context(
-                patch("src.templates.list_remote_custom_templates", return_value=(True, set()))
-            )
-            stack.enter_context(
-                patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok"))
-            )
-            stack.enter_context(
-                patch("src.template_sync.load_manifest", return_value={"templates": []})
-            )
-            stack.enter_context(patch("src.template_sync.list_manifest_entries", return_value=[]))
-            stack.enter_context(patch("src.template_sync.mark_synced"))
-            for p in extra_patches:
-                stack.enter_context(p)
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.switch_page("pages/templates.py").run()
-            sync_btn = next((b for b in at.button if "Sync" in b.label), None)
-            assert sync_btn is not None
-            sync_btn.click().run()
-        return at
-
-    def test_sync_svgs_and_json_uploaded(self, tmp_path):
-        """When SVGs are sent and JSON exists, symlinks + JSON upload + restart all succeed."""
-        # Create a JSON file so the upload branch is entered
-        json_path = tmp_path / "D1" / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=2),
-                patch("src.templates.symlink_templates_on_device", return_value=(True, "ok")),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_symlink_exception_returns_false(self, tmp_path):
-        """If symlink_templates_on_device fails, sync fails gracefully."""
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=1),
-                patch(
-                    "src.templates.symlink_templates_on_device",
-                    return_value=(False, "symlink error"),
-                ),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_json_upload_failure(self, tmp_path):
-        """If templates.json upload fails, sync returns False."""
-        json_path = tmp_path / "D1" / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=0),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(False, "upload failed")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_restart_exception(self, tmp_path):
-        """If run_ssh_cmd raises during xochitl restart, sync fails gracefully."""
-        # No JSON file → skip JSON upload; run_ssh_cmd raises on restart call
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=0),
-                patch("src.ssh.run_ssh_cmd", side_effect=Exception("restart error")),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
         assert not at.exception
 
 
