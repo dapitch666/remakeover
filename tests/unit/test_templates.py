@@ -366,67 +366,6 @@ class TestGetBackupStems:
 # ---------------------------------------------------------------------------
 
 
-class TestCompareAndBackupTemplatesJson:
-    def test_identical_returns_identical(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_STOCK)
-
-        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is True
-        assert msg == "identical"
-
-    def test_different_backups_and_uploads(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_LOCAL)
-
-        with (
-            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
-            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_upload,
-        ):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is True
-        assert msg == "uploaded"
-        backup_path = os.path.join(str(tmp_path / DEVICE), "templates.backup.json")
-        assert os.path.exists(backup_path)
-        with open(backup_path, "rb") as f:
-            assert f.read() == JSON_STOCK
-        mock_upload.assert_called_once()
-
-    def test_no_local_file(self):
-        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-        assert ok is False
-        assert msg == "no_local"
-
-    def test_download_failure(self):
-        with patch("src.templates.download_file_ssh", return_value=(None, "timeout")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-        assert ok is False
-        assert msg.startswith("download_failed")
-
-    def test_upload_failure_returns_upload_failed(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_LOCAL)
-
-        with (
-            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
-            patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
-        ):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is False
-        assert "upload_failed" in msg
-
-
 class TestUploadTemplateToTablet:
     def _setup_svg(self, tmp_path):
         tpl.save_device_template(DEVICE, SVG_CONTENT, "Red.svg")
@@ -664,6 +603,58 @@ class TestFetchAndInitTemplates:
         assert ok is False
         assert "list_remote_custom_failed" in msg
 
+    def test_preserves_existing_backup_by_default(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps(
+                {
+                    "templates": [
+                        {
+                            "name": "StockOnly",
+                            "filename": "StockOnly",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        remote_json = json.dumps({"templates": [{"name": "Remote", "filename": "Remote"}]}).encode()
+
+        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_preserved" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["templates"][0]["filename"] == "StockOnly"
+
+    def test_overwrites_backup_when_requested(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps({"templates": [{"name": "Old", "filename": "Old"}]}),
+            encoding="utf-8",
+        )
+        remote_json = json.dumps({"templates": [{"name": "New", "filename": "New"}]}).encode()
+
+        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4",
+                "pw",
+                DEVICE,
+                overwrite_backup=True,
+            )
+
+        assert ok is True
+        assert "backup_refreshed" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["templates"][0]["filename"] == "New"
+
 
 # ---------------------------------------------------------------------------
 # is_templates_dirty + mark_templates_synced
@@ -766,6 +757,36 @@ class TestUploadTemplateSvgsWithJsonTemplates:
             count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
 
         assert count == 2
+
+
+class TestPruneRemoteCustomTemplates:
+    def test_prunes_only_obsolete_files(self):
+        with (
+            patch(
+                "src.templates.list_remote_custom_templates",
+                return_value=(True, {"old.svg", "keep.svg"}),
+            ),
+            patch(
+                "src.templates.remove_remote_custom_templates", return_value=(True, "ok")
+            ) as mock_rm,
+        ):
+            ok, removed, msg = tpl.prune_remote_custom_templates(
+                "1.2.3.4", "pw", {"keep.svg", "new.svg"}
+            )
+        assert ok is True
+        assert removed == 1
+        assert msg == "ok"
+        mock_rm.assert_called_once_with("1.2.3.4", "pw", {"old.svg"})
+
+    def test_list_failure_returns_error(self):
+        with patch(
+            "src.templates.list_remote_custom_templates",
+            return_value=(False, "ssh error"),
+        ):
+            ok, removed, msg = tpl.prune_remote_custom_templates("1.2.3.4", "pw", set())
+        assert ok is False
+        assert removed == 0
+        assert "ssh error" in msg
 
 
 # ---------------------------------------------------------------------------

@@ -51,11 +51,7 @@ def _base_patches(
             return_value=(upload_ok, "ok" if upload_ok else "err"),
         ),
         patch("src.maintenance.run_ssh_cmd", return_value=run_cmd_out),
-        patch("src.maintenance.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch(
-            "src.maintenance.compare_and_backup_templates_json", return_value=(True, "identical")
-        ),
-        patch("src.maintenance.symlink_templates_on_device", return_value=(True, "ok")),
+        patch("src.maintenance.sync_templates_to_tablet", return_value=True),
     ]
 
 
@@ -172,20 +168,20 @@ class TestRunMaintenanceHappyPath:
 
     def test_with_templates_enabled(self):
         dev = _device(templates=True)
-        ensure_calls = []
+        sync_calls = []
         with ExitStack() as stack:
             for p in _base_patches():
                 stack.enter_context(p)
             stack.enter_context(
                 patch(
-                    "src.maintenance.ensure_remote_template_dirs",
-                    side_effect=lambda ip, pw, c, t: ensure_calls.append((c, t)) or (True, "ok"),
+                    "src.maintenance.sync_templates_to_tablet",
+                    side_effect=lambda *args, **kwargs: sync_calls.append((args, kwargs)) or True,
                 )
             )
             result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
 
         assert result["ok"] is True
-        assert ensure_calls  # template dirs were set up
+        assert sync_calls
 
     def test_with_carousel_enabled(self):
         dev = _device(carousel=True)
@@ -258,35 +254,18 @@ class TestRunMaintenanceErrors:
 
         assert result["ok"] is True
 
-    def test_templates_ensure_dirs_failure_returns_error(self):
-        """ensure_remote_template_dirs failing causes maintenance to return an error."""
+    def test_templates_sync_failure_returns_error(self):
+        """Unified template sync failure aborts maintenance."""
         dev = _device(templates=True)
         patches = _base_patches()
-        patches[4] = patch(
-            "src.maintenance.ensure_remote_template_dirs", return_value=(False, "dirs failed")
-        )
+        patches[4] = patch("src.maintenance.sync_templates_to_tablet", return_value=False)
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
             result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
 
         assert result["ok"] is False
-        assert any("ensure_remote_dirs_failed" in e for e in result["errors"])
-
-    def test_templates_symlink_failure_returns_error(self):
-        """symlink_templates_on_device failing aborts maintenance."""
-        dev = _device(templates=True)
-        patches = _base_patches()
-        patches[6] = patch(
-            "src.maintenance.symlink_templates_on_device", return_value=(False, "symlink error")
-        )
-        with ExitStack() as stack:
-            for p in patches:
-                stack.enter_context(p)
-            result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
-
-        assert result["ok"] is False
-        assert any("symlink_failed" in e for e in result["errors"])
+        assert any("templates_sync_failed" in e for e in result["errors"])
 
     def test_carousel_failure_returns_error(self):
         """run_ssh_cmd raising during carousel step aborts maintenance."""

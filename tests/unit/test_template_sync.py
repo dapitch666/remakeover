@@ -46,6 +46,7 @@ class TestSyncSuccess:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=2),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch("src.templates.symlink_templates_on_device", return_value=(True, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
@@ -72,6 +73,7 @@ class TestSyncSuccess:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             # json path points to a file that does NOT exist
             patch(
                 "src.templates.get_device_templates_json_path",
@@ -96,6 +98,7 @@ class TestSyncSuccess:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
                 return_value=str(tmp_path / "missing.json"),
@@ -121,6 +124,7 @@ class TestSyncSuccess:
             ) as mock_dirs,
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
                 return_value=str(tmp_path / "missing.json"),
@@ -145,6 +149,7 @@ class TestSyncSuccess:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
                 return_value=str(tmp_path / "missing.json"),
@@ -165,6 +170,7 @@ class TestSyncSuccess:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
                 return_value=str(tmp_path / "missing.json"),
@@ -195,6 +201,7 @@ class TestSyncFailures:
             ),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path)),
             patch("src.templates.upload_template_svgs") as mock_upload,
+            patch("src.templates.prune_remote_custom_templates"),
         ):
             result = sync_templates_to_tablet("D1", device, add_log)
 
@@ -211,6 +218,7 @@ class TestSyncFailures:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=1),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.symlink_templates_on_device", return_value=(False, "symlink error")
             ),
@@ -231,6 +239,7 @@ class TestSyncFailures:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch("src.templates.get_device_templates_json_path", return_value=str(json_path)),
             patch("src.ssh.upload_file_ssh", return_value=(False, "SFTP error")),
             patch("src.templates.mark_templates_synced") as mock_mark,
@@ -250,6 +259,7 @@ class TestSyncFailures:
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch(
                 "src.templates.get_device_templates_json_path",
                 return_value=str(tmp_path / "missing.json"),
@@ -272,6 +282,7 @@ class TestSyncFailures:
             patch("src.templates.ensure_remote_template_dirs", return_value=(False, "err")),
             patch("src.templates.mark_templates_synced") as mock_mark,
             patch("src.templates.get_device_templates_dir", return_value=str(tmp_path)),
+            patch("src.templates.prune_remote_custom_templates"),
         ):
             sync_templates_to_tablet("D1", device, add_log)
 

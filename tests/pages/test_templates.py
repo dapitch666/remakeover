@@ -157,6 +157,7 @@ class TestTemplatesPage:
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch("src.templates.mark_templates_synced"),
             patch("src.ssh.run_ssh_cmd"),
             patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
@@ -180,6 +181,7 @@ class TestTemplatesPage:
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(False, "SSH error")),
             patch("src.templates.upload_template_svgs", return_value=0),
+            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
             patch("src.templates.mark_templates_synced"),
             patch("src.ssh.run_ssh_cmd"),
         ):
@@ -533,6 +535,9 @@ class TestSyncBranches:
             stack.enter_context(patch.dict(os.environ, env))
             stack.enter_context(patch("src.templates.is_templates_dirty", return_value=True))
             stack.enter_context(patch("src.templates.get_all_categories", return_value=[]))
+            stack.enter_context(
+                patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok"))
+            )
             for p in extra_patches:
                 stack.enter_context(p)
             at = AppTest.from_file("app.py")

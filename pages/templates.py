@@ -218,6 +218,7 @@ def _show_import_templates_dialog(selected_name: str, device, add_log) -> None:
                     device.password or "",
                     selected_name,
                     include_remote_custom_templates=False,
+                    overwrite_backup=False,
                 )
             st.session_state["tpl_show_import_dialog"] = False
             if ok:
@@ -241,6 +242,7 @@ def _show_import_templates_dialog(selected_name: str, device, add_log) -> None:
                     device.password or "",
                     selected_name,
                     include_remote_custom_templates=True,
+                    overwrite_backup=False,
                 )
             st.session_state["tpl_show_import_dialog"] = False
             if ok:
@@ -725,6 +727,7 @@ else:
                     device.password or "",
                     selected_name,
                     include_remote_custom_templates=True,
+                    overwrite_backup=False,
                 )
             if ok:
                 add_log(f"Templates re-imported for '{selected_name}' : {msg}")

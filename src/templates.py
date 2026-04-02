@@ -304,52 +304,6 @@ def upload_template_svgs(
     return sent_count
 
 
-def compare_and_backup_templates_json(ip: str, password: str, device_name: str) -> tuple[bool, str]:
-    """Fetch remote templates.json and compare to the local copy at data/{device}/templates.json.
-
-    - If local file is absent: returns (False, "no_local").
-    - If identical: returns (True, "identical").
-    - If different: saves remote to data/{device}/templates.backup.json, then uploads
-      the local version to the tablet and returns (True, "uploaded").
-    - On download failure: returns (False, "download_failed: ...").
-    - On upload failure: returns (False, "upload_failed: ...").
-    """
-    local_json_path = get_device_templates_json_path(device_name)
-    backup_path = get_device_templates_backup_path(device_name)
-
-    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    if remote_content is None:
-        logger.info("No remote templates.json found or download failed: %s", err)
-        return False, f"download_failed: {err}"
-
-    if not os.path.exists(local_json_path):
-        return False, "no_local"
-
-    with open(local_json_path, "rb") as lf:
-        local_content = lf.read()
-
-    if remote_content == local_content:
-        return True, "identical"
-
-    # Remote differs — back it up
-    try:
-        with open(backup_path, "wb") as bf:
-            bf.write(remote_content)
-        logger.info("Remote templates.json backed up to %s", backup_path)
-    except Exception as e:
-        logger.warning("Failed to write templates.backup.json: %s", e)
-        return False, f"backup_write_failed: {e}"
-
-    # Upload the local (enriched) version to the tablet
-    ok, msg = upload_file_ssh(ip, password, local_content, REMOTE_TEMPLATES_JSON)
-    if not ok:
-        logger.error("Failed to upload local templates.json to tablet: %s", msg)
-        return False, f"upload_failed: {msg}"
-
-    logger.info("Local templates.json uploaded to tablet (%s)", REMOTE_TEMPLATES_JSON)
-    return True, "uploaded"
-
-
 def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
     """Return custom template filenames present on the tablet.
 
@@ -373,11 +327,66 @@ def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[st
     return True, names
 
 
+def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, set[str] | str]:
+    """Return the set of custom template filenames currently present on the tablet."""
+    ok, payload = _list_remote_custom_templates(ip, password)
+    if not ok:
+        return False, set(payload)
+    assert isinstance(payload, list)
+    return True, set(payload)
+
+
+def remove_remote_custom_templates(
+    ip: str,
+    password: str,
+    filenames: set[str],
+) -> tuple[bool, str]:
+    """Remove custom template files and their symlinks for *filenames* on the tablet."""
+    if not filenames:
+        return True, "ok"
+
+    rm_args = []
+    for fname in sorted(filenames):
+        rm_args.append(shlex.quote(f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{fname}"))
+        rm_args.append(shlex.quote(f"{REMOTE_TEMPLATES_DIR}/{fname}"))
+
+    cmd = f"rm -f {' '.join(rm_args)}"
+    try:
+        _, err = run_ssh_cmd(ip, password, [cmd])
+    except Exception as e:
+        return False, str(e)
+    if err.strip():
+        return False, err.strip()
+    return True, "ok"
+
+
+def prune_remote_custom_templates(
+    ip: str,
+    password: str,
+    keep_filenames: set[str],
+) -> tuple[bool, int, str]:
+    """Delete remote custom templates absent from *keep_filenames*.
+
+    Returns (ok, removed_count, message).
+    """
+    ok, payload = list_remote_custom_templates(ip, password)
+    if not ok:
+        assert isinstance(payload, str)
+        return False, 0, payload
+    assert isinstance(payload, set)
+    to_remove = payload - keep_filenames
+    ok_rm, msg_rm = remove_remote_custom_templates(ip, password, to_remove)
+    if not ok_rm:
+        return False, 0, msg_rm
+    return True, len(to_remove), "ok"
+
+
 def fetch_and_init_templates(
     ip: str,
     password: str,
     device_name: str,
     include_remote_custom_templates: bool = False,
+    overwrite_backup: bool = False,
 ) -> tuple[bool, str]:
     """Download tablet templates.json and initialize local template metadata.
 
@@ -385,26 +394,35 @@ def fetch_and_init_templates(
     files already present on the tablet are also downloaded locally and added
     to the resulting local templates.json when missing.
     """
-    # 1 — Download remote templates.json
-    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    if remote_content is None:
-        logger.error("fetch_and_init_templates — download failed: %s", err)
-        return False, f"download_failed: {err}"
-
-    # 2 — Save as backup
     backup_path = get_device_templates_backup_path(device_name)
-    try:
-        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-        with open(backup_path, "wb") as f:
-            f.write(remote_content)
-    except Exception as e:
-        return False, f"backup_write_failed: {e}"
+    backup_exists = os.path.exists(backup_path)
 
-    # 3 — Parse backup
-    try:
-        backup_data: dict[str, Any] = json.loads(remote_content.decode("utf-8"))
-    except Exception as e:
-        return False, f"backup_parse_failed: {e}"
+    if backup_exists and not overwrite_backup:
+        try:
+            with open(backup_path, encoding="utf-8") as f:
+                backup_data = json.load(f)
+        except Exception as e:
+            return False, f"backup_parse_failed: {e}"
+    else:
+        # 1 — Download remote templates.json
+        remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
+        if remote_content is None:
+            logger.error("fetch_and_init_templates — download failed: %s", err)
+            return False, f"download_failed: {err}"
+
+        # 2 — Save as backup
+        try:
+            os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+            with open(backup_path, "wb") as f:
+                f.write(remote_content)
+        except Exception as e:
+            return False, f"backup_write_failed: {e}"
+
+        # 3 — Parse backup
+        try:
+            backup_data = json.loads(remote_content.decode("utf-8"))
+        except Exception as e:
+            return False, f"backup_parse_failed: {e}"
 
     templates_dir = get_device_templates_dir(device_name)
     existing_stems = {t.get("filename") for t in backup_data.get("templates", [])}
@@ -451,9 +469,13 @@ def fetch_and_init_templates(
         appended,
         device_name,
     )
+    mode = "backup_refreshed" if (not backup_exists or overwrite_backup) else "backup_preserved"
     return (
         True,
-        f"fetched ({appended} local custom template(s) appended, {remote_downloaded} downloaded)",
+        (
+            f"fetched ({appended} local custom template(s) appended, "
+            f"{remote_downloaded} downloaded, {mode})"
+        ),
     )
 
 

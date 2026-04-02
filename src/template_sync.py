@@ -20,7 +20,13 @@ from src.constants import (
 )
 
 
-def sync_templates_to_tablet(selected_name: str, device, add_log, force: bool = False) -> bool:
+def sync_templates_to_tablet(
+    selected_name: str,
+    device,
+    add_log,
+    force: bool = False,
+    restart_xochitl: bool = True,
+) -> bool:
     """Push all local SVG and JSON templates + templates.json to the tablet, restart xochitl.
 
     Uses module-level references to ``src.templates`` and ``src.ssh`` so that
@@ -42,7 +48,20 @@ def sync_templates_to_tablet(selected_name: str, device, add_log, force: bool = 
     device_templates_dir = _tpl.get_device_templates_dir(selected_name)
     sent = _tpl.upload_template_svgs(ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR)
 
-    if sent:
+    keep_filenames = set()
+    if os.path.exists(device_templates_dir):
+        keep_filenames = {
+            fname
+            for fname in os.listdir(device_templates_dir)
+            if fname.lower().endswith((".svg", ".template"))
+        }
+
+    ok, removed, msg = _tpl.prune_remote_custom_templates(ip, pw, keep_filenames)
+    if not ok:
+        add_log(f"Sync templates — prune remote: {msg}")
+        return False
+
+    if sent or removed:
         ok, msg = _tpl.symlink_templates_on_device(ip, pw)
         if not ok:
             add_log(f"Sync templates — symlinks: {msg}")
@@ -57,18 +76,21 @@ def sync_templates_to_tablet(selected_name: str, device, add_log, force: bool = 
             add_log(f"Sync templates — templates.json upload: {msg}")
             return False
 
-    try:
-        _ssh.run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
-    except Exception as e:
-        add_log(f"Sync templates — restart xochitl: {e}")
-        return False
+    if restart_xochitl:
+        try:
+            _ssh.run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
+        except Exception as e:
+            add_log(f"Sync templates — restart xochitl: {e}")
+            return False
 
     _tpl.mark_templates_synced(selected_name)
     mode = "forced" if force else "standard"
+    restart_mode = "with restart" if restart_xochitl else "without restart"
     add_log(
         f"Templates synced on '{selected_name}' "
         f"[{mode}] "
-        f"({sent} file(s) uploaded, "
+        f"[{restart_mode}] "
+        f"({sent} file(s) uploaded, {removed} file(s) removed, "
         f"templates.json {'uploaded' if os.path.exists(local_json_path) else 'not found locally'})"
     )
     return True

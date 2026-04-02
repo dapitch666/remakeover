@@ -22,6 +22,7 @@ def _localize_maintenance_error(err: str) -> str:
         "ensure_remote_dirs_failed": _("Failed to prepare template directories on tablet"),
         "symlink_failed": _("Failed to create template links on tablet"),
         "templates_json_error": _("Error while syncing templates.json"),
+        "templates_sync_failed": _("Error while syncing templates.json"),
         "carousel_failed": _("Failed to disable carousel"),
         "restart_failed": _("Failed to restart xochitl"),
     }

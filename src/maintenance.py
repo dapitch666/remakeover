@@ -23,19 +23,13 @@ from src.constants import (
     CMD_CAROUSEL_BACKUP_DIR,
     CMD_CAROUSEL_DISABLE,
     CMD_RESTART_XOCHITL,
-    REMOTE_CUSTOM_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_DIR,
     SUSPENDED_PNG_PATH,
 )
 from src.i18n import _
 from src.images import list_device_images, load_device_image
 from src.models import Device
 from src.ssh import run_ssh_cmd, upload_file_ssh
-from src.templates import (
-    compare_and_backup_templates_json,
-    ensure_remote_template_dirs,
-    symlink_templates_on_device,
-)
+from src.template_sync import sync_templates_to_tablet
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +93,7 @@ def run_maintenance(
     if image:
         active_steps.append(_("Upload suspended image"))
     if device.templates:
-        active_steps.append(_("Upload custom templates"))
+        active_steps.append(_("Sync templates"))
     if device.carousel:
         active_steps.append(_("Disable carousel"))
     active_steps.append(_("Restart xochitl"))
@@ -148,33 +142,16 @@ def run_maintenance(
 
         # ── 2) Custom templates ────────────────────────────────────────────
         if device.templates:
-            _advance(_("Create custom templates links"))
-
-            ok, msg = ensure_remote_template_dirs(
-                ip, pw, REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR
+            _advance(_("Sync templates"))
+            ok = sync_templates_to_tablet(
+                device_name,
+                device,
+                _log,
+                force=True,
+                restart_xochitl=False,
             )
             if not ok:
-                errors.append(f"ensure_remote_dirs_failed: {msg}")
-                return {"ok": False, "errors": errors, "details": details}
-
-            ok_link, link_err = symlink_templates_on_device(ip, pw)
-            if not ok_link:
-                errors.append(f"symlink_failed: {link_err}")
-                return {"ok": False, "errors": errors, "details": details}
-            _log("Links to templates created")
-
-            # compare_and_backup_templates_json: downloads the remote templates.json,
-            # saves it as templates.backup.json if different from the local copy,
-            # then uploads the local version to the tablet.
-            ok, msg = compare_and_backup_templates_json(ip, pw, device_name)
-            if msg == "identical":
-                _log("templates.json: identical on tablet, nothing to do")
-            elif msg == "uploaded":
-                _log("templates.json: local version uploaded (remote backed up)")
-            elif msg == "no_local":
-                _log("templates.json: no local version, nothing to do")
-            elif not ok:
-                errors.append(f"templates_json_error: {msg}")
+                errors.append("templates_sync_failed: sync_failed")
                 return {"ok": False, "errors": errors, "details": details}
 
         # ── 3) Disable carousel ────────────────────────────────────────────
