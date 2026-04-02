@@ -49,6 +49,10 @@ from src.ssh import download_file_ssh, run_ssh_cmd, upload_file_ssh
 logger = logging.getLogger(__name__)
 
 
+class StockTemplateNameConflictError(ValueError):
+    """Raised when a custom template tries to reuse a stock template filename stem."""
+
+
 # ---------------------------------------------------------------------------
 # Local template management (mirrors src/images.py pattern)
 # ---------------------------------------------------------------------------
@@ -87,6 +91,11 @@ def get_backup_stems(device_name: str) -> set[str]:
         return {t.get("filename", "") for t in data.get("templates", [])}
     except Exception:
         return set()
+
+
+def is_stock_template_name(device_name: str, filename: str) -> bool:
+    """Return True when *filename* resolves to a stock template stem."""
+    return _stem(filename) in get_backup_stems(device_name)
 
 
 def list_device_templates(device_name: str) -> list[str]:
@@ -214,7 +223,15 @@ def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None
     stem = _stem(filename)
     for item in load_templates_json(device_name).get("templates", []):
         if item.get("filename") == stem:
-            return item
+            normalized = dict(item)
+            raw_categories = normalized.get("categories", [])
+            if isinstance(raw_categories, list):
+                normalized["categories"] = sorted(
+                    category for category in raw_categories if isinstance(category, str)
+                )
+            else:
+                normalized["categories"] = []
+            return normalized
     return None
 
 
@@ -239,6 +256,9 @@ def add_template_entry(
     """
     stem = _stem(filename)
     backup_stems = get_backup_stems(device_name)
+    if stem in backup_stems:
+        raise StockTemplateNameConflictError(f"stock_template_name_conflict: {stem}")
+
     with _edit_templates_json(device_name) as data:
         data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
         data["templates"].append(
@@ -276,6 +296,9 @@ def remove_template_entry(device_name: str, filename: str) -> None:
 def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
     """Update filename and name fields in templates.json when a template is renamed."""
     old_stem, new_stem = _stem(old_filename), _stem(new_filename)
+    if new_stem in get_backup_stems(device_name):
+        raise StockTemplateNameConflictError(f"stock_template_name_conflict: {new_stem}")
+
     with _edit_templates_json(device_name) as data:
         for t in data.get("templates", []):
             if t.get("filename") == old_stem:

@@ -118,7 +118,12 @@ def _find_entry(data: dict[str, Any], filename: str) -> dict[str, Any] | None:
 
 
 def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[str, Any]) -> None:
-    """Create `manifest.json` from templates.json if it does not exist yet."""
+    """Create `manifest.json` if it does not exist yet.
+
+    Only templates that exist as local files are imported into the manifest.
+    This keeps stock templates (present only in templates.json/backup) out of
+    manifest.json, which is reserved for locally managed templates state.
+    """
     if manifest_exists(device_name):
         return
 
@@ -142,13 +147,26 @@ def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[s
     if not isinstance(templates, list):
         templates = []
 
-    # Source of truth priority #1: entries explicitly present in imported templates.json.
+    templates_dir = os.path.join(get_device_data_dir(device_name), "templates")
+    local_template_names: list[str] = []
+    if os.path.isdir(templates_dir):
+        local_template_names = [
+            name
+            for name in sorted(os.listdir(templates_dir))
+            if name.lower().endswith((".svg", ".template"))
+        ]
+    local_stems = {Path(name).stem for name in local_template_names}
+
+    # Source of truth priority #1: metadata from imported templates.json,
+    # but only for templates that are present locally.
     by_stem: dict[str, dict[str, Any]] = {}
     for t in templates:
         if not isinstance(t, dict):
             continue
         stem = str(t.get("filename", ""))
         if not stem:
+            continue
+        if stem not in local_stems:
             continue
 
         by_stem[stem] = {
@@ -162,31 +180,27 @@ def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[s
         }
 
     # Source of truth priority #2: local files not referenced in templates.json.
-    templates_dir = os.path.join(get_device_data_dir(device_name), "templates")
-    if os.path.isdir(templates_dir):
-        for name in sorted(os.listdir(templates_dir)):
-            lower = name.lower()
-            if not lower.endswith((".svg", ".template")):
-                continue
-            stem = Path(name).stem
-            if stem in by_stem:
-                continue
+    for name in local_template_names:
+        lower = name.lower()
+        stem = Path(name).stem
+        if stem in by_stem:
+            continue
 
-            categories = ["Perso"]
-            if lower.endswith(".template"):
-                parsed = _parse_template_categories(os.path.join(templates_dir, name))
-                if parsed is not None:
-                    categories = parsed
+        categories = ["Perso"]
+        if lower.endswith(".template"):
+            parsed = _parse_template_categories(os.path.join(templates_dir, name))
+            if parsed is not None:
+                categories = parsed
 
-            by_stem[stem] = {
-                "name": stem,
-                "filename": stem,
-                "iconCode": "\\ue9fe",
-                "categories": categories,
-                "syncStatus": SYNC_STATUS_SYNCED,
-                "addedAt": now,
-                "modifiedAt": now,
-            }
+        by_stem[stem] = {
+            "name": stem,
+            "filename": stem,
+            "iconCode": "\\ue9fe",
+            "categories": categories,
+            "syncStatus": SYNC_STATUS_SYNCED,
+            "addedAt": now,
+            "modifiedAt": now,
+        }
 
     manifest["templates"] = list(by_stem.values())
     save_manifest(device_name, manifest)

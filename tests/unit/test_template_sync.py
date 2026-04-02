@@ -153,6 +153,39 @@ class TestManifestSyncFailures:
         assert ok is False
         assert any("upload pending" in m for m in logs)
 
+    def test_fails_when_pending_name_conflicts_with_stock_template(self, tmp_path):
+        logs, add_log = _logs()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        (templates_dir / "Blank.svg").write_text("<svg/>", encoding="utf-8")
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": [{"filename": "Blank"}]}', encoding="utf-8")
+
+        with (
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
+            patch(
+                "src.templates.get_device_templates_json_path",
+                return_value=str(tmp_path / "templates.json"),
+            ),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch("src.templates.get_backup_stems", return_value={"Blank"}),
+            patch(
+                "src.template_sync.load_manifest",
+                return_value={"templates": [{"filename": "Blank", "syncStatus": "pending"}]},
+            ),
+            patch("src.template_sync.list_manifest_entries", return_value=[]),
+            patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        ):
+            ok = sync_templates_to_tablet("D1", dev, add_log)
+
+        assert ok is False
+        assert any("conflicts with a stock template name" in m for m in logs)
+
 
 class TestOrphanHandling:
     def test_detects_orphan_and_upserts_manifest_entry(self, tmp_path):

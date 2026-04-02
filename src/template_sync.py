@@ -213,6 +213,7 @@ def sync_templates_to_tablet(
     orphan_count = _detect_remote_orphans(selected_name, ip, pw, add_log)
 
     manifest = load_manifest(selected_name)
+    backup_stems = _tpl.get_backup_stems(selected_name)
     entries = manifest.get("templates", [])
     pending_entries = [e for e in entries if e.get("syncStatus") == SYNC_STATUS_PENDING]
     deleted_entries = [e for e in entries if e.get("syncStatus") == SYNC_STATUS_DELETED]
@@ -225,6 +226,12 @@ def sync_templates_to_tablet(
         stem = str(entry.get("filename", ""))
         if not stem:
             continue
+
+        if stem in backup_stems:
+            local_conflict = _find_local_template_filename(device_templates_dir, stem)
+            if local_conflict is not None:
+                add_log(f"Sync templates — blocked: '{stem}' conflicts with a stock template name")
+                return False
 
         local_filename = _find_local_template_filename(device_templates_dir, stem)
         if local_filename is None:

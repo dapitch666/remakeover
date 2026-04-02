@@ -20,6 +20,7 @@ from src.icon_font import (
 from src.models import Device
 from src.template_sync import sync_templates_to_tablet
 from src.templates import (
+    StockTemplateNameConflictError,
     add_template_entry,
     delete_device_template,
     delete_template_from_tablet,
@@ -31,6 +32,7 @@ from src.templates import (
     get_template_entry,
     get_template_sync_status,
     get_templates_sync_overview,
+    is_stock_template_name,
     is_templates_dirty,
     list_device_templates,
     remove_template_entry,
@@ -69,7 +71,13 @@ def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
 
     col_ok, col_cancel = st.columns(2)
     with col_ok:
-        if st.button(_("Apply"), key=f"dialog_cats_ok_{tpl_name}", type="primary", width="stretch"):
+        if st.button(
+            _("Apply"),
+            key=f"dialog_cats_ok_{tpl_name}",
+            type="primary",
+            help=_("Apply category changes"),
+            width="stretch",
+        ):
             new_cats = list(new_sel)
             if extra:
                 new_cats += [c.strip() for c in extra.split(",") if c.strip()]
@@ -78,7 +86,12 @@ def _show_category_dialog(selected_name: str, tpl_name: str, add_log) -> None:
             deferred_toast(_("Categories updated"), ":material/task_alt:")
             st.rerun()
     with col_cancel:
-        if st.button(_("Cancel"), key=f"dialog_cats_cancel_{tpl_name}", width="stretch"):
+        if st.button(
+            _("Cancel"),
+            key=f"dialog_cats_cancel_{tpl_name}",
+            help=_("Close without saving category changes"),
+            width="stretch",
+        ):
             st.rerun()
 
 
@@ -112,7 +125,13 @@ def _show_icon_dialog(selected_name: str, tpl_name: str, add_log) -> None:
     )
     col_ok, col_cancel = st.columns(2)
     with col_ok:
-        if st.button(_("Apply"), key=f"icon_ok_{tpl_name}", type="primary", width="stretch"):
+        if st.button(
+            _("Apply"),
+            key=f"icon_ok_{tpl_name}",
+            type="primary",
+            help=_("Apply icon change"),
+            width="stretch",
+        ):
             try:
                 cp = int(new_hex_input.strip(), 16)
                 icon_code = chr(cp)
@@ -126,7 +145,12 @@ def _show_icon_dialog(selected_name: str, tpl_name: str, add_log) -> None:
             deferred_toast(_("Icon updated"), ":material/task_alt:")
             st.rerun()
     with col_cancel:
-        if st.button(_("Cancel"), key=f"icon_cancel_{tpl_name}", width="stretch"):
+        if st.button(
+            _("Cancel"),
+            key=f"icon_cancel_{tpl_name}",
+            help=_("Close without saving icon changes"),
+            width="stretch",
+        ):
             st.rerun()
 
     if font_available:
@@ -168,6 +192,7 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             key=f"tpl_reload_save_{tpl_name}",
             type="primary",
             disabled=reload_file is None,
+            help=_("Replace this template with the selected file"),
             width="stretch",
         ):
             assert reload_file is not None
@@ -191,6 +216,7 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
         if st.button(
             _("Cancel"),
             key=f"tpl_reload_cancel_{tpl_name}",
+            help=_("Close without reloading this template"),
             width="stretch",
         ):
             st.session_state["tpl_reloading"] = None
@@ -212,6 +238,7 @@ def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
         if st.button(
             _("Cancel"),
             key=f"tpl_del_cancel_{tpl_name}",
+            help=_("Close without deleting this template"),
             width="stretch",
         ):
             st.session_state["tpl_pending_delete_local"] = None
@@ -222,6 +249,7 @@ def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             key=f"tpl_del_confirm_{tpl_name}",
             icon=":material/delete:",
             type="primary",
+            help=_("Delete this template"),
             width="stretch",
         ):
             delete_device_template(selected_name, tpl_name)
@@ -274,8 +302,15 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 if new_name in list_device_templates(selected_name):
                     st.session_state["tpl_pending_rename"] = (_old, new_name)
                     return
+                try:
+                    rename_template_entry(selected_name, _old, new_name)
+                except StockTemplateNameConflictError:
+                    deferred_toast(
+                        _("This filename matches a stock template. Choose another name."),
+                        ":material/error:",
+                    )
+                    return
                 rename_device_template(selected_name, _old, new_name)
-                rename_template_entry(selected_name, _old, new_name)
                 add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
                 renamed_to = new_name
             if renamed_to:
@@ -354,8 +389,18 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         )
         result = st.session_state.get("confirm_rename_tpl")
         if result is True:
+            try:
+                rename_template_entry(selected_name, _old_r, _new_r)
+            except StockTemplateNameConflictError:
+                deferred_toast(
+                    _("This filename matches a stock template. Choose another name."),
+                    ":material/error:",
+                )
+                st.session_state.pop("confirm_rename_tpl", None)
+                st.session_state["tpl_pending_rename"] = None
+                st.session_state["tpl_renaming"] = None
+                st.rerun()
             rename_device_template(selected_name, _old_r, _new_r)
-            rename_template_entry(selected_name, _old_r, _new_r)
             add_log(f"Renamed template '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'")
             deferred_toast(
                 _("Template renamed to '{name}'").format(name=_new_r), ":material/task_alt:"
@@ -382,6 +427,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 _("Add orphan"),
                 key=f"tpl_orphan_add_{tpl_name}",
                 icon=":material/add_task:",
+                help=_("Add this orphan template to the next sync"),
                 width="stretch",
             ):
                 set_template_sync_status(selected_name, tpl_name, "pending")
@@ -395,6 +441,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 _("Delete orphan"),
                 key=f"tpl_orphan_delete_{tpl_name}",
                 icon=":material/delete:",
+                help=_("Mark this orphan template for deletion on next sync"),
                 width="stretch",
             ):
                 set_template_sync_status(selected_name, tpl_name, "deleted")
@@ -483,6 +530,7 @@ def _render_template_upload_section(selected_name, add_log):
             _("Open template editor"),
             key=f"tpl_new_{selected_name}",
             icon=":material/edit_document:",
+            help=_("Create a new .template file in the editor"),
             width="stretch",
         ):
             st.session_state["tpl_editor_textarea"] = DEFAULT_TEMPLATE_JSON
@@ -610,20 +658,36 @@ def _render_template_upload_section(selected_name, add_log):
             except (ValueError, OverflowError):
                 icon_code = "\ue9fe"
             saved = []
+            skipped_stock_conflicts: list[str] = []
             for uf, content in uploaded_payloads:
                 _ext = ".template" if uf.name.lower().endswith(".template") else ".svg"
                 filename = normalise_filename(uf.name, ext=_ext)
+                if is_stock_template_name(selected_name, filename):
+                    skipped_stock_conflicts.append(filename)
+                    continue
                 save_device_template(selected_name, content, filename)
-                add_template_entry(selected_name, filename, categories, icon_code)
+                try:
+                    add_template_entry(selected_name, filename, categories, icon_code)
+                except StockTemplateNameConflictError:
+                    delete_device_template(selected_name, filename)
+                    skipped_stock_conflicts.append(filename)
+                    continue
                 add_log(f"{filename} template saved for '{selected_name}'")
                 saved.append(filename)
             if len(saved) == 1:
                 deferred_toast(
                     _("Template {name} saved").format(name=saved[0]), ":material/task_alt:"
                 )
-            else:
+            elif len(saved) > 1:
                 deferred_toast(
                     _("{count} templates saved").format(count=len(saved)), ":material/task_alt:"
+                )
+            if skipped_stock_conflicts:
+                deferred_toast(
+                    _(
+                        "{count} file(s) skipped because their name matches a stock template."
+                    ).format(count=len(skipped_stock_conflicts)),
+                    ":material/error:",
                 )
             st.session_state[f"tpl_upload_gen_{selected_name}"] = gen + 1
             st.rerun()
@@ -679,6 +743,7 @@ if not os.path.exists(manifest_path):
         key=f"tpl_fetch_backup_{selected_name}",
         type="primary",
         icon=":material/download:",
+        help=_("Import templates from this tablet and initialize local metadata"),
     ):
         with st.spinner(_("Importing…")):
             ok, msg = fetch_and_init_templates(
@@ -714,6 +779,7 @@ else:
             _("Sync now"),
             key=f"tpl_check_sync_{selected_name}",
             icon=":material/sync:",
+            help=_("Upload pending template changes to the tablet"),
             width="stretch",
         ):
             with st.spinner(_("Syncing…")):
@@ -728,6 +794,7 @@ else:
             key=f"tpl_reset_reinit_{selected_name}",
             icon=":material/settings_backup_restore:",
             type="primary",
+            help=_("Reset local template data and re-import from the tablet"),
             width="stretch",
         ):
             with st.spinner(_("Syncing…")):
@@ -797,7 +864,7 @@ else:
         st.info(
             _(
                 "No templates found for this device. "
-                "Import templates from the tablet or add files from your computer below."
+                "Import templates from your computer or create new ones using the buttons below."
             ),
             icon=":material/description:",
         )

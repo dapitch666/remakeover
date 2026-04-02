@@ -22,8 +22,10 @@ from src.icon_font import render_icon_grid_html, render_icon_preview_html
 from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
+    StockTemplateNameConflictError,
     add_template_entry,
     get_template_entry,
+    is_stock_template_name,
     list_json_templates,
     load_json_template,
     save_json_template,
@@ -268,6 +270,10 @@ with col_save:
         _base = tpl_filename.strip() or _default_name or _fallback_name
         filename_tpl = normalise_filename(_base, ext=".template")
 
+        if is_stock_template_name(selected_name, filename_tpl):
+            st.error(_("This filename matches a stock template. Choose another name."))
+            st.stop()
+
         # Final categories — read directly from the JSON source
         cats = _default_cats or ["Perso"]
 
@@ -280,7 +286,11 @@ with col_save:
         # Save .template JSON source file (this IS the asset deployed to the tablet)
         save_json_template(selected_name, filename_tpl, json_str)
         # Register in templates.json so the sync button on the Templates page picks it up
-        add_template_entry(selected_name, filename_tpl, cats, icon_code)
+        try:
+            add_template_entry(selected_name, filename_tpl, cats, icon_code)
+        except StockTemplateNameConflictError:
+            st.error(_("This filename matches a stock template. Choose another name."))
+            st.stop()
 
         add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
         deferred_toast(_("Template {name} saved").format(name=filename_tpl), ":material/task_alt:")

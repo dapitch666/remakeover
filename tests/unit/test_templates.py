@@ -332,6 +332,49 @@ class TestJsonHelpers:
         # Stock first in original order, then custom sorted
         assert names == ["StockZ", "StockA", "CustomA", "CustomZ"]
 
+    def test_add_template_entry_rejects_stock_stem_collision(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        with pytest.raises(tpl.StockTemplateNameConflictError):
+            tpl.add_template_entry(DEVICE, "Blank.svg", ["Lines"])
+
+    def test_rename_template_entry_rejects_stock_stem_collision(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.add_template_entry(DEVICE, "Custom.svg", ["Lines"])
+        with pytest.raises(tpl.StockTemplateNameConflictError):
+            tpl.rename_template_entry(DEVICE, "Custom.svg", "Blank.svg")
+
 
 class TestGetBackupStems:
     def test_returns_empty_when_no_backup(self):

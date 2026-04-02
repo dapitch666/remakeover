@@ -118,3 +118,26 @@ def test_ensure_manifest_infers_categories_from_unreferenced_template_file(tmp_p
     assert entry is not None
     assert entry["iconCode"] == "\\ue9fe"
     assert entry["categories"] == ["Creative", "Planners"]
+
+
+def test_ensure_manifest_excludes_stock_only_templates_without_local_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
+
+    device_dir = tmp_path / DEVICE
+    (device_dir / "templates").mkdir(parents=True, exist_ok=True)
+
+    mf.ensure_manifest_from_templates_json(
+        DEVICE,
+        {
+            "templates": [
+                {
+                    "name": "Blank",
+                    "filename": "Blank",
+                    "iconCode": "\\ue9fe",
+                    "categories": ["Lines"],
+                }
+            ]
+        },
+    )
+
+    assert mf.get_manifest_entry(DEVICE, "Blank") is None
