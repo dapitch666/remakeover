@@ -24,6 +24,7 @@ from src.manifest_templates import (
     SYNC_STATUS_DELETED,
     SYNC_STATUS_ORPHAN,
     SYNC_STATUS_PENDING,
+    SYNC_STATUS_SYNCED,
     get_manifest_entry,
     list_manifest_entries,
     load_manifest,
@@ -43,6 +44,22 @@ def _is_symlink_valid(ip: str, pw: str, filename: str) -> tuple[bool, str]:
     out, _ = _ssh.run_ssh_cmd(ip, pw, [cmd])
     state = out.strip()
     return state == "ok", state
+
+
+def _find_local_template_filename(templates_dir: str, stem: str) -> str | None:
+    """Return the first existing local filename for *stem* (.svg, then .template)."""
+    for ext in (".svg", ".template"):
+        candidate = f"{stem}{ext}"
+        if os.path.exists(os.path.join(templates_dir, candidate)):
+            return candidate
+    return None
+
+
+def _sorted_string_categories(raw_categories) -> list[str]:
+    """Return sorted string categories from a raw value, or an empty list."""
+    if not isinstance(raw_categories, list):
+        return []
+    return sorted(category for category in raw_categories if isinstance(category, str))
 
 
 def _rebuild_templates_json(selected_name: str) -> bytes | None:
@@ -89,23 +106,9 @@ def _rebuild_templates_json(selected_name: str) -> bytes | None:
 
         inferred = local_meta_by_stem.get(stem, {})
 
-        raw_entry_cats = entry.get("categories", [])
-        categories: list[str] = sorted(
-            [
-                c
-                for c in (raw_entry_cats if isinstance(raw_entry_cats, list) else [])
-                if isinstance(c, str)
-            ]
-        )
+        categories = _sorted_string_categories(entry.get("categories", []))
         if not categories:
-            raw_inferred_cats = inferred.get("categories", [])
-            categories = sorted(
-                [
-                    c
-                    for c in (raw_inferred_cats if isinstance(raw_inferred_cats, list) else [])
-                    if isinstance(c, str)
-                ]
-            )
+            categories = _sorted_string_categories(inferred.get("categories", []))
 
         # Last-resort inference from local .template JSON metadata.
         if not categories:
@@ -213,7 +216,7 @@ def sync_templates_to_tablet(
     entries = manifest.get("templates", [])
     pending_entries = [e for e in entries if e.get("syncStatus") == SYNC_STATUS_PENDING]
     deleted_entries = [e for e in entries if e.get("syncStatus") == SYNC_STATUS_DELETED]
-    synced_entries = [e for e in entries if e.get("syncStatus") == "synced"]
+    synced_entries = [e for e in entries if e.get("syncStatus") == SYNC_STATUS_SYNCED]
 
     # 3) Upload pending template files.
     sent = 0
@@ -223,20 +226,16 @@ def sync_templates_to_tablet(
         if not stem:
             continue
 
-        local_file = None
-        for ext in (".svg", ".template"):
-            candidate = os.path.join(device_templates_dir, f"{stem}{ext}")
-            if os.path.exists(candidate):
-                local_file = candidate
-                break
-        if local_file is None:
+        local_filename = _find_local_template_filename(device_templates_dir, stem)
+        if local_filename is None:
             add_log(f"Sync templates — pending file missing locally: {stem}")
             continue
 
+        local_file = os.path.join(device_templates_dir, local_filename)
         with open(local_file, "rb") as f:
             content = f.read()
         ok, msg = _ssh.upload_file_ssh(
-            ip, pw, content, f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{os.path.basename(local_file)}"
+            ip, pw, content, f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{local_filename}"
         )
         if not ok:
             add_log(f"Sync templates — upload pending '{stem}': {msg}")
@@ -253,12 +252,7 @@ def sync_templates_to_tablet(
         if manifest_entry is None:
             continue
 
-        filename = None
-        for ext in (".svg", ".template"):
-            candidate = f"{stem}{ext}"
-            if os.path.exists(os.path.join(device_templates_dir, candidate)):
-                filename = candidate
-                break
+        filename = _find_local_template_filename(device_templates_dir, stem)
         if filename is None:
             continue
 
@@ -292,6 +286,7 @@ def sync_templates_to_tablet(
                 removed += 1
 
     # 6) Rebuild and upload merged templates.json.
+    templates_json_uploaded = False
     json_content = _rebuild_templates_json(selected_name)
     if json_content is not None:
         ok, msg = _ssh.upload_file_ssh(ip, pw, json_content, REMOTE_TEMPLATES_JSON)
@@ -302,8 +297,7 @@ def sync_templates_to_tablet(
         local_json_path = _tpl.get_device_templates_json_path(selected_name)
         with open(local_json_path, "wb") as f:
             f.write(json_content)
-    else:
-        local_json_path = _tpl.get_device_templates_json_path(selected_name)
+        templates_json_uploaded = True
 
     if restart_xochitl:
         try:
@@ -322,6 +316,6 @@ def sync_templates_to_tablet(
         f"[{restart_mode}] "
         f"({sent} file(s) uploaded, {removed} file(s) removed, {repaired_symlinks} symlink(s) repaired, "
         f"{orphan_count} orphan(s) detected, "
-        f"templates.json {'uploaded' if os.path.exists(local_json_path) else 'not found locally'})"
+        f"templates.json {'uploaded' if templates_json_uploaded else 'not uploaded'})"
     )
     return True

@@ -269,6 +269,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
             _ext = ".template" if _old.lower().endswith(".template") else ".svg"
             new_name = normalise_filename(raw, ext=_ext) if raw else None
+            renamed_to = None
             if new_name and new_name != _old:
                 if new_name in list_device_templates(selected_name):
                     st.session_state["tpl_pending_rename"] = (_old, new_name)
@@ -276,9 +277,12 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 rename_device_template(selected_name, _old, new_name)
                 rename_template_entry(selected_name, _old, new_name)
                 add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
-            deferred_toast(
-                _("Template renamed to '{name}'").format(name=new_name), ":material/task_alt:"
-            )
+                renamed_to = new_name
+            if renamed_to:
+                deferred_toast(
+                    _("Template renamed to '{name}'").format(name=renamed_to),
+                    ":material/task_alt:",
+                )
             st.session_state["tpl_renaming"] = None
 
         with st.form(key=f"tpl_rename_form_{tpl_name}", border=False):
@@ -404,7 +408,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         cats_str,
         key=f"tpl_cats_btn_{tpl_name}",
         type="tertiary",
-        help="Modifier les cat\u00e9gories",
+        help=_("Edit categories"),
         width="stretch",
     ):
         _show_category_dialog(selected_name, tpl_name, add_log)

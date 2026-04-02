@@ -461,7 +461,8 @@ def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, set[str]
     """Return the set of custom template filenames currently present on the tablet."""
     ok, payload = _list_remote_custom_templates(ip, password)
     if not ok:
-        return False, set(payload)
+        assert isinstance(payload, str)
+        return False, payload
     assert isinstance(payload, list)
     return True, set(payload)
 
