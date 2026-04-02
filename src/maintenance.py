@@ -30,6 +30,7 @@ from src.images import list_device_images, load_device_image
 from src.models import Device
 from src.ssh import run_ssh_cmd, upload_file_ssh
 from src.template_sync import sync_templates_to_tablet
+from src.templates import refresh_templates_backup_from_tablet, remote_templates_dir_has_symlinks
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,19 @@ def run_maintenance(
 
         # ── 2) Custom templates ────────────────────────────────────────────
         if device.templates:
+            # If symlinks disappeared after a firmware update, refresh stock templates backup.
+            has_links_ok, has_links_payload = remote_templates_dir_has_symlinks(ip, pw)
+            if not has_links_ok:
+                errors.append(f"templates_stock_check_failed: {has_links_payload}")
+                return {"ok": False, "errors": errors, "details": details}
+            assert isinstance(has_links_payload, bool)
+            if not has_links_payload:
+                ok_backup, msg_backup = refresh_templates_backup_from_tablet(ip, pw, device_name)
+                if not ok_backup:
+                    errors.append(f"templates_backup_refresh_failed: {msg_backup}")
+                    return {"ok": False, "errors": errors, "details": details}
+                _log("templates.backup.json refreshed from tablet stock templates")
+
             _advance(_("Sync templates"))
             ok = sync_templates_to_tablet(
                 device_name,

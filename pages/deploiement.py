@@ -19,6 +19,10 @@ def _localize_maintenance_error(err: str) -> str:
     labels = {
         "load_image_failed": _("Failed to load local image"),
         "upload_suspended_failed": _("Failed to upload suspended image"),
+        "templates_stock_check_failed": _("Failed to verify template symlinks on tablet"),
+        "templates_backup_refresh_failed": _(
+            "Failed to refresh stock templates backup from tablet"
+        ),
         "ensure_remote_dirs_failed": _("Failed to prepare template directories on tablet"),
         "symlink_failed": _("Failed to create template links on tablet"),
         "templates_json_error": _("Error while syncing templates.json"),

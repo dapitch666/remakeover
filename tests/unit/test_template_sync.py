@@ -1,289 +1,349 @@
-"""Unit tests for src/template_sync.py.
-
-These tests call sync_templates_to_tablet directly (no AppTest) so every
-branch of the function is exercised without the overhead of running the full
-Streamlit page.
-
-Patches target src.templates.* and src.ssh.* — the module objects that
-template_sync accesses via its module-level references (_tpl / _ssh).
-"""
+"""Unit tests for src/template_sync.py (manifest-based synchronization)."""
 
 from collections.abc import Callable
 from unittest.mock import MagicMock, patch
 
 from src.template_sync import sync_templates_to_tablet
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
-def _make_device(ip: str = "192.168.1.100", password: str = "secret") -> MagicMock:
-    device = MagicMock()
-    device.ip = ip
-    device.password = password
-    return device
+def _device(ip: str = "10.0.0.1", password: str = "pw") -> MagicMock:
+    dev = MagicMock()
+    dev.ip = ip
+    dev.password = password
+    return dev
 
 
 def _logs() -> tuple[list[str], Callable[[str], None]]:
-    """Return a fresh log list and its append function."""
     msgs: list[str] = []
     return msgs, msgs.append
 
 
-# ---------------------------------------------------------------------------
-# Happy-path tests
-# ---------------------------------------------------------------------------
-
-
-class TestSyncSuccess:
-    def test_returns_true_when_all_steps_succeed(self, tmp_path):
-        """Full success path: templates synced, True returned, synced marker written."""
+class TestManifestSyncSuccess:
+    def test_sync_success_uploads_pending_and_marks_synced(self, tmp_path):
         logs, add_log = _logs()
-        device = _make_device()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        (templates_dir / "MyTpl.svg").write_text("<svg/>", encoding="utf-8")
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
 
         with (
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=2),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch("src.templates.symlink_templates_on_device", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
             patch(
                 "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "t.json"),
+                return_value=str(tmp_path / "templates.json"),
             ),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch(
+                "src.template_sync.load_manifest",
+                return_value={
+                    "version": 1,
+                    "lastSync": None,
+                    "templates": [
+                        {
+                            "name": "MyTpl",
+                            "filename": "MyTpl",
+                            "iconCode": "\\ue9fe",
+                            "categories": ["Perso"],
+                            "syncStatus": "pending",
+                        }
+                    ],
+                },
+            ),
+            patch(
+                "src.template_sync.list_manifest_entries",
+                return_value=[
+                    {
+                        "name": "MyTpl",
+                        "filename": "MyTpl",
+                        "iconCode": "\\ue9fe",
+                        "categories": ["Perso"],
+                        "syncStatus": "pending",
+                    }
+                ],
+            ),
+            patch("src.template_sync.get_manifest_entry", return_value={"filename": "MyTpl"}),
+            patch("src.template_sync.mark_synced") as mock_mark,
+            patch("src.ssh.upload_file_ssh", return_value=(True, "ok")) as mock_upload,
+            patch("src.ssh.run_ssh_cmd", return_value=("missing", "")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        ):
+            ok = sync_templates_to_tablet("D1", dev, add_log)
+
+        assert ok is True
+        assert mock_mark.call_count == 1
+        assert mock_upload.call_count >= 2  # pending file + templates.json
+
+    def test_sync_without_restart_does_not_call_restart_cmd(self, tmp_path):
+        logs, add_log = _logs()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
+
+        with (
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
+            patch(
+                "src.templates.get_device_templates_json_path",
+                return_value=str(tmp_path / "templates.json"),
+            ),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch("src.template_sync.load_manifest", return_value={"templates": []}),
+            patch("src.template_sync.list_manifest_entries", return_value=[]),
+            patch("src.template_sync.mark_synced"),
             patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-            patch("src.ssh.run_ssh_cmd"),
-            patch("src.templates.mark_templates_synced") as mock_mark,
-        ):
-            # Write a real JSON file so the upload branch is entered
-            (tmp_path / "t.json").write_bytes(b'{"templates":[]}')
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is True
-        mock_mark.assert_called_once_with("D1")
-        assert any("D1" in m and "2 file(s)" in m for m in logs)
-
-    def test_no_json_file_skips_json_upload(self, tmp_path):
-        """When templates.json does not exist locally the upload step is skipped."""
-        logs, add_log = _logs()
-        device = _make_device()
-
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            # json path points to a file that does NOT exist
-            patch(
-                "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
-            ),
-            patch("src.ssh.upload_file_ssh") as mock_upload,
-            patch("src.ssh.run_ssh_cmd"),
-            patch("src.templates.mark_templates_synced"),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is True
-        mock_upload.assert_not_called()
-        assert any("not found locally" in m for m in logs)
-
-    def test_no_svgs_uploaded_skips_symlinks(self, tmp_path):
-        """When no SVG files are uploaded, symlink_templates_on_device is not called."""
-        logs, add_log = _logs()
-        device = _make_device()
-
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch(
-                "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
-            ),
-            patch("src.templates.symlink_templates_on_device") as mock_sym,
-            patch("src.ssh.upload_file_ssh"),
-            patch("src.ssh.run_ssh_cmd"),
-            patch("src.templates.mark_templates_synced"),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is True
-        mock_sym.assert_not_called()
-
-    def test_uses_device_credentials(self, tmp_path):
-        """IP and password from the device object are forwarded to SSH calls."""
-        logs, add_log = _logs()
-        device = _make_device(ip="10.0.0.5", password="hunter2")
-
-        with (
-            patch(
-                "src.templates.ensure_remote_template_dirs", return_value=(True, "ok")
-            ) as mock_dirs,
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch(
-                "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
-            ),
             patch("src.ssh.run_ssh_cmd") as mock_cmd,
-            patch("src.templates.mark_templates_synced"),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
         ):
-            sync_templates_to_tablet("D1", device, add_log)
+            ok = sync_templates_to_tablet("D1", dev, add_log, restart_xochitl=False)
 
-        assert mock_dirs.call_args[0][0] == "10.0.0.5"
-        assert mock_dirs.call_args[0][1] == "hunter2"
-        assert mock_cmd.call_args[0][0] == "10.0.0.5"
-        assert mock_cmd.call_args[0][1] == "hunter2"
+        assert ok is True
+        # Only symlink checks/repairs can run; no explicit restart command at the end.
+        assert all("xochitl" not in str(call.args) for call in mock_cmd.call_args_list)
 
-    def test_device_with_none_password_uses_empty_string(self, tmp_path):
-        """A device with password=None falls back to empty string (doesn't crash)."""
+
+class TestManifestSyncFailures:
+    def test_fails_when_ensure_remote_dirs_fails(self, tmp_path):
         logs, add_log = _logs()
-        device = _make_device()
-        device.password = None
+        dev = _device()
 
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch(
-                "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
-            ),
-            patch("src.ssh.run_ssh_cmd"),
-            patch("src.templates.mark_templates_synced"),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
+        with patch("src.templates.ensure_remote_template_dirs", return_value=(False, "boom")):
+            ok = sync_templates_to_tablet("D1", dev, add_log)
 
-        assert result is True
-
-    def test_force_mode_marks_log_as_forced(self, tmp_path):
-        """force=True produces a log entry marked as forced sync mode."""
-        logs, add_log = _logs()
-        device = _make_device()
-
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch(
-                "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
-            ),
-            patch("src.ssh.run_ssh_cmd"),
-            patch("src.templates.mark_templates_synced"),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log, force=True)
-
-        assert result is True
-        assert any("[forced]" in m for m in logs)
-
-
-# ---------------------------------------------------------------------------
-# Failure-path tests
-# ---------------------------------------------------------------------------
-
-
-class TestSyncFailures:
-    def test_ensure_dirs_failure_returns_false(self, tmp_path):
-        """If ensure_remote_template_dirs fails, False is returned immediately."""
-        logs, add_log = _logs()
-        device = _make_device()
-
-        with (
-            patch(
-                "src.templates.ensure_remote_template_dirs", return_value=(False, "conn refused")
-            ),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path)),
-            patch("src.templates.upload_template_svgs") as mock_upload,
-            patch("src.templates.prune_remote_custom_templates"),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is False
-        mock_upload.assert_not_called()
+        assert ok is False
         assert any("ensure dirs" in m for m in logs)
 
-    def test_symlink_failure_returns_false(self, tmp_path):
-        """If symlink step fails after uploading SVGs, False is returned."""
+    def test_fails_when_pending_upload_fails(self, tmp_path):
         logs, add_log = _logs()
-        device = _make_device()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        (templates_dir / "MyTpl.svg").write_text("<svg/>", encoding="utf-8")
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
 
         with (
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=1),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch(
-                "src.templates.symlink_templates_on_device", return_value=(False, "symlink error")
-            ),
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is False
-        assert any("symlinks" in m for m in logs)
-
-    def test_json_upload_failure_returns_false(self, tmp_path):
-        """If templates.json SSH upload fails, False is returned."""
-        logs, add_log = _logs()
-        device = _make_device()
-        json_path = tmp_path / "t.json"
-        json_path.write_bytes(b'{"templates":[]}')
-
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
-            patch("src.templates.get_device_templates_json_path", return_value=str(json_path)),
-            patch("src.ssh.upload_file_ssh", return_value=(False, "SFTP error")),
-            patch("src.templates.mark_templates_synced") as mock_mark,
-        ):
-            result = sync_templates_to_tablet("D1", device, add_log)
-
-        assert result is False
-        mock_mark.assert_not_called()
-        assert any("templates.json upload" in m for m in logs)
-
-    def test_restart_exception_returns_false(self, tmp_path):
-        """If xochitl restart raises, False is returned and error is logged."""
-        logs, add_log = _logs()
-        device = _make_device()
-
-        with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path / "tpl")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.prune_remote_custom_templates", return_value=(True, 0, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
             patch(
                 "src.templates.get_device_templates_json_path",
-                return_value=str(tmp_path / "missing.json"),
+                return_value=str(tmp_path / "templates.json"),
             ),
-            patch("src.ssh.run_ssh_cmd", side_effect=OSError("connection lost")),
-            patch("src.templates.mark_templates_synced") as mock_mark,
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch(
+                "src.template_sync.load_manifest",
+                return_value={"templates": [{"filename": "MyTpl", "syncStatus": "pending"}]},
+            ),
+            patch("src.template_sync.list_manifest_entries", return_value=[]),
+            patch("src.ssh.upload_file_ssh", return_value=(False, "upload error")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
         ):
-            result = sync_templates_to_tablet("D1", device, add_log)
+            ok = sync_templates_to_tablet("D1", dev, add_log)
 
-        assert result is False
-        mock_mark.assert_not_called()
-        assert any("restart xochitl" in m for m in logs)
+        assert ok is False
+        assert any("upload pending" in m for m in logs)
 
-    def test_mark_synced_not_called_on_ensure_dirs_failure(self, tmp_path):
-        """mark_templates_synced is never called when an earlier step fails."""
+
+class TestOrphanHandling:
+    def test_detects_orphan_and_upserts_manifest_entry(self, tmp_path):
         logs, add_log = _logs()
-        device = _make_device()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
 
         with (
-            patch("src.templates.ensure_remote_template_dirs", return_value=(False, "err")),
-            patch("src.templates.mark_templates_synced") as mock_mark,
-            patch("src.templates.get_device_templates_dir", return_value=str(tmp_path)),
-            patch("src.templates.prune_remote_custom_templates"),
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
+            patch(
+                "src.templates.get_device_templates_json_path",
+                return_value=str(tmp_path / "templates.json"),
+            ),
+            patch(
+                "src.templates.list_remote_custom_templates",
+                return_value=(True, {"orphan.template"}),
+            ),
+            patch("src.template_sync.list_manifest_entries", return_value=[]),
+            patch("src.template_sync.load_manifest", return_value={"templates": []}),
+            patch(
+                "src.ssh.download_file_ssh", return_value=(b'{"categories": ["Grid", "Lines"]}', "")
+            ),
+            patch("src.templates.save_device_template") as mock_save_local,
+            patch("src.template_sync.upsert_orphan_entry") as mock_orphan,
+            patch("src.template_sync.mark_synced"),
+            patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.ssh.run_ssh_cmd", return_value=("", "")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
         ):
-            sync_templates_to_tablet("D1", device, add_log)
+            ok = sync_templates_to_tablet("D1", dev, add_log)
 
-        mock_mark.assert_not_called()
+        assert ok is True
+        assert mock_save_local.call_count == 1
+        assert mock_save_local.call_args.args[0] == "D1"
+        assert mock_save_local.call_args.args[2] == "orphan.template"
+        assert mock_orphan.call_count == 1
+        args = mock_orphan.call_args.args
+        assert args[0] == "D1"
+        assert args[1] == "orphan.template"
+        assert args[2] == ["Grid", "Lines"]
+
+
+class TestRebuildMetadataInference:
+    def test_rebuild_prefers_local_templates_json_metadata_when_manifest_missing_fields(
+        self, tmp_path
+    ):
+        logs, add_log = _logs()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        (templates_dir / "MyTemplate.template").write_text(
+            '{"categories": ["FromTemplate"]}',
+            encoding="utf-8",
+        )
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
+        local_json = tmp_path / "templates.json"
+        local_json.write_text(
+            '{"templates": [{"name": "NameFromJson", "filename": "MyTemplate", "iconCode": "\\ue9ab", "categories": ["FromJson"]}]}',
+            encoding="utf-8",
+        )
+
+        uploaded_payloads: list[tuple[str, bytes]] = []
+
+        def _capture_upload(ip, pw, content, remote_path):
+            uploaded_payloads.append((remote_path, content))
+            return True, "ok"
+
+        with (
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
+            patch("src.templates.get_device_templates_json_path", return_value=str(local_json)),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch(
+                "src.template_sync.load_manifest",
+                return_value={
+                    "templates": [
+                        {
+                            "filename": "MyTemplate",
+                            "name": "",
+                            "iconCode": "",
+                            "categories": [],
+                            "syncStatus": "synced",
+                        }
+                    ]
+                },
+            ),
+            patch(
+                "src.template_sync.list_manifest_entries",
+                return_value=[
+                    {
+                        "filename": "MyTemplate",
+                        "name": "",
+                        "iconCode": "",
+                        "categories": [],
+                        "syncStatus": "synced",
+                    }
+                ],
+            ),
+            patch("src.template_sync.get_manifest_entry", return_value={"filename": "MyTemplate"}),
+            patch("src.template_sync.mark_synced"),
+            patch("src.ssh.upload_file_ssh", side_effect=_capture_upload),
+            patch("src.ssh.run_ssh_cmd", return_value=("ok", "")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        ):
+            ok = sync_templates_to_tablet("D1", dev, add_log)
+
+        assert ok is True
+        json_upload = next(
+            payload for path, payload in uploaded_payloads if path.endswith("templates.json")
+        )
+        data = __import__("json").loads(json_upload.decode("utf-8"))
+        entry = data["templates"][0]
+        assert entry["name"] == "NameFromJson"
+        assert entry["iconCode"] == "\ue9ab"
+        assert entry["categories"] == ["FromJson"]
+
+    def test_rebuild_falls_back_to_template_json_categories(self, tmp_path):
+        logs, add_log = _logs()
+        dev = _device()
+
+        templates_dir = tmp_path / "templates"
+        templates_dir.mkdir()
+        (templates_dir / "MyTemplate.template").write_text(
+            '{"categories": ["Creative", "Grid"]}',
+            encoding="utf-8",
+        )
+        backup = tmp_path / "templates.backup.json"
+        backup.write_text('{"templates": []}', encoding="utf-8")
+        local_json = tmp_path / "templates.json"
+        local_json.write_text('{"templates": []}', encoding="utf-8")
+
+        uploaded_payloads: list[tuple[str, bytes]] = []
+
+        def _capture_upload(ip, pw, content, remote_path):
+            uploaded_payloads.append((remote_path, content))
+            return True, "ok"
+
+        with (
+            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+            patch("src.templates.get_device_templates_dir", return_value=str(templates_dir)),
+            patch("src.templates.get_device_templates_backup_path", return_value=str(backup)),
+            patch("src.templates.get_device_templates_json_path", return_value=str(local_json)),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch(
+                "src.template_sync.load_manifest",
+                return_value={
+                    "templates": [
+                        {
+                            "filename": "MyTemplate",
+                            "name": "",
+                            "iconCode": "",
+                            "categories": [],
+                            "syncStatus": "synced",
+                        }
+                    ]
+                },
+            ),
+            patch(
+                "src.template_sync.list_manifest_entries",
+                return_value=[
+                    {
+                        "filename": "MyTemplate",
+                        "name": "",
+                        "iconCode": "",
+                        "categories": [],
+                        "syncStatus": "synced",
+                    }
+                ],
+            ),
+            patch("src.template_sync.get_manifest_entry", return_value={"filename": "MyTemplate"}),
+            patch("src.template_sync.mark_synced"),
+            patch("src.ssh.upload_file_ssh", side_effect=_capture_upload),
+            patch("src.ssh.run_ssh_cmd", return_value=("ok", "")),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        ):
+            ok = sync_templates_to_tablet("D1", dev, add_log)
+
+        assert ok is True
+        json_upload = next(
+            payload for path, payload in uploaded_payloads if path.endswith("templates.json")
+        )
+        data = __import__("json").loads(json_upload.decode("utf-8"))
+        entry = data["templates"][0]
+        assert entry["categories"] == ["Creative", "Grid"]
+        assert entry["iconCode"] == "\ue9fe"

@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 import src.templates as tpl
+from src import manifest_templates as mf
 
 DEVICE = "TestDevice"
 SVG_CONTENT = b"<svg><rect width='100' height='100'/></svg>"
@@ -36,6 +37,7 @@ JSON_LOCAL = json.dumps(
 def _patch_data_dir(tmp_path, monkeypatch):
     """Redirect get_device_data_dir to tmp_path so no real data/ is touched."""
     monkeypatch.setattr(tpl, "get_device_data_dir", lambda name: str(tmp_path / name))
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
     yield
     # Clear the st.cache_data cache so cached results from one test don't
     # leak into the next (all tests share the same device name "TestDevice").
@@ -603,7 +605,7 @@ class TestFetchAndInitTemplates:
         assert ok is False
         assert "list_remote_custom_failed" in msg
 
-    def test_preserves_existing_backup_by_default(self, tmp_path):
+    def test_refreshes_existing_backup_from_tablet_by_default(self, tmp_path):
         backup_path = tmp_path / DEVICE / "templates.backup.json"
         backup_path.parent.mkdir(parents=True, exist_ok=True)
         backup_path.write_text(
@@ -621,16 +623,31 @@ class TestFetchAndInitTemplates:
             ),
             encoding="utf-8",
         )
-        remote_json = json.dumps({"templates": [{"name": "Remote", "filename": "Remote"}]}).encode()
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {
+                        "name": "Remote",
+                        "filename": "Remote",
+                        "iconCode": "\ue9ab",
+                        "categories": ["Tablet", "Sketch"],
+                    }
+                ]
+            }
+        ).encode()
 
         with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
 
         assert ok is True
-        assert "backup_preserved" in msg
+        assert "backup_refreshed" in msg
         with open(backup_path, encoding="utf-8") as f:
             data = json.load(f)
-        assert data["templates"][0]["filename"] == "StockOnly"
+        assert data["templates"][0]["filename"] == "Remote"
+        entry = tpl.get_template_entry(DEVICE, "Remote")
+        assert entry is not None
+        assert entry["iconCode"] == "\ue9ab"
+        assert entry["categories"] == ["Sketch", "Tablet"]
 
     def test_overwrites_backup_when_requested(self, tmp_path):
         backup_path = tmp_path / DEVICE / "templates.backup.json"
@@ -655,49 +672,62 @@ class TestFetchAndInitTemplates:
             data = json.load(f)
         assert data["templates"][0]["filename"] == "New"
 
+    def test_reset_and_initialize_deletes_local_state_before_reimport(self, tmp_path):
+        device_dir = tmp_path / DEVICE
+        templates_dir = device_dir / "templates"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        (templates_dir / "old.svg").write_bytes(SVG_CONTENT)
+        (templates_dir / "old.template").write_bytes(b'{"categories": ["Old"]}')
+        (device_dir / "templates.json").write_text('{"templates": []}', encoding="utf-8")
+        (device_dir / "templates.backup.json").write_text('{"templates": []}', encoding="utf-8")
+        (device_dir / "manifest.json").write_text(
+            '{"version": 1, "lastSync": null, "templates": []}',
+            encoding="utf-8",
+        )
+
+        with patch(
+            "src.templates.fetch_and_init_templates",
+            return_value=(True, "fetched"),
+        ) as mock_fetch:
+            ok, msg = tpl.reset_and_initialize_templates_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "reset" in msg
+        assert not any(templates_dir.iterdir())
+        assert not (device_dir / "templates.json").exists()
+        assert not (device_dir / "templates.backup.json").exists()
+        assert not (device_dir / "manifest.json").exists()
+        mock_fetch.assert_called_once_with(
+            "1.2.3.4",
+            "pw",
+            DEVICE,
+            include_remote_custom_templates=True,
+            overwrite_backup=True,
+        )
+
 
 # ---------------------------------------------------------------------------
-# is_templates_dirty + mark_templates_synced
+# is_templates_dirty + mark_templates_synced (manifest-based)
 # ---------------------------------------------------------------------------
 
 
 class TestIsDirtyAndMarkSynced:
-    def test_missing_json_not_dirty(self):
+    def test_missing_manifest_not_dirty(self):
         assert tpl.is_templates_dirty(DEVICE) is False
 
-    def test_never_synced_no_entries_not_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        assert tpl.is_templates_dirty(DEVICE) is False
-
-    def test_never_synced_with_entries_is_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[{"filename":"a"}]}', encoding="utf-8")
+    def test_pending_entry_is_dirty(self):
+        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
         assert tpl.is_templates_dirty(DEVICE) is True
 
-    def test_synced_matching_hash_not_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
+    def test_mark_synced_clears_dirty_state(self):
+        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
         tpl.mark_templates_synced(DEVICE)
         assert tpl.is_templates_dirty(DEVICE) is False
 
-    def test_synced_then_modified_is_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        tpl.mark_templates_synced(DEVICE)
-        json_path.write_text('{"templates":[{"filename":"new"}]}', encoding="utf-8")
+    def test_deleted_entry_is_dirty(self):
+        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
+        tpl.remove_template_entry(DEVICE, "A.svg")
         assert tpl.is_templates_dirty(DEVICE) is True
-
-    def test_mark_synced_when_no_json_removes_sync_file(self, tmp_path):
-        sync_path = tmp_path / DEVICE / ".tpl_sync"
-        sync_path.parent.mkdir(parents=True, exist_ok=True)
-        sync_path.write_text("oldhash", encoding="utf-8")
-        tpl.mark_templates_synced(DEVICE)
-        assert not sync_path.exists()
 
 
 # ---------------------------------------------------------------------------

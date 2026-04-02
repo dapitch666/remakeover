@@ -26,15 +26,19 @@ from src.templates import (
     extract_categories_from_template_content,
     fetch_and_init_templates,
     get_all_categories,
-    get_device_templates_backup_path,
+    get_device_manifest_json_path,
     get_device_templates_dir,
     get_template_entry,
+    get_template_sync_status,
+    get_templates_sync_overview,
     is_templates_dirty,
     list_device_templates,
     remove_template_entry,
     rename_device_template,
     rename_template_entry,
+    reset_and_initialize_templates_from_tablet,
     save_device_template,
+    set_template_sync_status,
     update_template_categories,
     update_template_icon_code,
     upload_template_to_tablet,
@@ -193,74 +197,6 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             st.rerun()
 
 
-@st.dialog(_("Import templates from tablet"))
-def _show_import_templates_dialog(selected_name: str, device, add_log) -> None:
-    """Offer import choices when templates are not initialized yet."""
-    st.write(
-        _(
-            "Choose how to initialize local templates from the tablet. "
-            "Both options import templates.json."
-        )
-    )
-
-    col_json, col_all = st.columns(2)
-    with col_json:
-        if st.button(
-            _("Import templates.json only"),
-            key=f"tpl_fetch_json_only_{selected_name}",
-            icon=":material/article:",
-            type="secondary",
-            width="stretch",
-        ):
-            with st.spinner(_("Importing…")):
-                ok, msg = fetch_and_init_templates(
-                    device.ip,
-                    device.password or "",
-                    selected_name,
-                    include_remote_custom_templates=False,
-                    overwrite_backup=False,
-                )
-            st.session_state["tpl_show_import_dialog"] = False
-            if ok:
-                add_log(f"Templates initialized for '{selected_name}' : {msg}")
-                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-                st.rerun()
-            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
-            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
-
-    with col_all:
-        if st.button(
-            _("Import templates.json + custom templates"),
-            key=f"tpl_fetch_json_custom_{selected_name}",
-            icon=":material/download:",
-            type="primary",
-            width="stretch",
-        ):
-            with st.spinner(_("Importing…")):
-                ok, msg = fetch_and_init_templates(
-                    device.ip,
-                    device.password or "",
-                    selected_name,
-                    include_remote_custom_templates=True,
-                    overwrite_backup=False,
-                )
-            st.session_state["tpl_show_import_dialog"] = False
-            if ok:
-                add_log(f"Templates initialized for '{selected_name}' : {msg}")
-                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-                st.rerun()
-            add_log(f"Error initializing templates for '{selected_name}' : {msg}")
-            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
-
-    if st.button(
-        _("Cancel"),
-        key=f"tpl_fetch_cancel_{selected_name}",
-        width="stretch",
-    ):
-        st.session_state["tpl_show_import_dialog"] = False
-        st.rerun()
-
-
 @st.dialog(_("Delete template"))
 def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
     """Confirm local deletion and optionally delete remotely on the tablet."""
@@ -325,6 +261,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     stem = os.path.splitext(tpl_name)[0]
     entry = get_template_entry(selected_name, tpl_name)
     current_icon_code = entry.get("iconCode", "\ue9fe") if entry else "\ue9fe"
+    sync_status = get_template_sync_status(selected_name, tpl_name) or "pending"
     # ── name / inline rename ──────────────────────────────────────────────
     if renaming:
 
@@ -432,6 +369,37 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     # ── categories button → modal ─────────────────────────────────────────
     current_cats = entry.get("categories", []) if entry else []
     cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
+    st.caption(_("Sync status: {status}").format(status=sync_status))
+
+    if sync_status == "orphan":
+        col_adopt, col_remove = st.columns(2)
+        with col_adopt:
+            if st.button(
+                _("Add orphan"),
+                key=f"tpl_orphan_add_{tpl_name}",
+                icon=":material/add_task:",
+                width="stretch",
+            ):
+                set_template_sync_status(selected_name, tpl_name, "pending")
+                deferred_toast(
+                    _("'{name}' marked for sync").format(name=tpl_name),
+                    ":material/task_alt:",
+                )
+                st.rerun()
+        with col_remove:
+            if st.button(
+                _("Delete orphan"),
+                key=f"tpl_orphan_delete_{tpl_name}",
+                icon=":material/delete:",
+                width="stretch",
+            ):
+                set_template_sync_status(selected_name, tpl_name, "deleted")
+                deferred_toast(
+                    _("'{name}' marked for deletion").format(name=tpl_name),
+                    ":material/delete:",
+                )
+                st.rerun()
+
     if st.button(
         cats_str,
         key=f"tpl_cats_btn_{tpl_name}",
@@ -693,8 +661,8 @@ elif st.query_params.get("edit_icon"):
     del st.query_params["edit_icon"]
     _show_icon_dialog(selected_name, _edit_stem + ".svg", add_log)
 
-backup_path = get_device_templates_backup_path(selected_name)
-if not os.path.exists(backup_path):
+manifest_path = get_device_manifest_json_path(selected_name)
+if not os.path.exists(manifest_path):
     st.warning(
         _(
             "The template list for this tablet has not been imported yet. "
@@ -703,78 +671,82 @@ if not os.path.exists(backup_path):
         icon=":material/backup:",
     )
     if st.button(
-        _("Import templates from tablet"),
+        _("Initialize templates from this tablet"),
         key=f"tpl_fetch_backup_{selected_name}",
         type="primary",
         icon=":material/download:",
     ):
-        st.session_state["tpl_show_import_dialog"] = True
-
-    if st.session_state.get("tpl_show_import_dialog"):
-        _show_import_templates_dialog(selected_name, device, add_log)
+        with st.spinner(_("Importing…")):
+            ok, msg = fetch_and_init_templates(
+                device.ip,
+                device.password or "",
+                selected_name,
+                include_remote_custom_templates=True,
+                overwrite_backup=False,
+            )
+        if ok:
+            add_log(f"Templates initialized for '{selected_name}' : {msg}")
+            deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+            st.rerun()
+        add_log(f"Error initializing templates for '{selected_name}' : {msg}")
+        st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
 else:
-    col_reimport, col_force = st.columns(2)
-    with col_reimport:
+    overview = get_templates_sync_overview(selected_name)
+    st.info(
+        _(
+            "Sync overview: {pending} pending, {orphan} orphan, {deleted} deleted, {synced} synced"
+        ).format(
+            pending=overview.get("pending", 0),
+            orphan=overview.get("orphan", 0),
+            deleted=overview.get("deleted", 0),
+            synced=overview.get("synced", 0),
+        ),
+        icon=":material/sync:",
+    )
+
+    col_check, col_force = st.columns(2)
+    with col_check:
         if st.button(
-            _("Re-import all templates from tablet"),
-            key=f"tpl_reimport_all_{selected_name}",
-            icon=":material/download:",
+            _("Sync now"),
+            key=f"tpl_check_sync_{selected_name}",
+            icon=":material/sync:",
             width="stretch",
         ):
-            with st.spinner(_("Importing…")):
-                ok, msg = fetch_and_init_templates(
-                    device.ip,
-                    device.password or "",
-                    selected_name,
-                    include_remote_custom_templates=True,
-                    overwrite_backup=False,
-                )
+            with st.spinner(_("Syncing…")):
+                ok = sync_templates_to_tablet(selected_name, device, add_log)
             if ok:
-                add_log(f"Templates re-imported for '{selected_name}' : {msg}")
-                deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+                deferred_toast(_("Templates synced"), ":material/task_alt:")
                 st.rerun()
-            add_log(f"Error re-importing templates for '{selected_name}' : {msg}")
-            st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+            deferred_toast(_("Sync error"), ":material/error:")
     with col_force:
         if st.button(
-            _("Force push all templates to tablet"),
-            key=f"tpl_force_sync_{selected_name}",
-            icon=":material/publish:",
+            _("Reset and reinitialize"),
+            key=f"tpl_reset_reinit_{selected_name}",
+            icon=":material/settings_backup_restore:",
             type="primary",
             width="stretch",
         ):
             with st.spinner(_("Syncing…")):
-                ok = sync_templates_to_tablet(selected_name, device, add_log, force=True)
+                ok, msg = reset_and_initialize_templates_from_tablet(
+                    device.ip,
+                    device.password or "",
+                    selected_name,
+                )
             if ok:
+                add_log(f"Templates reset and reinitialized for '{selected_name}' : {msg}")
                 deferred_toast(_("Templates synced"), ":material/task_alt:")
             else:
+                add_log(f"Error resetting templates for '{selected_name}' : {msg}")
                 deferred_toast(_("Sync error"), ":material/error:")
             st.rerun()
 
     stored_templates = list_device_templates(selected_name)
 
     if is_templates_dirty(selected_name):
-        col_warn, col_btn = st.columns([3, 1], vertical_alignment="center")
-        with col_warn:
-            st.warning(
-                _("Local changes have not yet been synced to the tablet."),
-                icon=":material/sync:",
-            )
-        with col_btn:
-            if st.button(
-                _("Sync"),
-                key=f"tpl_sync_{selected_name}",
-                type="primary",
-                icon=":material/sync:",
-                width="stretch",
-            ):
-                with st.spinner(_("Syncing…")):
-                    ok = sync_templates_to_tablet(selected_name, device, add_log)
-                if ok:
-                    deferred_toast(_("Templates synced"), ":material/task_alt:")
-                else:
-                    deferred_toast(_("Sync error"), ":material/error:")
-                st.rerun()
+        st.warning(
+            _("Manifest contains unsynced changes."),
+            icon=":material/sync:",
+        )
 
     if stored_templates:
         st.markdown(
