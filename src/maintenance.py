@@ -154,7 +154,7 @@ def run_maintenance(
                 if not ok_backup:
                     errors.append(f"templates_backup_refresh_failed: {msg_backup}")
                     return {"ok": False, "errors": errors, "details": details}
-                _log("templates.backup.json refreshed from tablet stock templates")
+                _log(f"templates.backup.json refresh result: {msg_backup}")
 
             _advance(_("Sync templates"))
             ok = sync_templates_to_tablet(

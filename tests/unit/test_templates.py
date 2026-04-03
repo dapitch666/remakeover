@@ -621,7 +621,10 @@ class TestFetchAndInitTemplates:
         # Ensure the device directory exists so the backup file can be written
         (tmp_path / DEVICE).mkdir(parents=True, exist_ok=True)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "fetched" in msg
@@ -631,7 +634,10 @@ class TestFetchAndInitTemplates:
         svgs_dir.mkdir(parents=True)
         (svgs_dir / "custom.svg").write_bytes(SVG_CONTENT)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "1 local custom template" in msg
@@ -649,7 +655,13 @@ class TestFetchAndInitTemplates:
                 ]
             }
         ).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "0 local custom template" in msg
@@ -672,6 +684,7 @@ class TestFetchAndInitTemplates:
                 "src.templates._list_remote_custom_templates",
                 return_value=(True, ["remote one.svg", "remote-two.template"]),
             ),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
         ):
             ok, msg = tpl.fetch_and_init_templates(
                 "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
@@ -691,6 +704,7 @@ class TestFetchAndInitTemplates:
                 "src.templates._list_remote_custom_templates",
                 return_value=(False, "ssh error"),
             ),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
         ):
             ok, msg = tpl.fetch_and_init_templates(
                 "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
@@ -729,7 +743,13 @@ class TestFetchAndInitTemplates:
             }
         ).encode()
 
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Remote"}),
+            ),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
 
         assert ok is True
@@ -751,7 +771,13 @@ class TestFetchAndInitTemplates:
         )
         remote_json = json.dumps({"templates": [{"name": "New", "filename": "New"}]}).encode()
 
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"New"}),
+            ),
+        ):
             ok, msg = tpl.fetch_and_init_templates(
                 "1.2.3.4",
                 "pw",
@@ -764,6 +790,122 @@ class TestFetchAndInitTemplates:
         with open(backup_path, encoding="utf-8") as f:
             data = json.load(f)
         assert data["templates"][0]["filename"] == "New"
+
+    def test_missing_backup_copies_remote_as_is_when_stock_only(self, tmp_path):
+        remote_json = b'{"meta":{"format":2},"templates":[{"filename":"Blank","name":"Blank"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_refreshed" in msg
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        assert backup_path.read_bytes() == remote_json
+
+    def test_missing_backup_rebuilds_stock_only_from_remote_when_mixed(self, tmp_path):
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {"name": "Blank", "filename": "Blank"},
+                    {"name": "Custom", "filename": "Custom"},
+                ]
+            }
+        ).encode()
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_rebuilt_stock_only" in msg
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        with open(backup_path, encoding="utf-8") as f:
+            backup_data = json.load(f)
+        assert [entry["filename"] for entry in backup_data["templates"]] == ["Blank"]
+
+    def test_existing_backup_is_preserved_when_remote_contains_custom(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps({"templates": [{"name": "Blank", "filename": "Blank"}]}),
+            encoding="utf-8",
+        )
+
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {"name": "Blank", "filename": "Blank"},
+                    {"name": "Custom", "filename": "Custom"},
+                ]
+            }
+        ).encode()
+
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_preserved" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            backup_data = json.load(f)
+        assert [entry["filename"] for entry in backup_data["templates"]] == ["Blank"]
+
+
+# ---------------------------------------------------------------------------
+# refresh_templates_backup_from_tablet
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshTemplatesBackupFromTablet:
+    def test_missing_backup_copies_remote_as_is_when_stock_only(self, tmp_path):
+        remote_json = b'{"meta":{"schema":3},"templates":[{"filename":"Blank","name":"Blank"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.refresh_templates_backup_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert msg == "backup_refreshed"
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        assert backup_path.read_bytes() == remote_json
+
+    def test_existing_backup_preserved_when_remote_contains_custom(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        original_backup = b'{"templates":[{"filename":"Blank","name":"Blank"}]}'
+        backup_path.write_bytes(original_backup)
+
+        remote_json = b'{"templates":[{"filename":"Blank","name":"Blank"},{"filename":"Custom","name":"Custom"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.refresh_templates_backup_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert msg == "backup_preserved_remote_contains_custom"
+        assert backup_path.read_bytes() == original_backup
 
     def test_reset_and_initialize_deletes_local_state_before_reimport(self, tmp_path):
         device_dir = tmp_path / DEVICE

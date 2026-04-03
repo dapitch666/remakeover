@@ -382,6 +382,59 @@ def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[st
     return True, names
 
 
+def _list_remote_stock_template_stems(ip: str, password: str) -> tuple[bool, set[str] | str]:
+    """Return stems for physical stock template files present on the tablet.
+
+    Only regular files from REMOTE_TEMPLATES_DIR are kept (symlinks excluded).
+    """
+    cmd = (
+        f"for file in {shlex.quote(REMOTE_TEMPLATES_DIR)}/*.svg "
+        f"{shlex.quote(REMOTE_TEMPLATES_DIR)}/*.template; do "
+        '[ -f "$file" ] || continue; '
+        'basename "$file"; '
+        "done"
+    )
+    try:
+        out, err = run_ssh_cmd(ip, password, [cmd])
+    except Exception as e:
+        return False, str(e)
+    if err.strip():
+        return False, err.strip()
+    names = [line.strip() for line in out.splitlines() if line.strip()]
+    return True, {_stem(name) for name in names}
+
+
+def _filter_templates_by_stock_stems(
+    remote_data: dict[str, Any],
+    stock_stems: set[str],
+) -> dict[str, Any]:
+    """Return a copy of remote_data keeping only entries whose filename stem is stock."""
+    filtered = dict(remote_data)
+    raw_templates = remote_data.get("templates", [])
+    templates_list = raw_templates if isinstance(raw_templates, list) else []
+    filtered["templates"] = [
+        item
+        for item in templates_list
+        if isinstance(item, dict) and str(item.get("filename", "")) in stock_stems
+    ]
+    return filtered
+
+
+def _remote_templates_are_stock_only(remote_data: dict[str, Any], stock_stems: set[str]) -> bool:
+    """Return True when every remote template stem is part of stock_stems."""
+    raw_templates = remote_data.get("templates", [])
+    templates_list = raw_templates if isinstance(raw_templates, list) else []
+    for item in templates_list:
+        if not isinstance(item, dict):
+            continue
+        stem = str(item.get("filename", ""))
+        if not stem:
+            continue
+        if stem not in stock_stems:
+            return False
+    return True
+
+
 def remote_templates_dir_has_symlinks(ip: str, password: str) -> tuple[bool, bool | str]:
     """Return whether `/usr/share/remarkable/templates` currently contains symlinks."""
     cmd = (
@@ -402,22 +455,49 @@ def refresh_templates_backup_from_tablet(
     password: str,
     device_name: str,
 ) -> tuple[bool, str]:
-    """Download remote stock templates.json and overwrite local templates.backup.json."""
+    """Refresh local templates.backup.json using strict stock-only rewrite rules."""
     remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
     if remote_content is None:
         return False, f"download_failed: {err}"
 
+    try:
+        remote_data = json.loads(remote_content.decode("utf-8"))
+    except Exception as e:
+        return False, f"backup_parse_failed: {e}"
+
     backup_path = get_device_templates_backup_path(device_name)
+    backup_exists = os.path.exists(backup_path)
+
+    ok_stock, stock_payload = _list_remote_stock_template_stems(ip, password)
+    if not ok_stock:
+        assert isinstance(stock_payload, str)
+        return False, f"stock_templates_list_failed: {stock_payload}"
+    assert isinstance(stock_payload, set)
+    stock_stems = stock_payload
+
+    remote_is_stock_only = _remote_templates_are_stock_only(remote_data, stock_stems)
+    if backup_exists and not remote_is_stock_only:
+        return True, "backup_preserved_remote_contains_custom"
+
+    if remote_is_stock_only:
+        # Preserve the exact upstream JSON payload to detect format or stock list changes.
+        backup_bytes = remote_content
+        mode = "backup_refreshed"
+    else:
+        rebuilt = _filter_templates_by_stock_stems(remote_data, stock_stems)
+        backup_bytes = json.dumps(rebuilt, indent=2, ensure_ascii=True).encode("utf-8")
+        mode = "backup_rebuilt_stock_only"
+
     try:
         os.makedirs(os.path.dirname(backup_path), exist_ok=True)
         with open(backup_path, "wb") as f:
-            f.write(remote_content)
-        data = json.loads(remote_content.decode("utf-8"))
+            f.write(backup_bytes)
+        data = json.loads(backup_bytes.decode("utf-8"))
         ensure_manifest_from_templates_json(device_name, data)
     except Exception as e:
         return False, f"backup_write_failed: {e}"
 
-    return True, "ok"
+    return True, mode
 
 
 def reset_and_initialize_templates_from_tablet(
@@ -517,20 +597,52 @@ def fetch_and_init_templates(
 
     # 1 — Prefer the tablet's templates.json whenever it can be downloaded.
     remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
+    backup_mode = "backup_preserved"
     if remote_content is not None:
         try:
-            backup_data = json.loads(remote_content.decode("utf-8"))
+            remote_data = json.loads(remote_content.decode("utf-8"))
         except Exception as e:
             if not (backup_exists and not overwrite_backup):
                 return False, f"backup_parse_failed: {e}"
             backup_data = None
         else:
-            try:
-                os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-                with open(backup_path, "wb") as f:
-                    f.write(remote_content)
-            except Exception as e:
-                return False, f"backup_write_failed: {e}"
+            backup_data = remote_data
+            # Rewrite policy for templates.backup.json:
+            # 1) if backup is missing, rebuild stock-only backup from remote templates.json;
+            # 2) if backup exists, rewrite only when remote templates.json is stock-only.
+            ok_stock, stock_payload = _list_remote_stock_template_stems(ip, password)
+            if not ok_stock:
+                assert isinstance(stock_payload, str)
+                return False, f"stock_templates_list_failed: {stock_payload}"
+            assert isinstance(stock_payload, set)
+            stock_stems = stock_payload
+
+            should_write_backup = False
+            backup_bytes: bytes | None = None
+            remote_is_stock_only = _remote_templates_are_stock_only(remote_data, stock_stems)
+            if not backup_exists:
+                if remote_is_stock_only:
+                    # Preserve exact upstream JSON bytes when it is already stock-only.
+                    backup_bytes = remote_content
+                    backup_mode = "backup_refreshed"
+                else:
+                    rebuilt = _filter_templates_by_stock_stems(remote_data, stock_stems)
+                    backup_bytes = json.dumps(rebuilt, indent=2, ensure_ascii=True).encode("utf-8")
+                    backup_mode = "backup_rebuilt_stock_only"
+                should_write_backup = True
+            elif remote_is_stock_only:
+                backup_bytes = remote_content
+                should_write_backup = True
+                backup_mode = "backup_refreshed"
+
+            if should_write_backup:
+                try:
+                    os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+                    with open(backup_path, "wb") as f:
+                        assert backup_bytes is not None
+                        f.write(backup_bytes)
+                except Exception as e:
+                    return False, f"backup_write_failed: {e}"
     elif backup_exists and not overwrite_backup:
         try:
             with open(backup_path, encoding="utf-8") as f:
@@ -594,7 +706,7 @@ def fetch_and_init_templates(
         appended,
         device_name,
     )
-    mode = "backup_refreshed" if remote_content is not None else "backup_preserved"
+    mode = backup_mode if remote_content is not None else "backup_preserved"
     return (
         True,
         (
