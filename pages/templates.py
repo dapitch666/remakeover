@@ -418,8 +418,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     # ── categories button → modal ─────────────────────────────────────────
     current_cats = entry.get("categories", []) if entry else []
     cats_str = " \u00b7 ".join(current_cats) if current_cats else "\u2014"
-    st.caption(_("Sync status: {status}").format(status=sync_status))
-
     if sync_status == "orphan":
         col_adopt, col_remove = st.columns(2)
         with col_adopt:
@@ -506,6 +504,22 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, tpl_name)
         st.session_state["tpl_editor_load_choice"] = tpl_name
         st.switch_page("pages/template_editor.py")
+
+    # ── sync status indicator ──────────────────────────────────────────────
+    col_status_label, col_status_badge = st.columns(
+        [1, 2], vertical_alignment="center", gap="xxsmall"
+    )
+    with col_status_label:
+        st.caption(_("Status:"))
+    with col_status_badge:
+        (status_label, color) = {
+            "synced": (_("Synced"), "green"),
+            "pending": (_("Pending"), "orange"),
+            "invalid": (_("Invalid"), "red"),
+            "orphan": (_("Orphan"), "blue"),
+            "deleted": (_("Deleted"), "violet"),
+        }.get(sync_status, (_("Unknown"), "gray"))
+        st.badge(status_label, color=color)
 
 
 def _render_template_upload_section(selected_name, add_log):
@@ -820,16 +834,6 @@ else:
         )
 
     if stored_templates:
-        st.markdown(
-            _(
-                "Below you will find all templates saved for this tablet. "
-                "Click a **name** to rename, edit categories with the category button, "
-                "customize the icon with the icon button, and use the action buttons "
-                "to reload, edit, or delete templates."
-            )
-        )
-        st.divider()
-
         col_title, col_sort = st.columns([2, 1], vertical_alignment="center")
         with col_title:
             st.subheader(_("Saved templates"), divider="rainbow")
@@ -851,6 +855,18 @@ else:
                 return ([c.lower() for c in sorted(cats)] if cats else ["\xff"], f.lower())
 
             stored_templates = sorted(stored_templates, key=_cat_key)
+
+        st.space()
+        st.markdown(
+            _(
+                "Below you will find all templates saved for this tablet. "
+                "Click a **name** to rename, click the **categories** to add or remove categories, "
+                "click the icon to customize it, and use the action buttons "
+                "to (:material/upload_file:) reload (upload a new file), (:material/edit:) edit, "
+                "or (:material/delete:) delete templates."
+            )
+        )
+        st.divider()
 
         for row_start in range(0, len(stored_templates), GRID_COLUMNS):
             row_items = stored_templates[row_start : row_start + GRID_COLUMNS]

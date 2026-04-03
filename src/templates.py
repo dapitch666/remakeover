@@ -246,7 +246,11 @@ def _edit_templates_json(device_name: str) -> Generator[dict[str, Any], None, No
 
 
 def add_template_entry(
-    device_name: str, filename: str, categories: list[str], icon_code: str = "\ue9fe"
+    device_name: str,
+    filename: str,
+    categories: list[str],
+    icon_code: str = "\ue9fe",
+    previous_filename: str | None = None,
 ) -> None:
     """Add or replace the templates.json entry for *filename*.
 
@@ -255,8 +259,9 @@ def add_template_entry(
     order and therefore does not mark templates as dirty.
     """
     stem = _stem(filename)
+    previous_stem = _stem(previous_filename) if previous_filename else None
     backup_stems = get_backup_stems(device_name)
-    if stem in backup_stems:
+    if stem in backup_stems and stem != previous_stem:
         raise StockTemplateNameConflictError(f"stock_template_name_conflict: {stem}")
 
     with _edit_templates_json(device_name) as data:
@@ -296,7 +301,13 @@ def remove_template_entry(device_name: str, filename: str) -> None:
 def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
     """Update filename and name fields in templates.json when a template is renamed."""
     old_stem, new_stem = _stem(old_filename), _stem(new_filename)
-    if new_stem in get_backup_stems(device_name):
+
+    manifest_entry = get_manifest_entry(device_name, old_stem)
+    synced_snapshot = manifest_entry.get("syncedSnapshot") if manifest_entry else None
+    is_revert_to_previous_synced_name = (
+        isinstance(synced_snapshot, dict) and synced_snapshot.get("filename") == new_stem
+    )
+    if new_stem in get_backup_stems(device_name) and not is_revert_to_previous_synced_name:
         raise StockTemplateNameConflictError(f"stock_template_name_conflict: {new_stem}")
 
     with _edit_templates_json(device_name) as data:

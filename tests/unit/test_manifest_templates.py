@@ -73,6 +73,23 @@ def test_set_sync_status_rejects_invalid_status(tmp_path, monkeypatch):
     assert entry["syncStatus"] == "pending"
 
 
+def test_update_categories_restore_synced_when_reverted(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
+
+    mf.add_or_update_template_entry(DEVICE, "State.svg", ["Grid", "Lines"], "\ue9fe")
+    mf.mark_synced(DEVICE)
+
+    mf.update_categories(DEVICE, "State.svg", ["Grid"])
+    pending_entry = mf.get_manifest_entry(DEVICE, "State.svg")
+    assert pending_entry is not None
+    assert pending_entry["syncStatus"] == "pending"
+
+    mf.update_categories(DEVICE, "State.svg", ["Grid", "Lines"])
+    restored_entry = mf.get_manifest_entry(DEVICE, "State.svg")
+    assert restored_entry is not None
+    assert restored_entry["syncStatus"] == "synced"
+
+
 def test_ensure_manifest_prefers_imported_templates_json_metadata(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
 

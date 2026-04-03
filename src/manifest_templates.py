@@ -92,6 +92,22 @@ def load_manifest(device_name: str) -> dict[str, Any]:
                 "syncStatus": status,
                 "addedAt": str(entry.get("addedAt") or now),
                 "modifiedAt": str(entry.get("modifiedAt") or now),
+                "syncedSnapshot": (
+                    {
+                        "name": str(entry.get("syncedSnapshot", {}).get("name", "")),
+                        "filename": str(entry.get("syncedSnapshot", {}).get("filename", "")),
+                        "iconCode": str(entry.get("syncedSnapshot", {}).get("iconCode", "\\ue9fe")),
+                        "categories": sorted(
+                            [
+                                c
+                                for c in entry.get("syncedSnapshot", {}).get("categories", [])
+                                if isinstance(c, str)
+                            ]
+                        ),
+                    }
+                    if isinstance(entry.get("syncedSnapshot"), dict)
+                    else None
+                ),
             }
         )
 
@@ -115,6 +131,32 @@ def _find_entry(data: dict[str, Any], filename: str) -> dict[str, Any] | None:
         if entry.get("filename") == stem:
             return entry
     return None
+
+
+def _entry_synced_snapshot(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": str(entry.get("name", "")),
+        "filename": str(entry.get("filename", "")),
+        "iconCode": str(entry.get("iconCode", "\\ue9fe")),
+        "categories": sorted([c for c in entry.get("categories", []) if isinstance(c, str)]),
+    }
+
+
+def _capture_synced_snapshot_if_missing(entry: dict[str, Any]) -> None:
+    if entry.get("syncStatus") == SYNC_STATUS_SYNCED and not isinstance(
+        entry.get("syncedSnapshot"), dict
+    ):
+        entry["syncedSnapshot"] = _entry_synced_snapshot(entry)
+
+
+def _apply_pending_or_restore_synced(entry: dict[str, Any], now: str) -> None:
+    snapshot = entry.get("syncedSnapshot")
+    if isinstance(snapshot, dict) and _entry_synced_snapshot(entry) == snapshot:
+        entry["syncStatus"] = SYNC_STATUS_SYNCED
+        entry.pop("syncedSnapshot", None)
+    else:
+        entry["syncStatus"] = SYNC_STATUS_PENDING
+    entry["modifiedAt"] = now
 
 
 def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[str, Any]) -> None:
@@ -177,6 +219,7 @@ def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[s
             "syncStatus": SYNC_STATUS_SYNCED,
             "addedAt": now,
             "modifiedAt": now,
+            "syncedSnapshot": None,
         }
 
     # Source of truth priority #2: local files not referenced in templates.json.
@@ -200,6 +243,7 @@ def ensure_manifest_from_templates_json(device_name: str, templates_data: dict[s
             "syncStatus": SYNC_STATUS_SYNCED,
             "addedAt": now,
             "modifiedAt": now,
+            "syncedSnapshot": None,
         }
 
     manifest["templates"] = list(by_stem.values())
@@ -240,12 +284,18 @@ def add_or_update_template_entry(
             }
         )
     else:
+        _capture_synced_snapshot_if_missing(entry)
         entry["name"] = stem
         entry["filename"] = stem
         entry["iconCode"] = icon_code
         entry["categories"] = sorted(categories)
-        entry["syncStatus"] = sync_status
-        entry["modifiedAt"] = now
+        if sync_status == SYNC_STATUS_PENDING:
+            _apply_pending_or_restore_synced(entry, now)
+        else:
+            entry["syncStatus"] = sync_status
+            entry["modifiedAt"] = now
+            if sync_status == SYNC_STATUS_SYNCED:
+                entry["syncedSnapshot"] = None
 
     save_manifest(device_name, data)
 
@@ -268,6 +318,7 @@ def mark_template_deleted(device_name: str, filename: str) -> None:
             }
         )
     else:
+        _capture_synced_snapshot_if_missing(entry)
         entry["syncStatus"] = SYNC_STATUS_DELETED
         entry["modifiedAt"] = now
     save_manifest(device_name, data)
@@ -281,10 +332,10 @@ def rename_entry(device_name: str, old_filename: str, new_filename: str) -> None
 
     for entry in data.get("templates", []):
         if entry.get("filename") == old_stem:
+            _capture_synced_snapshot_if_missing(entry)
             entry["filename"] = new_stem
             entry["name"] = new_stem
-            entry["syncStatus"] = SYNC_STATUS_PENDING
-            entry["modifiedAt"] = now
+            _apply_pending_or_restore_synced(entry, now)
             break
 
     save_manifest(device_name, data)
@@ -295,9 +346,9 @@ def update_categories(device_name: str, filename: str, categories: list[str]) ->
     now = _utc_now_iso()
     entry = _find_entry(data, filename)
     if entry is not None:
+        _capture_synced_snapshot_if_missing(entry)
         entry["categories"] = sorted(categories)
-        entry["syncStatus"] = SYNC_STATUS_PENDING
-        entry["modifiedAt"] = now
+        _apply_pending_or_restore_synced(entry, now)
         save_manifest(device_name, data)
 
 
@@ -306,9 +357,9 @@ def update_icon_code(device_name: str, filename: str, icon_code: str) -> None:
     now = _utc_now_iso()
     entry = _find_entry(data, filename)
     if entry is not None:
+        _capture_synced_snapshot_if_missing(entry)
         entry["iconCode"] = icon_code
-        entry["syncStatus"] = SYNC_STATUS_PENDING
-        entry["modifiedAt"] = now
+        _apply_pending_or_restore_synced(entry, now)
         save_manifest(device_name, data)
 
 
@@ -327,6 +378,10 @@ def set_sync_status(device_name: str, filename: str, sync_status: str) -> bool:
 
     entry["syncStatus"] = sync_status
     entry["modifiedAt"] = _utc_now_iso()
+    if sync_status == SYNC_STATUS_SYNCED:
+        entry["syncedSnapshot"] = None
+    elif sync_status == SYNC_STATUS_PENDING:
+        _capture_synced_snapshot_if_missing(entry)
     save_manifest(device_name, data)
     return True
 
@@ -361,6 +416,9 @@ def mark_synced(
             continue
         if status == SYNC_STATUS_PENDING:
             entry["syncStatus"] = SYNC_STATUS_SYNCED
+            entry["syncedSnapshot"] = None
+        elif status == SYNC_STATUS_SYNCED:
+            entry["syncedSnapshot"] = None
         templates.append(entry)
 
     data["templates"] = templates

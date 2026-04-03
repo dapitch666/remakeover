@@ -353,6 +353,52 @@ class TestJsonHelpers:
         with pytest.raises(tpl.StockTemplateNameConflictError):
             tpl.add_template_entry(DEVICE, "Blank.svg", ["Lines"])
 
+    def test_add_template_entry_allows_stock_stem_when_same_previous_filename(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.save_templates_json(
+            DEVICE,
+            {
+                "templates": [
+                    {
+                        "name": "Blank",
+                        "filename": "Blank",
+                        "iconCode": "\\ue9fe",
+                        "categories": ["Lines"],
+                    }
+                ]
+            },
+        )
+
+        tpl.add_template_entry(
+            DEVICE,
+            "Blank.template",
+            ["Grid"],
+            icon_code="\ue960",
+            previous_filename="Blank.template",
+        )
+
+        data = tpl.load_templates_json(DEVICE)
+        assert len(data["templates"]) == 1
+        assert data["templates"][0]["filename"] == "Blank"
+        assert data["templates"][0]["categories"] == ["Grid"]
+        assert data["templates"][0]["iconCode"] == "\ue960"
+
     def test_rename_template_entry_rejects_stock_stem_collision(self, tmp_path):
         backup_path = tpl.get_device_templates_backup_path(DEVICE)
         os.makedirs(os.path.dirname(backup_path), exist_ok=True)
@@ -374,6 +420,49 @@ class TestJsonHelpers:
         tpl.add_template_entry(DEVICE, "Custom.svg", ["Lines"])
         with pytest.raises(tpl.StockTemplateNameConflictError):
             tpl.rename_template_entry(DEVICE, "Custom.svg", "Blank.svg")
+
+    def test_rename_template_entry_allows_revert_to_previous_synced_name(self, tmp_path):
+        # Simulate a polluted backup where a previously synced custom stem appears.
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Original",
+                            "filename": "Original",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.save_templates_json(
+            DEVICE,
+            {
+                "templates": [
+                    {
+                        "name": "Original",
+                        "filename": "Original",
+                        "iconCode": "\\ue9fe",
+                        "categories": ["Lines"],
+                    }
+                ]
+            },
+        )
+        mf.add_or_update_template_entry(DEVICE, "Original.svg", ["Lines"], "\ue9fe")
+        mf.mark_synced(DEVICE)
+
+        tpl.rename_template_entry(DEVICE, "Original.svg", "Temp.svg")
+        # Reverting to the previous synced filename must be allowed.
+        tpl.rename_template_entry(DEVICE, "Temp.svg", "Original.svg")
+
+        entry = tpl.get_template_entry(DEVICE, "Original.svg")
+        assert entry is not None
+        assert entry["filename"] == "Original"
 
 
 class TestGetBackupStems:
