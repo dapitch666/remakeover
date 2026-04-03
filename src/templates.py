@@ -1,56 +1,106 @@
 """Templates management.
 
-Local helpers (list, save, load, delete, rename SVG templates per device)
-and remote helpers (upload, backup/replace templates.json).
+Local helpers store `.template` files per device and remote helpers interact
+with rmMethods template triplets in xochitl (`UUID.template`,
+`UUID.metadata`, `UUID.content`).
 """
 
 import json
 import logging
 import os
 import shlex
-from collections.abc import Generator
-from contextlib import contextmanager
+import time
+import uuid
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
-
-import streamlit as st
 
 from src.config import get_device_data_dir
 from src.constants import (
     CMD_RESTART_XOCHITL,
-    REMOTE_CUSTOM_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_JSON,
+    REMOTE_XOCHITL_DATA_DIR,
 )
 from src.manifest_templates import (
-    SYNC_STATUS_DELETED,
-    SYNC_STATUS_PENDING,
-    ensure_manifest_from_templates_json,
+    compute_template_sha256,
+    compute_template_sha256_from_template_content,
+    delete_manifest_template,
+    find_manifest_uuid_by_name,
     get_device_manifest_path,
     get_manifest_entry,
-    get_sync_overview,
-    get_sync_status,
-    has_unsynced_changes,
-    mark_template_deleted,
-    rename_entry,
-    set_sync_status,
-)
-from src.manifest_templates import (
-    add_or_update_template_entry as manifest_add_or_update_template_entry,
-)
-from src.manifest_templates import (
-    update_categories as manifest_update_categories,
-)
-from src.manifest_templates import (
-    update_icon_code as manifest_update_icon_code,
+    iso_from_epoch_ms,
+    load_manifest,
+    rename_manifest_template_by_name,
+    save_manifest,
+    upsert_manifest_template,
+    utc_now_iso,
 )
 from src.ssh import download_file_ssh, run_ssh_cmd, upload_file_ssh
 
 logger = logging.getLogger(__name__)
 
 
-class StockTemplateNameConflictError(ValueError):
-    """Raised when a custom template tries to reuse a stock template filename stem."""
+def _epoch_ms() -> str:
+    return str(int(time.time() * 1000))
+
+
+def ensure_template_payload_for_rmethods(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a normalized payload with required rmMethods keys.
+
+    - `labels` is always present (empty list by default)
+    - `iconData` is always present (default SVG-derived placeholder)
+    """
+    normalized = dict(payload)
+    labels = normalized.get("labels")
+    if not isinstance(labels, list):
+        normalized["labels"] = []
+
+    icon_data = normalized.get("iconData")
+    if not isinstance(icon_data, str) or not icon_data.strip():
+        # The value is consumed by the device as an encoded SVG payload.
+        normalized["iconData"] = _DEFAULT_ICON_DATA_B64
+
+    return normalized
+
+
+_DEFAULT_ICON_DATA_B64 = (
+    "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTUwIDIwMCI+"
+    "PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmNmY2ZjQiLz48cmVjdCB4PSIxNiIgeT0iMjQiIHdpZHRoPSIxMTgiIGhlaWdodD0iMTUy"
+    "IiByeD0iOCIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjZDdkN2QzIi8+PGxpbmUgeDE9IjI4IiB5MT0iNjQiIHgyPSIxMjIiIHkyPSI2NCIgc3Ryb2tlPSIj"
+    "YzdjN2MzIiBzdHJva2Utd2lkdGg9IjMiLz48bGluZSB4MT0iMjgiIHkxPSI5MiIgeDI9IjEyMiIgeTI9IjkyIiBzdHJva2U9IiNjN2M3YzMiIHN0cm9rZS13"
+    "aWR0aD0iMyIvPjxsaW5lIHgxPSIyOCIgeTE9IjEyMCIgeDI9IjEyMiIgeTI9IjEyMCIgc3Ryb2tlPSIjYzdjN2MzIiBzdHJva2Utd2lkdGg9IjMiLz48bGlu"
+    "ZSB4MT0iMjgiIHkxPSIxNDgiIHgyPSIxMDAiIHkyPSIxNDgiIHN0cm9rZT0iI2M3YzdjMyIgc3Ryb2tlLXdpZHRoPSIzIi8+PC9zdmc+"
+)
+
+
+def build_rmethods_metadata_payload(visible_name: str) -> dict[str, Any]:
+    now = _epoch_ms()
+    return {
+        "createdTime": now,
+        "lastModified": now,
+        "new": False,
+        "parent": "",
+        "pinned": False,
+        "source": "com.remarkable.methods",
+        "type": "TemplateType",
+        "visibleName": visible_name,
+    }
+
+
+def build_rmethods_triplet_payloads(payload: dict[str, Any], visible_name: str) -> dict[str, bytes]:
+    """Return encoded rmMethods triplet payloads for one template.
+
+    Returned keys are: `template`, `metadata`, `content`.
+    """
+    normalized = ensure_template_payload_for_rmethods(payload)
+    return {
+        "template": json.dumps(normalized, indent=2, ensure_ascii=True).encode("utf-8"),
+        "metadata": json.dumps(
+            build_rmethods_metadata_payload(visible_name),
+            indent=2,
+            ensure_ascii=True,
+        ).encode("utf-8"),
+        "content": b"{}",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -59,20 +109,10 @@ class StockTemplateNameConflictError(ValueError):
 
 
 def get_device_templates_dir(device_name: str) -> str:
-    """Return (and create) the local directory that stores SVGs for *device_name*."""
+    """Return (and create) the local directory that stores `.template` files."""
     device_dir = os.path.join(get_device_data_dir(device_name), "templates")
     os.makedirs(device_dir, exist_ok=True)
     return device_dir
-
-
-def get_device_templates_json_path(device_name: str) -> str:
-    """Return the path to data/{device}/templates.json."""
-    return os.path.join(get_device_data_dir(device_name), "templates.json")
-
-
-def get_device_templates_backup_path(device_name: str) -> str:
-    """Return the path to data/{device}/templates.backup.json."""
-    return os.path.join(get_device_data_dir(device_name), "templates.backup.json")
 
 
 def get_device_manifest_json_path(device_name: str) -> str:
@@ -80,26 +120,8 @@ def get_device_manifest_json_path(device_name: str) -> str:
     return get_device_manifest_path(device_name)
 
 
-def get_backup_stems(device_name: str) -> set[str]:
-    """Return the set of template filename stems from templates.backup.json (stock templates)."""
-    backup_path = get_device_templates_backup_path(device_name)
-    if not os.path.exists(backup_path):
-        return set()
-    try:
-        with open(backup_path, encoding="utf-8") as f:
-            data = json.load(f)
-        return {t.get("filename", "") for t in data.get("templates", [])}
-    except Exception:
-        return set()
-
-
-def is_stock_template_name(device_name: str, filename: str) -> bool:
-    """Return True when *filename* resolves to a stock template stem."""
-    return _stem(filename) in get_backup_stems(device_name)
-
-
 def list_device_templates(device_name: str) -> list[str]:
-    """Return sorted list of .svg and .template filenames stored locally for *device_name*."""
+    """Return sorted list of local template filenames for *device_name*."""
     device_dir = get_device_templates_dir(device_name)
     files = [f for f in os.listdir(device_dir) if f.lower().endswith((".svg", ".template"))]
     return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
@@ -115,7 +137,7 @@ def save_device_template(device_name: str, content: bytes, filename: str) -> str
 
 
 def load_device_template(device_name: str, filename: str) -> bytes:
-    """Read and return the bytes of a locally stored SVG template."""
+    """Read and return the bytes of a locally stored template file."""
     device_dir = get_device_templates_dir(device_name)
     filepath = os.path.join(device_dir, filename)
     with open(filepath, "rb") as f:
@@ -123,7 +145,7 @@ def load_device_template(device_name: str, filename: str) -> bytes:
 
 
 def delete_device_template(device_name: str, filename: str) -> None:
-    """Delete a locally stored SVG template."""
+    """Delete a locally stored template file."""
     device_dir = get_device_templates_dir(device_name)
     filepath = os.path.join(device_dir, filename)
     if os.path.exists(filepath):
@@ -131,7 +153,7 @@ def delete_device_template(device_name: str, filename: str) -> None:
 
 
 def rename_device_template(device_name: str, old_filename: str, new_filename: str) -> bool:
-    """Rename a locally stored SVG template. Returns True if successful."""
+    """Rename a locally stored template file. Returns True if successful."""
     device_dir = get_device_templates_dir(device_name)
     old_path = os.path.join(device_dir, old_filename)
     new_path = os.path.join(device_dir, new_filename)
@@ -142,12 +164,12 @@ def rename_device_template(device_name: str, old_filename: str, new_filename: st
 
 
 # ---------------------------------------------------------------------------
-# templates.json management
+# Local metadata helpers
 # ---------------------------------------------------------------------------
 
 
 def _stem(filename: str) -> str:
-    """Return filename stem (strips .svg or .template extension, case-insensitive)."""
+    """Return filename stem (strips .svg/.template extension, case-insensitive)."""
     if filename.lower().endswith((".svg", ".template")):
         return Path(filename).stem
     return filename
@@ -170,79 +192,111 @@ def extract_categories_from_template_content(content: bytes) -> list[str] | None
     return [category for category in categories if isinstance(category, str)]
 
 
-@st.cache_data(ttl=5)
-def load_templates_json(device_name: str) -> dict[str, Any]:
-    """Load and return data/{{device}}/templates.json, or {{"templates": []}} if absent.
+def _sorted_string_categories(raw_categories: Any) -> list[str]:
+    if not isinstance(raw_categories, list):
+        return []
+    return sorted(category for category in raw_categories if isinstance(category, str))
 
-    Results are cached for up to 5 seconds (Streamlit cache_data).  Every
-    call to :func:`save_templates_json` clears the cache so mutations are
-    always visible on the very next read.
+
+def refresh_local_manifest(device_name: str) -> None:
+    """Rebuild local manifest entries from current local .template files.
+
+    Manifest entries are keyed by UUID and matched by template name.
     """
-    path = get_device_templates_json_path(device_name)
-    if not os.path.exists(path):
-        return {"templates": []}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    manifest = load_manifest(device_name)
+    existing_templates = manifest.get("templates", {})
+    existing_by_name: dict[str, tuple[str, dict[str, Any]]] = {}
+    if isinstance(existing_templates, dict):
+        for template_uuid, entry in existing_templates.items():
+            if not isinstance(template_uuid, str) or not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name") or "").strip()
+            if name:
+                existing_by_name[name] = (template_uuid, entry)
 
+    rebuilt_templates: dict[str, dict[str, str]] = {}
+    templates_dir = get_device_templates_dir(device_name)
+    for filename in sorted(os.listdir(templates_dir)):
+        if not filename.lower().endswith(".template"):
+            continue
+        stem = _stem(filename)
+        try:
+            content = load_json_template(device_name, filename)
+        except Exception:
+            continue
+        sha256 = compute_template_sha256_from_template_content(content)
+        if not sha256:
+            continue
 
-def save_templates_json(device_name: str, data: dict[str, Any]) -> None:
-    """Persist *data* as data/{{device}}/templates.json.
+        existing = existing_by_name.get(stem)
+        if existing:
+            template_uuid, entry = existing
+            created_at = str(entry.get("created_at") or "").strip() or utc_now_iso()
+        else:
+            template_uuid = str(uuid.uuid4())
+            created_at = utc_now_iso()
 
-    Uses ensure_ascii=True so Private Use Area icon codes (e.g. \ue9fe) are
-        written as JSON \\uXXXX escape sequences rather than the bare glyph, which
-    matches the format shipped by reMarkable and avoids rendering as empty squares.
+        rebuilt_templates[template_uuid] = {
+            "name": stem,
+            "created_at": created_at,
+            "sha256": sha256,
+        }
 
-    Clears the :func:`load_templates_json` cache so the freshly written data
-    is visible on the very next read.
-    """
-    path = get_device_templates_json_path(device_name)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=True)
-    load_templates_json.clear()
+    next_manifest = {
+        "last_modified": manifest.get("last_modified"),
+        "templates": rebuilt_templates,
+    }
+    if manifest.get("templates") != rebuilt_templates:
+        next_manifest["last_modified"] = utc_now_iso()
+    save_manifest(device_name, next_manifest)
 
 
 def get_all_categories(device_name: str) -> list[str]:
-    """Return sorted list of all distinct categories found in templates.json."""
-    data = load_templates_json(device_name)
+    """Return sorted list of all distinct categories found in local template JSON files."""
     cats: set[str] = set()
-    for t in data.get("templates", []):
-        cats.update(t.get("categories", []))
+    for filename in list_device_templates(device_name):
+        try:
+            payload = json.loads(load_json_template(device_name, filename))
+        except Exception:
+            continue
+        cats.update(_sorted_string_categories(payload.get("categories", [])))
     return sorted(cats)
 
 
+def get_all_labels(device_name: str) -> list[str]:
+    """Return sorted list of all distinct labels found in local template JSON files."""
+    labels: set[str] = set()
+    for filename in list_device_templates(device_name):
+        try:
+            payload = json.loads(load_json_template(device_name, filename))
+        except Exception:
+            continue
+        raw_labels = payload.get("labels", [])
+        if isinstance(raw_labels, list):
+            labels.update(lbl for lbl in raw_labels if isinstance(lbl, str))
+    return sorted(labels)
+
+
 def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None:
-    """Return the manifest entry whose filename matches *filename* (stem), or None."""
+    """Return combined manifest and JSON metadata for one template filename."""
+    refresh_local_manifest(device_name)
     entry = get_manifest_entry(device_name, filename)
-    if entry and entry.get("syncStatus") == SYNC_STATUS_DELETED:
+    if not entry:
         return None
-    if entry is not None:
-        return entry
 
-    # Compatibility path for legacy test/data setups that still provide only templates.json.
-    stem = _stem(filename)
-    for item in load_templates_json(device_name).get("templates", []):
-        if item.get("filename") == stem:
-            normalized = dict(item)
-            raw_categories = normalized.get("categories", [])
-            if isinstance(raw_categories, list):
-                normalized["categories"] = sorted(
-                    category for category in raw_categories if isinstance(category, str)
-                )
-            else:
-                normalized["categories"] = []
-            return normalized
-    return None
+    result = dict(entry)
+    try:
+        payload = json.loads(load_json_template(device_name, filename))
+    except Exception:
+        payload = {}
 
-
-@contextmanager
-def _edit_templates_json(device_name: str) -> Generator[dict[str, Any], None, None]:
-    """Context manager that loads templates.json, yields the data dict for mutation,
-    then saves it back on exit.
-    """
-    data = load_templates_json(device_name)
-    yield data
-    save_templates_json(device_name, data)
+    result["categories"] = _sorted_string_categories(payload.get("categories", []))
+    raw_labels = payload.get("labels", [])
+    result["labels"] = sorted(lbl for lbl in raw_labels if isinstance(lbl, str))
+    result["iconData"] = (
+        payload.get("iconData") if isinstance(payload.get("iconData"), str) else None
+    )
+    return result
 
 
 def add_template_entry(
@@ -251,94 +305,90 @@ def add_template_entry(
     categories: list[str],
     icon_code: str = "\ue9fe",
     previous_filename: str | None = None,
+    labels: list[str] | None = None,
+    icon_data: str | None = None,
 ) -> None:
-    """Add or replace the templates.json entry for *filename*.
+    """Add or update one local template manifest entry using UUID-keyed schema."""
+    del categories, icon_code, labels, icon_data
 
-    Custom templates (those absent from templates.backup.json) are kept sorted
-    alphabetically so that re-saving an existing entry does not change the file
-    order and therefore does not mark templates as dirty.
-    """
     stem = _stem(filename)
-    previous_stem = _stem(previous_filename) if previous_filename else None
-    backup_stems = get_backup_stems(device_name)
-    if stem in backup_stems and stem != previous_stem:
-        raise StockTemplateNameConflictError(f"stock_template_name_conflict: {stem}")
 
-    with _edit_templates_json(device_name) as data:
-        data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
-        data["templates"].append(
-            {
-                "name": stem,
-                "filename": stem,
-                "iconCode": icon_code,
-                "categories": sorted(categories),
-            }
-        )
-        stock = [t for t in data["templates"] if t.get("filename") in backup_stems]
-        custom = sorted(
-            [t for t in data["templates"] if t.get("filename") not in backup_stems],
-            key=lambda t: t.get("filename", "").lower(),
-        )
-        data["templates"] = stock + custom
+    template_uuid = None
+    if previous_filename:
+        template_uuid = find_manifest_uuid_by_name(device_name, _stem(previous_filename))
+    if not template_uuid:
+        template_uuid = find_manifest_uuid_by_name(device_name, stem)
+    if not template_uuid:
+        template_uuid = str(uuid.uuid4())
 
-    manifest_add_or_update_template_entry(
+    entry = get_manifest_entry(device_name, template_uuid)
+    created_at = str(entry.get("created_at") or "").strip() if entry else ""
+    if not created_at:
+        created_at = utc_now_iso()
+
+    sha256 = ""
+    try:
+        sha256 = (
+            compute_template_sha256_from_template_content(load_json_template(device_name, filename))
+            or ""
+        )
+    except Exception:
+        sha256 = ""
+    if not sha256:
+        return
+
+    upsert_manifest_template(
         device_name,
-        filename,
-        categories,
-        icon_code,
-        sync_status=SYNC_STATUS_PENDING,
+        template_uuid,
+        name=stem,
+        created_at=created_at,
+        sha256=sha256,
     )
 
 
 def remove_template_entry(device_name: str, filename: str) -> None:
-    """Remove from templates.json and mark as deleted in manifest.json."""
-    stem = _stem(filename)
-    with _edit_templates_json(device_name) as data:
-        data["templates"] = [t for t in data["templates"] if t.get("filename") != stem]
-    mark_template_deleted(device_name, filename)
+    """Delete one template entry from manifest.json."""
+    template_uuid = find_manifest_uuid_by_name(device_name, filename)
+    if template_uuid:
+        delete_manifest_template(device_name, template_uuid)
 
 
 def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
-    """Update filename and name fields in templates.json when a template is renamed."""
-    old_stem, new_stem = _stem(old_filename), _stem(new_filename)
-
-    manifest_entry = get_manifest_entry(device_name, old_stem)
-    synced_snapshot = manifest_entry.get("syncedSnapshot") if manifest_entry else None
-    is_revert_to_previous_synced_name = (
-        isinstance(synced_snapshot, dict) and synced_snapshot.get("filename") == new_stem
-    )
-    if new_stem in get_backup_stems(device_name) and not is_revert_to_previous_synced_name:
-        raise StockTemplateNameConflictError(f"stock_template_name_conflict: {new_stem}")
-
-    with _edit_templates_json(device_name) as data:
-        for t in data.get("templates", []):
-            if t.get("filename") == old_stem:
-                t["filename"] = new_stem
-                t["name"] = new_stem
-                break
-    rename_entry(device_name, old_filename, new_filename)
+    """Rename one template entry in manifest.json."""
+    rename_manifest_template_by_name(device_name, old_filename, new_filename)
 
 
 def update_template_categories(device_name: str, filename: str, categories: list[str]) -> None:
-    """Update the categories list for *filename* in templates.json."""
-    stem = _stem(filename)
-    with _edit_templates_json(device_name) as data:
-        for t in data.get("templates", []):
-            if t.get("filename") == stem:
-                t["categories"] = sorted(categories)
-                break
-    manifest_update_categories(device_name, filename, categories)
+    """Update categories directly in the local template JSON file."""
+    try:
+        payload = json.loads(load_json_template(device_name, filename))
+    except Exception:
+        return
+    payload["categories"] = sorted(set(categories))
+    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
+    add_template_entry(device_name, filename, categories)
 
 
 def update_template_icon_code(device_name: str, filename: str, icon_code: str) -> None:
-    """Update the iconCode for *filename* in templates.json."""
-    stem = _stem(filename)
-    with _edit_templates_json(device_name) as data:
-        for t in data.get("templates", []):
-            if t.get("filename") == stem:
-                t["iconCode"] = icon_code
-                break
-    manifest_update_icon_code(device_name, filename, icon_code)
+    """Update iconCode directly in the local template JSON file."""
+    try:
+        payload = json.loads(load_json_template(device_name, filename))
+    except Exception:
+        return
+    payload["iconCode"] = icon_code
+    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
+    add_template_entry(device_name, filename, [])
+
+
+def update_template_labels(device_name: str, filename: str, labels: list[str]) -> None:
+    """Update labels directly in the local template JSON file."""
+    try:
+        payload = json.loads(load_json_template(device_name, filename))
+    except Exception:
+        return
+    payload["labels"] = sorted(set(lbl for lbl in labels if isinstance(lbl, str)))
+    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
+    add_template_entry(device_name, filename, [])
 
 
 # ---------------------------------------------------------------------------
@@ -346,12 +396,10 @@ def update_template_icon_code(device_name: str, filename: str, icon_code: str) -
 # ---------------------------------------------------------------------------
 
 
-def ensure_remote_template_dirs(
-    ip: str, password: str, remote_custom_dir: str, remote_templates_dir: str
-) -> tuple[bool, str]:
-    """Ensure remote template directories exist. Return (ok, message)."""
+def ensure_remote_template_dirs(ip: str, password: str) -> tuple[bool, str]:
+    """Ensure rmMethods xochitl directory exists. Return (ok, message)."""
     try:
-        cmd = f"mkdir -p '{remote_custom_dir}' '{remote_templates_dir}'"
+        cmd = f"mkdir -p {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}"
         out, err = run_ssh_cmd(ip, password, [cmd])
         return True, out or err
     except Exception as e:
@@ -360,16 +408,11 @@ def ensure_remote_template_dirs(
 
 
 def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
-    """Return custom template filenames present on the tablet.
-
-    The result only includes files from REMOTE_CUSTOM_TEMPLATES_DIR ending
-    with .svg or .template.
-    """
+    """Return remote UUID stems for rmMethods metadata files."""
     cmd = (
-        f"for file in {shlex.quote(REMOTE_CUSTOM_TEMPLATES_DIR)}/*.svg "
-        f"{shlex.quote(REMOTE_CUSTOM_TEMPLATES_DIR)}/*.template; do "
+        f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.metadata; do "
         '[ -f "$file" ] || continue; '
-        'basename "$file"; '
+        'basename "$file" .metadata; '
         "done"
     )
     try:
@@ -378,126 +421,8 @@ def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[st
         return False, str(e)
     if err.strip():
         return False, err.strip()
-    names = [line.strip() for line in out.splitlines() if line.strip()]
+    names = sorted({line.strip() for line in out.splitlines() if line.strip()})
     return True, names
-
-
-def _list_remote_stock_template_stems(ip: str, password: str) -> tuple[bool, set[str] | str]:
-    """Return stems for physical stock template files present on the tablet.
-
-    Only regular files from REMOTE_TEMPLATES_DIR are kept (symlinks excluded).
-    """
-    cmd = (
-        f"for file in {shlex.quote(REMOTE_TEMPLATES_DIR)}/*.svg "
-        f"{shlex.quote(REMOTE_TEMPLATES_DIR)}/*.template; do "
-        '[ -f "$file" ] || continue; '
-        'basename "$file"; '
-        "done"
-    )
-    try:
-        out, err = run_ssh_cmd(ip, password, [cmd])
-    except Exception as e:
-        return False, str(e)
-    if err.strip():
-        return False, err.strip()
-    names = [line.strip() for line in out.splitlines() if line.strip()]
-    return True, {_stem(name) for name in names}
-
-
-def _filter_templates_by_stock_stems(
-    remote_data: dict[str, Any],
-    stock_stems: set[str],
-) -> dict[str, Any]:
-    """Return a copy of remote_data keeping only entries whose filename stem is stock."""
-    filtered = dict(remote_data)
-    raw_templates = remote_data.get("templates", [])
-    templates_list = raw_templates if isinstance(raw_templates, list) else []
-    filtered["templates"] = [
-        item
-        for item in templates_list
-        if isinstance(item, dict) and str(item.get("filename", "")) in stock_stems
-    ]
-    return filtered
-
-
-def _remote_templates_are_stock_only(remote_data: dict[str, Any], stock_stems: set[str]) -> bool:
-    """Return True when every remote template stem is part of stock_stems."""
-    raw_templates = remote_data.get("templates", [])
-    templates_list = raw_templates if isinstance(raw_templates, list) else []
-    for item in templates_list:
-        if not isinstance(item, dict):
-            continue
-        stem = str(item.get("filename", ""))
-        if not stem:
-            continue
-        if stem not in stock_stems:
-            return False
-    return True
-
-
-def remote_templates_dir_has_symlinks(ip: str, password: str) -> tuple[bool, bool | str]:
-    """Return whether `/usr/share/remarkable/templates` currently contains symlinks."""
-    cmd = (
-        f"if find {shlex.quote(REMOTE_TEMPLATES_DIR)} -maxdepth 1 -type l | grep -q .; "
-        "then echo yes; else echo no; fi"
-    )
-    try:
-        out, err = run_ssh_cmd(ip, password, [cmd])
-    except Exception as e:
-        return False, str(e)
-    if err.strip():
-        return False, err.strip()
-    return True, out.strip() == "yes"
-
-
-def refresh_templates_backup_from_tablet(
-    ip: str,
-    password: str,
-    device_name: str,
-) -> tuple[bool, str]:
-    """Refresh local templates.backup.json using strict stock-only rewrite rules."""
-    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    if remote_content is None:
-        return False, f"download_failed: {err}"
-
-    try:
-        remote_data = json.loads(remote_content.decode("utf-8"))
-    except Exception as e:
-        return False, f"backup_parse_failed: {e}"
-
-    backup_path = get_device_templates_backup_path(device_name)
-    backup_exists = os.path.exists(backup_path)
-
-    ok_stock, stock_payload = _list_remote_stock_template_stems(ip, password)
-    if not ok_stock:
-        assert isinstance(stock_payload, str)
-        return False, f"stock_templates_list_failed: {stock_payload}"
-    assert isinstance(stock_payload, set)
-    stock_stems = stock_payload
-
-    remote_is_stock_only = _remote_templates_are_stock_only(remote_data, stock_stems)
-    if backup_exists and not remote_is_stock_only:
-        return True, "backup_preserved_remote_contains_custom"
-
-    if remote_is_stock_only:
-        # Preserve the exact upstream JSON payload to detect format or stock list changes.
-        backup_bytes = remote_content
-        mode = "backup_refreshed"
-    else:
-        rebuilt = _filter_templates_by_stock_stems(remote_data, stock_stems)
-        backup_bytes = json.dumps(rebuilt, indent=2, ensure_ascii=True).encode("utf-8")
-        mode = "backup_rebuilt_stock_only"
-
-    try:
-        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-        with open(backup_path, "wb") as f:
-            f.write(backup_bytes)
-        data = json.loads(backup_bytes.decode("utf-8"))
-        ensure_manifest_from_templates_json(device_name, data)
-    except Exception as e:
-        return False, f"backup_write_failed: {e}"
-
-    return True, mode
 
 
 def reset_and_initialize_templates_from_tablet(
@@ -520,11 +445,7 @@ def reset_and_initialize_templates_from_tablet(
             except OSError as e:
                 return False, f"local_template_delete_failed ({filename}): {e}"
 
-    for metadata_path in (
-        get_device_templates_json_path(device_name),
-        get_device_templates_backup_path(device_name),
-        get_device_manifest_json_path(device_name),
-    ):
+    for metadata_path in (get_device_manifest_json_path(device_name),):
         if not os.path.exists(metadata_path):
             continue
         try:
@@ -536,7 +457,6 @@ def reset_and_initialize_templates_from_tablet(
         ip,
         password,
         device_name,
-        include_remote_custom_templates=True,
         overwrite_backup=True,
     )
     if not ok:
@@ -546,13 +466,13 @@ def reset_and_initialize_templates_from_tablet(
 
 
 def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, set[str] | str]:
-    """Return the set of custom template filenames currently present on the tablet."""
+    """Return remote rmMethods UUID `.template` filenames currently present."""
     ok, payload = _list_remote_custom_templates(ip, password)
     if not ok:
         assert isinstance(payload, str)
         return False, payload
     assert isinstance(payload, list)
-    return True, set(payload)
+    return True, {f"{remote_uuid}.template" for remote_uuid in payload}
 
 
 def remove_remote_custom_templates(
@@ -560,14 +480,22 @@ def remove_remote_custom_templates(
     password: str,
     filenames: set[str],
 ) -> tuple[bool, str]:
-    """Remove custom template files and their symlinks for *filenames* on the tablet."""
+    """Remove rmMethods UUID triplets inferred from *filenames* on the tablet."""
     if not filenames:
         return True, "ok"
 
     rm_args = []
     for fname in sorted(filenames):
-        rm_args.append(shlex.quote(f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{fname}"))
-        rm_args.append(shlex.quote(f"{REMOTE_TEMPLATES_DIR}/{fname}"))
+        stem = _stem(fname)
+        if "." in stem:
+            stem = stem.split(".", 1)[0]
+        if not stem:
+            continue
+        for ext in (".template", ".metadata", ".content"):
+            rm_args.append(shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{stem}{ext}"))
+
+    if not rm_args:
+        return True, "ok"
 
     cmd = f"rm -f {' '.join(rm_args)}"
     try:
@@ -583,159 +511,103 @@ def fetch_and_init_templates(
     ip: str,
     password: str,
     device_name: str,
-    include_remote_custom_templates: bool = False,
     overwrite_backup: bool = False,
 ) -> tuple[bool, str]:
-    """Download tablet templates.json and initialize local template metadata.
+    """Import rmMethods templates from xochitl and initialize local manifest."""
 
-    When ``include_remote_custom_templates`` is True, custom .svg/.template
-    files already present on the tablet are also downloaded locally and added
-    to the resulting local templates.json when missing.
-    """
-    backup_path = get_device_templates_backup_path(device_name)
-    backup_exists = os.path.exists(backup_path)
+    if overwrite_backup:
+        templates_dir = get_device_templates_dir(device_name)
+        for fname in os.listdir(templates_dir):
+            if fname.lower().endswith(".template"):
+                with suppress(OSError):
+                    os.remove(os.path.join(templates_dir, fname))
+        manifest_path = get_device_manifest_json_path(device_name)
+        with suppress(FileNotFoundError):
+            os.remove(manifest_path)
 
-    # 1 — Prefer the tablet's templates.json whenever it can be downloaded.
-    remote_content, err = download_file_ssh(ip, password, REMOTE_TEMPLATES_JSON)
-    backup_mode = "backup_preserved"
-    if remote_content is not None:
-        try:
-            remote_data = json.loads(remote_content.decode("utf-8"))
-        except Exception as e:
-            if not (backup_exists and not overwrite_backup):
-                return False, f"backup_parse_failed: {e}"
-            backup_data = None
-        else:
-            backup_data = remote_data
-            # Rewrite policy for templates.backup.json:
-            # 1) if backup is missing, rebuild stock-only backup from remote templates.json;
-            # 2) if backup exists, rewrite only when remote templates.json is stock-only.
-            ok_stock, stock_payload = _list_remote_stock_template_stems(ip, password)
-            if not ok_stock:
-                assert isinstance(stock_payload, str)
-                return False, f"stock_templates_list_failed: {stock_payload}"
-            assert isinstance(stock_payload, set)
-            stock_stems = stock_payload
-
-            should_write_backup = False
-            backup_bytes: bytes | None = None
-            remote_is_stock_only = _remote_templates_are_stock_only(remote_data, stock_stems)
-            if not backup_exists:
-                if remote_is_stock_only:
-                    # Preserve exact upstream JSON bytes when it is already stock-only.
-                    backup_bytes = remote_content
-                    backup_mode = "backup_refreshed"
-                else:
-                    rebuilt = _filter_templates_by_stock_stems(remote_data, stock_stems)
-                    backup_bytes = json.dumps(rebuilt, indent=2, ensure_ascii=True).encode("utf-8")
-                    backup_mode = "backup_rebuilt_stock_only"
-                should_write_backup = True
-            elif remote_is_stock_only:
-                backup_bytes = remote_content
-                should_write_backup = True
-                backup_mode = "backup_refreshed"
-
-            if should_write_backup:
-                try:
-                    os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-                    with open(backup_path, "wb") as f:
-                        assert backup_bytes is not None
-                        f.write(backup_bytes)
-                except Exception as e:
-                    return False, f"backup_write_failed: {e}"
-    elif backup_exists and not overwrite_backup:
-        try:
-            with open(backup_path, encoding="utf-8") as f:
-                backup_data = json.load(f)
-        except Exception as e:
-            return False, f"backup_parse_failed: {e}"
-    else:
-        logger.error("fetch_and_init_templates — download failed: %s", err)
-        return False, f"download_failed: {err}"
-
-    if backup_data is None:
-        try:
-            with open(backup_path, encoding="utf-8") as f:
-                backup_data = json.load(f)
-        except Exception as e:
-            return False, f"backup_parse_failed: {e}"
+    ok, payload = _list_remote_custom_templates(ip, password)
+    if not ok:
+        assert isinstance(payload, str)
+        return False, f"list_remote_templates_failed: {payload}"
+    assert isinstance(payload, list)
 
     templates_dir = get_device_templates_dir(device_name)
-    existing_stems = {t.get("filename") for t in backup_data.get("templates", [])}
-    appended = 0
-    remote_downloaded = 0
+    used_filenames: set[str] = set()
+    imported = 0
 
-    # 4 — Optionally download custom files from tablet first
-    if include_remote_custom_templates:
-        ok, payload = _list_remote_custom_templates(ip, password)
-        if not ok:
-            return False, f"list_remote_custom_failed: {payload}"
-        assert isinstance(payload, list)
-        for fname in payload:
-            content, dl_err = download_file_ssh(
-                ip, password, f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{fname}"
-            )
-            if content is None:
-                return False, f"download_custom_failed ({fname}): {dl_err}"
-            save_device_template(device_name, content, fname)
-            remote_downloaded += 1
+    for remote_uuid in payload:
+        metadata_bytes, meta_err = download_file_ssh(
+            ip, password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
+        )
+        if metadata_bytes is None:
+            logger.warning("Skipping %s: metadata download failed (%s)", remote_uuid, meta_err)
+            continue
+        template_bytes, tpl_err = download_file_ssh(
+            ip, password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
+        )
+        if template_bytes is None:
+            logger.warning("Skipping %s: template download failed (%s)", remote_uuid, tpl_err)
+            continue
 
-    # 5 — Append entries for local SVG/.template files not already present in backup
-    if os.path.exists(templates_dir):
-        for file_name in sorted(os.listdir(templates_dir)):
-            if not file_name.lower().endswith((".svg", ".template")):
-                continue
-            stem = _stem(file_name)
-            if stem not in existing_stems:
-                backup_data.setdefault("templates", []).append(
-                    {
-                        "name": stem,
-                        "filename": stem,
-                        "iconCode": "\ue9fe",
-                        "categories": ["Perso"],
-                    }
-                )
-                existing_stems.add(stem)
-                appended += 1
+        try:
+            metadata = json.loads(metadata_bytes.decode("utf-8"))
+            payload_json = json.loads(template_bytes.decode("utf-8"))
+        except Exception:
+            continue
 
-    # 6 — Persist as local templates.json
-    save_templates_json(device_name, backup_data)
-    ensure_manifest_from_templates_json(device_name, backup_data)
-    logger.info(
-        "fetch_and_init_templates: backup saved, %d local custom template(s) appended for '%s'",
-        appended,
-        device_name,
-    )
-    mode = backup_mode if remote_content is not None else "backup_preserved"
-    return (
-        True,
-        (
-            f"fetched ({appended} local custom template(s) appended, "
-            f"{remote_downloaded} downloaded, {mode})"
-        ),
-    )
+        if metadata.get("type") != "TemplateType":
+            continue
+
+        normalized_payload = ensure_template_payload_for_rmethods(payload_json)
+        visible_name = str(metadata.get("visibleName") or payload_json.get("name") or remote_uuid)
+        stem = visible_name.strip().replace("/", "-").replace("\\", "-") or remote_uuid
+        stem = stem.replace(" ", "_")
+        filename = f"{stem}.template"
+        suffix = 2
+        while filename in used_filenames or os.path.exists(os.path.join(templates_dir, filename)):
+            filename = f"{stem}_{suffix}.template"
+            suffix += 1
+        used_filenames.add(filename)
+
+        save_json_template(
+            device_name, filename, json.dumps(normalized_payload, indent=2, ensure_ascii=True)
+        )
+        sha256 = compute_template_sha256(normalized_payload)
+        created_at = iso_from_epoch_ms(metadata.get("createdTime")) or utc_now_iso()
+        upsert_manifest_template(
+            device_name,
+            remote_uuid,
+            name=_stem(filename),
+            created_at=created_at,
+            sha256=sha256,
+        )
+        imported += 1
+
+    # Ensure manifest file exists even when no remote template is found.
+    if not os.path.exists(get_device_manifest_json_path(device_name)):
+        save_manifest(device_name, load_manifest(device_name))
+
+    return True, f"fetched ({imported} template(s) imported from rmMethods)"
 
 
 def delete_template_from_tablet(
     ip: str, password: str, device_name: str, filename: str
 ) -> tuple[bool, str]:
-    """Delete one template file on tablet, upload local templates.json, and restart xochitl."""
-    q_custom = shlex.quote(f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{filename}")
-    q_symlink = shlex.quote(f"{REMOTE_TEMPLATES_DIR}/{filename}")
+    """Delete one rmMethods template triplet on tablet and restart xochitl."""
+    entry = get_manifest_entry(device_name, filename)
+    template_uuid = str(entry.get("uuid") or "") if entry else ""
+    if not template_uuid:
+        return False, "delete_remote_failed: missing remote UUID"
+
+    q_template = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.template")
+    q_meta = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.metadata")
+    q_content = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.content")
     try:
-        _, err = run_ssh_cmd(ip, password, [f"rm -f {q_custom} {q_symlink}"])
+        _, err = run_ssh_cmd(ip, password, [f"rm -f {q_template} {q_meta} {q_content}"])
     except Exception as e:
         return False, f"delete_remote_failed: {e}"
     if err.strip():
         return False, f"delete_remote_failed: {err.strip()}"
-
-    local_json_path = get_device_templates_json_path(device_name)
-    if os.path.exists(local_json_path):
-        with open(local_json_path, "rb") as f:
-            json_content = f.read()
-        ok, msg = upload_file_ssh(ip, password, json_content, REMOTE_TEMPLATES_JSON)
-        if not ok:
-            return False, f"upload_json_failed: {msg}"
 
     try:
         run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
@@ -748,25 +620,37 @@ def delete_template_from_tablet(
 def upload_template_to_tablet(
     ip: str, password: str, device_name: str, filename: str
 ) -> tuple[bool, str]:
-    """Replace an existing SVG on the tablet and restart xochitl.
-
-    The symlink and templates.json are assumed to be already in place
-    (this function is only called when replacing a previously uploaded template).
-
-    Steps:
-    1. Read the local SVG.
-    2. Upload SVG to REMOTE_CUSTOM_TEMPLATES_DIR.
-    3. Restart xochitl.
-    """
+    """Upload one local template as an rmMethods UUID triplet and restart xochitl."""
     try:
-        content = load_device_template(device_name, filename)
+        content = load_json_template(device_name, filename)
     except Exception as e:
         return False, f"read_local_failed: {e}"
 
-    remote_svg = f"{REMOTE_CUSTOM_TEMPLATES_DIR}/{filename}"
-    ok, msg = upload_file_ssh(ip, password, content, remote_svg)
-    if not ok:
-        return False, f"upload_svg_failed: {msg}"
+    try:
+        payload = json.loads(content)
+    except Exception as e:
+        return False, f"invalid_template_json: {e}"
+    payload = ensure_template_payload_for_rmethods(payload)
+
+    add_template_entry(device_name, filename, [])
+    entry = get_manifest_entry(device_name, filename)
+    template_uuid = str(entry.get("uuid") or "") if entry else ""
+    if not template_uuid:
+        return False, "missing_manifest_uuid"
+
+    manifest_name = str(entry.get("name") or "") if entry else ""
+    visible_name = str(manifest_name or payload.get("name") or _stem(filename))
+    triplet_payloads = build_rmethods_triplet_payloads(payload, visible_name)
+
+    for ext, blob in triplet_payloads.items():
+        ok, msg = upload_file_ssh(
+            ip,
+            password,
+            blob,
+            f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.{ext}",
+        )
+        if not ok:
+            return False, f"upload_{ext}_failed: {msg}"
 
     try:
         run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
@@ -778,23 +662,49 @@ def upload_template_to_tablet(
 
 
 def is_templates_dirty(device_name: str) -> bool:
-    """Return True when manifest.json contains unsynced template states."""
-    return has_unsynced_changes(device_name)
+    """Legacy compatibility helper.
+
+    Sync status is no longer persisted in manifest entries, so this now always
+    returns False.
+    """
+    del device_name
+    return False
 
 
 def get_template_sync_status(device_name: str, filename: str) -> str | None:
-    """Return template sync status from manifest.json."""
-    return get_sync_status(device_name, filename)
+    """Legacy compatibility helper.
+
+    Per-template persistent sync status was removed.
+    """
+    del device_name, filename
+    return None
 
 
 def get_templates_sync_overview(device_name: str) -> dict[str, int]:
-    """Return per-status template counts from manifest.json."""
-    return get_sync_overview(device_name)
+    """Legacy compatibility helper.
+
+    Per-status counters no longer exist in the new manifest schema.
+    """
+    del device_name
+    return {"pending": 0, "orphan": 0, "deleted": 0, "synced": 0}
 
 
 def set_template_sync_status(device_name: str, filename: str, status: str) -> bool:
-    """Set sync status for one template entry in manifest.json."""
-    return set_sync_status(device_name, filename, status)
+    """Legacy compatibility helper.
+
+    Per-template persistent sync status was removed.
+    """
+    del device_name, filename, status
+    return False
+
+
+def set_template_remote_uuid(device_name: str, filename: str, remote_uuid: str | None) -> bool:
+    """Legacy compatibility helper.
+
+    UUID is now the manifest key and is no longer stored as a mutable field.
+    """
+    del device_name, filename, remote_uuid
+    return False
 
 
 # ---------------------------------------------------------------------------

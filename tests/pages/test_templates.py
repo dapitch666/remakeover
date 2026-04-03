@@ -1,6 +1,6 @@
 """Tests for pages/templates.py.
 
-Covers: empty-config warning, no-backup warning, import success/failure,
+Covers: empty-config warning, manifest-init warning, import success/failure,
 dirty banner with sync, all sync branches, template card grid, rename mode,
 delete flow, sort-by, and upload section render.
 """
@@ -30,14 +30,10 @@ def _make_svgs(tmp_path, device: str = "D1", names: list[str] | None = None) -> 
     names = names or ["alpha.svg", "beta.svg"]
     tdir = tmp_path / device / "templates"
     tdir.mkdir(parents=True, exist_ok=True)
-    # Also ensure backup file exists so the page enters the 'else' branch
-    backup = tmp_path / device / "templates.backup.json"
-    if not backup.exists():
-        backup.write_text('{"templates": []}', encoding="utf-8")
     manifest = tmp_path / device / "manifest.json"
     if not manifest.exists():
         manifest.write_text(
-            '{"version": 1, "lastSync": null, "templates": []}',
+            '{"last_modified": null, "templates": {}}',
             encoding="utf-8",
         )
     for name in names:
@@ -57,10 +53,10 @@ def test_templates_page_warns_when_no_devices(tmp_path):
 
 
 class TestTemplatesPage:
-    # -- no backup yet -------------------------------------------------------
+    # -- no manifest yet ------------------------------------------------------
 
-    def test_no_backup_shows_warning_and_import_button(self, tmp_path):
-        """Without a backup file, page shows 'not yet imported' warning + import button."""
+    def test_no_manifest_shows_warning_and_import_button(self, tmp_path):
+        """Without a manifest file, page shows the initialize warning and action button."""
         cfg_path = with_device(tmp_path, "D1")
         at = at_page(tmp_path, "pages/templates.py", cfg_path)
         assert not at.exception
@@ -103,10 +99,10 @@ class TestTemplatesPage:
         assert not at.exception
         assert any("SSH connection refused" in e.value for e in at.error)
 
-    # -- backup exists, no templates ----------------------------------------
+    # -- manifest exists, no templates ---------------------------------------
 
-    def test_backup_exists_no_templates_shows_info(self, tmp_path):
-        """With backup but zero SVGs, page renders 'No templates' info."""
+    def test_manifest_exists_no_templates_shows_info(self, tmp_path):
+        """With manifest but zero templates, page renders 'No templates' info."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -144,17 +140,20 @@ class TestTemplatesPage:
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
+
+        def _download(_ip, _pw, remote_path):
+            if remote_path.endswith("/.manifest.json"):
+                return None, "No such file"
+            return None, "missing"
+
         with (
             patch.dict(os.environ, env),
             patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
             patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
-            patch("src.template_sync.load_manifest", return_value={"templates": []}),
-            patch("src.template_sync.list_manifest_entries", return_value=[]),
-            patch("src.template_sync.mark_synced"),
-            patch("src.ssh.run_ssh_cmd"),
+            patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+            patch("src.ssh.run_ssh_cmd", return_value=("", "")),
             patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
         ):
             at = AppTest.from_file("app.py")
@@ -230,7 +229,7 @@ class TestTemplatesPage:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         mock_upload = SimpleNamespace(
-            name="alpha.svg",
+            name="alpha.template",
             read=lambda: _SVG,
         )
         with (
@@ -255,8 +254,6 @@ class TestTemplatesPage:
         assert not at.exception
         assert any(m.label == "Existing categories" for m in at.multiselect)
         assert any(t.label == "New categories (comma-separated)" for t in at.text_input)
-        assert any(t.label == "Icon code (hex)" for t in at.text_input)
-        assert any("Icon preview" in c.value for c in at.caption)
 
     def test_import_tab_prefills_categories_from_single_template_file(self, tmp_path):
         """A single uploaded `.template` file prefills categories from its JSON metadata."""
@@ -619,89 +616,6 @@ class TestTemplateReload:
 
 
 # ---------------------------------------------------------------------------
-# Template icon code
-# ---------------------------------------------------------------------------
-
-
-class TestTemplateIconCode:
-    """Tests for icon-code handling in template cards."""
-
-    def _make_template_with_icon(
-        self, tmp_path, device: str, filename: str, icon_code: str
-    ) -> None:
-        """Create an SVG + templates/manifest entries (with *icon_code*) + backup stub."""
-        stem = filename.removesuffix(".svg")
-        d = backup_dir(tmp_path, device)
-        (d / "templates" / filename).write_bytes(_SVG)
-        (d / "templates.json").write_text(
-            json.dumps(
-                {
-                    "templates": [
-                        {
-                            "name": stem,
-                            "filename": stem,
-                            "iconCode": icon_code,
-                            "categories": ["Lines"],
-                        }
-                    ]
-                }
-            ),
-            encoding="utf-8",
-        )
-        (d / "manifest.json").write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "lastSync": None,
-                    "templates": [
-                        {
-                            "name": stem,
-                            "filename": stem,
-                            "iconCode": icon_code,
-                            "categories": ["Lines"],
-                            "syncStatus": "synced",
-                            "addedAt": "2025-01-10T09:00:00Z",
-                            "modifiedAt": "2025-01-10T09:00:00Z",
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
-
-    def test_card_with_icon_code_renders_without_error(self, tmp_path):
-        """A template whose templates.json entry has an iconCode renders without error."""
-        cfg_path = with_device(tmp_path, "D1")
-        self._make_template_with_icon(tmp_path, "D1", "alpha.svg", "\ue960")
-        env = make_env(tmp_path, cfg_path)
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.switch_page("pages/templates.py").run()
-        assert not at.exception
-        assert any("alpha" in b.label.lower() for b in at.button)
-
-    def test_card_with_empty_icon_code_shows_fallback_button(self, tmp_path):
-        """A template with an empty iconCode shows the fallback palette icon button."""
-        cfg_path = with_device(tmp_path, "D1")
-        self._make_template_with_icon(tmp_path, "D1", "beta.svg", "")
-        env = make_env(tmp_path, cfg_path)
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.switch_page("pages/templates.py").run()
-        assert not at.exception
-        # render_icon_link_html("") == "" → the fallback button is rendered instead
-        assert any(b.key and b.key.startswith("tpl_icon_btn_fallback_") for b in at.button)
-
-
-# ---------------------------------------------------------------------------
 # .template files alongside SVG files
 # ---------------------------------------------------------------------------
 
@@ -715,22 +629,18 @@ def _make_json_template(tmp_path, device: str = "D1", name: str = "MyLines.templ
     tdir = d / "templates"
     stem = name.removesuffix(".template")
     (tdir / name).write_text(_JSON_TEMPLATE, encoding="utf-8")
+    template_uuid = "00000000-0000-4000-8000-000000000001"
     (d / "manifest.json").write_text(
         json.dumps(
             {
-                "version": 1,
-                "lastSync": None,
-                "templates": [
-                    {
+                "last_modified": None,
+                "templates": {
+                    template_uuid: {
                         "name": stem,
-                        "filename": stem,
-                        "iconCode": "\ue9fe",
-                        "categories": ["Perso"],
-                        "syncStatus": "synced",
-                        "addedAt": "2025-01-10T09:00:00Z",
-                        "modifiedAt": "2025-01-10T09:00:00Z",
+                        "created_at": "2025-01-10T09:00:00Z",
+                        "sha256": "abc123",
                     }
-                ],
+                },
             }
         ),
         encoding="utf-8",
@@ -913,135 +823,49 @@ class TestSegmentedControlOptions:
         )
 
 
-class TestOrphanActions:
-    """Orphan templates expose explicit adopt/delete actions."""
+class TestSyncCheckActions:
+    """Templates page exposes the non-destructive sync status check action."""
 
-    def test_orphan_card_shows_add_and_delete_actions(self, tmp_path):
+    def test_check_sync_status_button_is_rendered(self, tmp_path):
         cfg_path = with_device(tmp_path, "D1")
-        _make_json_template(tmp_path, "D1", "orphaned.template")
+        backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
-            patch("src.templates.get_template_sync_status", return_value="orphan"),
-        ):
+        with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
 
         assert not at.exception
-        assert any(b.label == "Add orphan" for b in at.button)
-        assert any(b.label == "Delete orphan" for b in at.button)
+        assert any(b.label == "Check sync status" for b in at.button)
 
-    def test_add_orphan_action_sets_pending(self, tmp_path):
+    def test_check_sync_status_button_click_success(self, tmp_path):
         cfg_path = with_device(tmp_path, "D1")
-        _make_json_template(tmp_path, "D1", "orphaned.template")
+        backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
-        calls: list[tuple[str, str, str]] = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
-            patch("src.templates.get_template_sync_status", return_value="orphan"),
             patch(
-                "src.templates.set_template_sync_status",
-                side_effect=lambda d, f, s: calls.append((d, f, s)) or True,
+                "src.template_sync.check_sync_status",
+                return_value=(
+                    True,
+                    {
+                        "local_count": 1,
+                        "remote_count": 1,
+                        "in_sync_count": 1,
+                        "to_upload": [],
+                        "to_delete_remote": [],
+                    },
+                ),
             ),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            btn = next((b for b in at.button if b.label == "Add orphan"), None)
+            btn = next((b for b in at.button if b.label == "Check sync status"), None)
             assert btn is not None
             btn.click().run()
 
         assert not at.exception
-        assert ("D1", "orphaned.template", "pending") in calls
-
-    def test_delete_orphan_action_sets_deleted(self, tmp_path):
-        cfg_path = with_device(tmp_path, "D1")
-        _make_json_template(tmp_path, "D1", "orphaned.template")
-        env = make_env(tmp_path, cfg_path)
-        calls: list[tuple[str, str, str]] = []
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
-            patch("src.templates.get_template_sync_status", return_value="orphan"),
-            patch(
-                "src.templates.set_template_sync_status",
-                side_effect=lambda d, f, s: calls.append((d, f, s)) or True,
-            ),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.switch_page("pages/templates.py").run()
-            btn = next((b for b in at.button if b.label == "Delete orphan"), None)
-            assert btn is not None
-            btn.click().run()
-
-        assert not at.exception
-        assert ("D1", "orphaned.template", "deleted") in calls
-
-
-# ---------------------------------------------------------------------------
-# icon query-param handlers
-# ---------------------------------------------------------------------------
-
-
-class TestIconQueryParams:
-    """Tests for ?tpl_icon_for, ?icon, and ?edit_icon query-param page-level handlers."""
-
-    def test_icon_update_via_query_param(self, tmp_path):
-        """?tpl_icon_for=STEM&icon=HEX updates the icon code and clears params."""
-        cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["chart.svg"])
-        env = make_env(tmp_path, cfg_path)
-        updated: list = []
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
-            patch(
-                "src.templates.update_template_icon_code",
-                side_effect=lambda n, stem, code: updated.append((stem, code)),
-            ),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.query_params["tpl_icon_for"] = "chart"
-            at.query_params["icon"] = "E9FE"
-            at.switch_page("pages/templates.py").run()
-        assert not at.exception
-        assert any(stem == "chart" for stem, _ in updated)
-
-    def test_invalid_hex_in_icon_query_param_is_silently_ignored(self, tmp_path):
-        """?tpl_icon_for with a non-hex icon value does not crash (ValueError caught)."""
-        cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["chart.svg"])
-        env = make_env(tmp_path, cfg_path)
-        with (
-            patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.query_params["tpl_icon_for"] = "chart"
-            at.query_params["icon"] = "NOTAHEX!!"
-            at.switch_page("pages/templates.py").run()
-        assert not at.exception
-
-    def test_edit_icon_query_param_clears_param(self, tmp_path):
-        """?edit_icon=STEM clears the query param and opens the icon dialog."""
-        cfg_path = with_device(tmp_path, "D1")
-        env = make_env(tmp_path, cfg_path)
-        with (
-            patch.dict(os.environ, env),
-        ):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.query_params["edit_icon"] = "mystem"
-            at.switch_page("pages/templates.py").run()
-        assert not at.exception
-        # The query param must have been consumed by the page
-        assert at.query_params.get("edit_icon") is None
 
 
 # ---------------------------------------------------------------------------
@@ -1155,5 +979,60 @@ class TestCategoryDialog:
             annuler_btn = next((b for b in at.button if b.label == "Cancel"), None)
             assert annuler_btn is not None
             annuler_btn.click().run()
+        assert not at.exception
+        assert not calls
+
+
+class TestLabelsDialog:
+    """Tests for _show_labels_dialog triggered from the template card."""
+
+    def test_labels_button_shows_dialog_controls(self, tmp_path):
+        """Clicking the labels button renders the dialog controls."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_labels", return_value=["work", "study"]),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            labels_btn = next(
+                (b for b in at.button if b.key and b.key.startswith("tpl_labels_btn_")), None
+            )
+            assert labels_btn is not None
+            labels_btn.click().run()
+        assert not at.exception
+        assert any(b.label == "Apply" for b in at.button)
+        assert any(b.label == "Cancel" for b in at.button)
+
+    def test_labels_dialog_cancel_closes_without_saving(self, tmp_path):
+        """Clicking Cancel in labels dialog does not call update_template_labels."""
+        cfg_path = with_device(tmp_path, "D1")
+        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        env = make_env(tmp_path, cfg_path)
+        calls: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_labels", return_value=[]),
+            patch(
+                "src.templates.update_template_labels",
+                side_effect=lambda *a: calls.append(a),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            labels_btn = next(
+                (b for b in at.button if b.key and b.key.startswith("tpl_labels_btn_")), None
+            )
+            assert labels_btn is not None
+            labels_btn.click().run()
+            cancel_btn = next((b for b in at.button if b.label == "Cancel"), None)
+            assert cancel_btn is not None
+            cancel_btn.click().run()
         assert not at.exception
         assert not calls

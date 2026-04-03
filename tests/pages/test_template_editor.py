@@ -43,13 +43,6 @@ def _make_template_file(tmp_path, device: str, name: str, content: str = _VALID_
     (tdir / name).write_text(content, encoding="utf-8")
 
 
-def _write_templates_json(tmp_path, device: str, templates: list[dict]) -> None:
-    """Write a templates.json file for editor metadata prefill tests."""
-    ddir = tmp_path / device
-    ddir.mkdir(parents=True, exist_ok=True)
-    (ddir / "templates.json").write_text(json.dumps({"templates": templates}), encoding="utf-8")
-
-
 class TestTemplateEditorNoDevice:
     def test_renders_without_device_selected(self, tmp_path):
         """Editor page loads without error even when no device is selected."""
@@ -137,42 +130,6 @@ class TestTemplateEditorWithDevice:
         assert filename_input is not None
         assert filename_input.value == "existing"
 
-    def test_existing_template_prefills_icon_from_template_entry(self, tmp_path):
-        """The icon field follows the loaded template's templates.json entry."""
-        cfg_path = with_device(tmp_path, "D1")
-        loaded_json = json.dumps(
-            {
-                "name": "loaded-template",
-                "categories": ["Lines"],
-                "orientation": "portrait",
-                "constants": [],
-                "items": [],
-            },
-            indent=2,
-        )
-        _make_template_file(tmp_path, "D1", "existing.template", loaded_json)
-        _write_templates_json(
-            tmp_path,
-            "D1",
-            [
-                {
-                    "name": "existing",
-                    "filename": "existing",
-                    "iconCode": "\ue960",
-                    "categories": ["Lines"],
-                }
-            ],
-        )
-        at = _at_editor(
-            tmp_path,
-            cfg_path,
-            {"selected_name": "D1", "tpl_editor_load_choice": "existing.template"},
-        )
-        assert not at.exception
-        icon_input = next((ti for ti in at.text_input if "Icon code" in ti.label), None)
-        assert icon_input is not None
-        assert icon_input.value == "E960"
-
     def test_new_button_present(self, tmp_path):
         """The 'Nouveau' button is always shown."""
         cfg_path = with_device(tmp_path, "D1")
@@ -246,55 +203,21 @@ class TestTemplateEditorSave:
         assert any("Filename" in ti.label for ti in at.text_input)
 
     def test_save_existing_template_same_stock_name_is_allowed(self, tmp_path):
-        """Editing an existing template keeps the same name even if it matches backup stock stem."""
+        """Editing an existing template keeps the same filename without conflict errors."""
         cfg_path = with_device(tmp_path, "D1")
         device_dir = backup_dir(tmp_path, "D1")
-        (device_dir / "templates.backup.json").write_text(
-            json.dumps(
-                {
-                    "templates": [
-                        {
-                            "name": "Blank",
-                            "filename": "Blank",
-                            "iconCode": "\ue9fe",
-                            "categories": [],
-                        }
-                    ]
-                }
-            ),
-            encoding="utf-8",
-        )
-        (device_dir / "templates.json").write_text(
-            json.dumps(
-                {
-                    "templates": [
-                        {
-                            "name": "Blank",
-                            "filename": "Blank",
-                            "iconCode": "\ue9fe",
-                            "categories": ["Lines"],
-                        }
-                    ]
-                }
-            ),
-            encoding="utf-8",
-        )
+        template_uuid = "11111111-2222-4333-8444-555555555555"
         (device_dir / "manifest.json").write_text(
             json.dumps(
                 {
-                    "version": 1,
-                    "lastSync": "2026-04-01T10:00:00Z",
-                    "templates": [
-                        {
+                    "last_modified": "2026-04-01T10:00:00Z",
+                    "templates": {
+                        template_uuid: {
                             "name": "Blank",
-                            "filename": "Blank",
-                            "iconCode": "\ue9fe",
-                            "categories": ["Perso"],
-                            "syncStatus": "synced",
-                            "addedAt": "2026-04-01T10:00:00Z",
-                            "modifiedAt": "2026-04-01T10:00:00Z",
+                            "created_at": "2026-04-01T10:00:00Z",
+                            "sha256": "abc123",
                         }
-                    ],
+                    },
                 }
             ),
             encoding="utf-8",
@@ -314,12 +237,12 @@ class TestTemplateEditorSave:
             save_btn.click().run()
 
         assert not at.exception
-        assert not any("This filename matches a stock template" in err.value for err in at.error)
         saved_files = list((tmp_path / "D1" / "templates").glob("Blank.template"))
         assert len(saved_files) == 1
         manifest = json.loads((device_dir / "manifest.json").read_text(encoding="utf-8"))
-        entry = next(t for t in manifest["templates"] if t["filename"] == "Blank")
-        assert entry["syncStatus"] == "pending"
+        entry = manifest["templates"][template_uuid]
+        assert entry["name"] == "Blank"
+        assert entry["sha256"] != "abc123"
 
 
 class TestTemplateEditorLoadExisting:
@@ -411,47 +334,3 @@ class TestTemplateEditorLoadExisting:
             filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
             assert filename_input is not None
             assert filename_input.value == "beta"
-
-    def test_switching_existing_templates_updates_icon_field(self, tmp_path):
-        """Switching templates also refreshes the icon field from templates.json metadata."""
-        cfg_path = with_device(tmp_path, "D1")
-        _make_template_file(tmp_path, "D1", "alpha.template", _VALID_JSON)
-        _make_template_file(tmp_path, "D1", "beta.template", _VALID_JSON)
-        _write_templates_json(
-            tmp_path,
-            "D1",
-            [
-                {
-                    "name": "alpha",
-                    "filename": "alpha",
-                    "iconCode": "\ue960",
-                    "categories": ["Lines"],
-                },
-                {
-                    "name": "beta",
-                    "filename": "beta",
-                    "iconCode": "\ue961",
-                    "categories": ["Grid"],
-                },
-            ],
-        )
-
-        env = make_env(tmp_path, cfg_path)
-        with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
-            at.run()
-            at.session_state["selected_name"] = "D1"
-            at.session_state["tpl_editor_load_choice"] = "alpha.template"
-            at.switch_page("pages/template_editor.py").run()
-
-            icon_input = next((ti for ti in at.text_input if "Icon code" in ti.label), None)
-            assert icon_input is not None
-            assert icon_input.value == "E960"
-
-            tpl_select = next((s for s in at.selectbox if "alpha.template" in str(s.options)), None)
-            assert tpl_select is not None
-            tpl_select.set_value("beta.template").run()
-
-            icon_input = next((ti for ti in at.text_input if "Icon code" in ti.label), None)
-            assert icon_input is not None
-            assert icon_input.value == "E961"

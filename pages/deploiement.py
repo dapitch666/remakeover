@@ -19,14 +19,7 @@ def _localize_maintenance_error(err: str) -> str:
     labels = {
         "load_image_failed": _("Failed to load local image"),
         "upload_suspended_failed": _("Failed to upload suspended image"),
-        "templates_stock_check_failed": _("Failed to verify template symlinks on tablet"),
-        "templates_backup_refresh_failed": _(
-            "Failed to refresh stock templates backup from tablet"
-        ),
-        "ensure_remote_dirs_failed": _("Failed to prepare template directories on tablet"),
-        "symlink_failed": _("Failed to create template links on tablet"),
-        "templates_json_error": _("Error while syncing templates.json"),
-        "templates_sync_failed": _("Error while syncing templates.json"),
+        "templates_sync_failed": _("Failed to sync templates to tablet"),
         "carousel_failed": _("Failed to disable carousel"),
         "restart_failed": _("Failed to restart xochitl"),
     }
@@ -93,11 +86,7 @@ elif choice == "random":
 else:
     lines.append(_("- *(No local image — suspended image upload skipped)*"))
 if device.templates and bool(list_device_templates(selected_name)):
-    lines.append(
-        _(
-            "- Create symbolic links to the custom templates and update `templates.json` on the tablet"
-        )
-    )
+    lines.append(_("- Sync local `.template` files to rmMethods storage on the tablet"))
 if device.carousel:
     lines.append(_("- Disable the carousel by moving illustrations to a backup folder"))
 lines.append(_("- Restart `xochitl` to apply changes"))

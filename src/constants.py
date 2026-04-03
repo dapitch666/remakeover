@@ -11,20 +11,14 @@ Import from here rather than hard-coding strings in individual modules.
 # Suspended / sleep-screen image shown when the tablet is locked
 SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
 
-# Built-in templates directory (read-only on stock firmware)
-REMOTE_TEMPLATES_DIR = "/usr/share/remarkable/templates"
-
-# User-writable directory for custom templates
-REMOTE_CUSTOM_TEMPLATES_DIR = "/home/root/templates"
+# rmMethods template storage directory (persists across firmware updates)
+REMOTE_XOCHITL_DATA_DIR = "/home/root/.local/share/remarkable/xochitl"
 
 # Carousel illustrations directory
 REMOTE_CAROUSEL_DIR = "/usr/share/remarkable/carousel"
 
 # Backup sub-folder for disabled carousel illustrations
 REMOTE_CAROUSEL_BACKUP_DIR = "/usr/share/remarkable/carousel/backupIllustrations"
-
-# Remote templates.json (inside REMOTE_TEMPLATES_DIR)
-REMOTE_TEMPLATES_JSON = f"{REMOTE_TEMPLATES_DIR}/templates.json"
 
 # ---------------------------------------------------------------------------
 # Remote commands

@@ -1,160 +1,108 @@
-"""Unit tests for src/manifest_templates.py."""
+"""Unit tests for the simplified UUID-keyed template manifest."""
 
 import src.manifest_templates as mf
 
 DEVICE = "D1"
 
 
-def test_add_or_update_sets_pending(tmp_path, monkeypatch):
+def test_compute_template_sha256_is_canonical():
+    payload_a = {"b": 2, "a": 1}
+    payload_b = {"a": 1, "b": 2}
+
+    assert mf.compute_template_sha256(payload_a) == mf.compute_template_sha256(payload_b)
+
+
+def test_upsert_and_get_manifest_entry_by_name_and_uuid(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
 
-    mf.add_or_update_template_entry(DEVICE, "MyTpl.svg", ["Perso"], "\ue9fe")
-    entry = mf.get_manifest_entry(DEVICE, "MyTpl.svg")
-
-    assert entry is not None
-    assert entry["filename"] == "MyTpl"
-    assert entry["syncStatus"] == "pending"
-
-
-def test_mark_template_deleted_sets_deleted(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.add_or_update_template_entry(DEVICE, "MyTpl.svg", ["Perso"], "\ue9fe")
-    mf.mark_template_deleted(DEVICE, "MyTpl.svg")
-    entry = mf.get_manifest_entry(DEVICE, "MyTpl.svg")
-
-    assert entry is not None
-    assert entry["syncStatus"] == "deleted"
-
-
-def test_mark_synced_transitions_pending(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.add_or_update_template_entry(DEVICE, "A.svg", ["Perso"], "\ue9fe")
-    mf.mark_synced(DEVICE)
-    entry = mf.get_manifest_entry(DEVICE, "A.svg")
-
-    assert entry is not None
-    assert entry["syncStatus"] == "synced"
-
-
-def test_upsert_orphan_entry_status_orphan(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.upsert_orphan_entry(DEVICE, "Remote.template", ["Grid"], "\ue9fd")
-    entry = mf.get_manifest_entry(DEVICE, "Remote.template")
-
-    assert entry is not None
-    assert entry["syncStatus"] == "orphan"
-    assert entry["categories"] == ["Grid"]
-
-
-def test_set_sync_status_updates_existing_entry(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.add_or_update_template_entry(DEVICE, "State.svg", ["Perso"], "\ue9fe")
-    ok = mf.set_sync_status(DEVICE, "State.svg", "orphan")
-    entry = mf.get_manifest_entry(DEVICE, "State.svg")
-
-    assert ok is True
-    assert entry is not None
-    assert entry["syncStatus"] == "orphan"
-
-
-def test_set_sync_status_rejects_invalid_status(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.add_or_update_template_entry(DEVICE, "State.svg", ["Perso"], "\ue9fe")
-    ok = mf.set_sync_status(DEVICE, "State.svg", "invalid")
-    entry = mf.get_manifest_entry(DEVICE, "State.svg")
-
-    assert ok is False
-    assert entry is not None
-    assert entry["syncStatus"] == "pending"
-
-
-def test_update_categories_restore_synced_when_reverted(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.add_or_update_template_entry(DEVICE, "State.svg", ["Grid", "Lines"], "\ue9fe")
-    mf.mark_synced(DEVICE)
-
-    mf.update_categories(DEVICE, "State.svg", ["Grid"])
-    pending_entry = mf.get_manifest_entry(DEVICE, "State.svg")
-    assert pending_entry is not None
-    assert pending_entry["syncStatus"] == "pending"
-
-    mf.update_categories(DEVICE, "State.svg", ["Grid", "Lines"])
-    restored_entry = mf.get_manifest_entry(DEVICE, "State.svg")
-    assert restored_entry is not None
-    assert restored_entry["syncStatus"] == "synced"
-
-
-def test_ensure_manifest_prefers_imported_templates_json_metadata(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    device_dir = tmp_path / DEVICE
-    (device_dir / "templates").mkdir(parents=True, exist_ok=True)
-    (device_dir / "templates" / "Blank.svg").write_text("<svg/>", encoding="utf-8")
-
-    mf.ensure_manifest_from_templates_json(
+    template_uuid = "11111111-1111-4111-8111-111111111111"
+    mf.upsert_manifest_template(
         DEVICE,
-        {
-            "templates": [
-                {
-                    "name": "Blank imported",
-                    "filename": "Blank",
-                    "iconCode": "\ue9ab",
-                    "categories": ["Lines", "Creative"],
-                }
-            ]
-        },
+        template_uuid,
+        name="MyTpl",
+        created_at="2026-04-04T10:00:00Z",
+        sha256="abc123",
     )
 
-    entry = mf.get_manifest_entry(DEVICE, "Blank")
-    assert entry is not None
-    assert entry["name"] == "Blank imported"
-    assert entry["iconCode"] == "\ue9ab"
-    assert entry["categories"] == ["Creative", "Lines"]
+    by_uuid = mf.get_manifest_entry(DEVICE, template_uuid)
+    by_name = mf.get_manifest_entry(DEVICE, "MyTpl.template")
+
+    assert by_uuid is not None
+    assert by_name is not None
+    assert by_uuid["uuid"] == template_uuid
+    assert by_name["uuid"] == template_uuid
+    assert by_name["name"] == "MyTpl"
+    assert by_name["sha256"] == "abc123"
 
 
-def test_ensure_manifest_infers_categories_from_unreferenced_template_file(tmp_path, monkeypatch):
+def test_upsert_keeps_created_at_when_entry_exists(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
 
-    device_dir = tmp_path / DEVICE
-    templates_dir = device_dir / "templates"
-    templates_dir.mkdir(parents=True, exist_ok=True)
-    (templates_dir / "MyTemplate.template").write_text(
-        '{"categories": ["Planners", "Creative"]}',
-        encoding="utf-8",
-    )
-
-    mf.ensure_manifest_from_templates_json(DEVICE, {"templates": []})
-
-    entry = mf.get_manifest_entry(DEVICE, "MyTemplate")
-    assert entry is not None
-    assert entry["iconCode"] == "\\ue9fe"
-    assert entry["categories"] == ["Creative", "Planners"]
-
-
-def test_ensure_manifest_excludes_stock_only_templates_without_local_file(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    device_dir = tmp_path / DEVICE
-    (device_dir / "templates").mkdir(parents=True, exist_ok=True)
-
-    mf.ensure_manifest_from_templates_json(
+    template_uuid = "22222222-2222-4222-8222-222222222222"
+    mf.upsert_manifest_template(
         DEVICE,
-        {
-            "templates": [
-                {
-                    "name": "Blank",
-                    "filename": "Blank",
-                    "iconCode": "\\ue9fe",
-                    "categories": ["Lines"],
-                }
-            ]
-        },
+        template_uuid,
+        name="Tpl",
+        created_at="2026-04-04T10:00:00Z",
+        sha256="old",
+    )
+    mf.upsert_manifest_template(
+        DEVICE,
+        template_uuid,
+        name="Tpl",
+        created_at="2099-01-01T00:00:00Z",
+        sha256="new",
     )
 
-    assert mf.get_manifest_entry(DEVICE, "Blank") is None
+    entry = mf.get_manifest_entry(DEVICE, template_uuid)
+    assert entry is not None
+    assert entry["created_at"] == "2026-04-04T10:00:00Z"
+    assert entry["sha256"] == "new"
+
+
+def test_delete_manifest_template(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
+
+    template_uuid = "33333333-3333-4333-8333-333333333333"
+    mf.upsert_manifest_template(
+        DEVICE,
+        template_uuid,
+        name="ToDelete",
+        created_at="2026-04-04T10:00:00Z",
+        sha256="deadbeef",
+    )
+
+    assert mf.delete_manifest_template(DEVICE, template_uuid) is True
+    assert mf.get_manifest_entry(DEVICE, template_uuid) is None
+
+
+def test_rename_manifest_template_by_name(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
+
+    template_uuid = "44444444-4444-4444-8444-444444444444"
+    mf.upsert_manifest_template(
+        DEVICE,
+        template_uuid,
+        name="OldName",
+        created_at="2026-04-04T10:00:00Z",
+        sha256="hash",
+    )
+
+    assert (
+        mf.rename_manifest_template_by_name(DEVICE, "OldName.template", "NewName.template") is True
+    )
+    assert mf.find_manifest_uuid_by_name(DEVICE, "NewName") == template_uuid
+
+
+def test_iso_from_epoch_ms_returns_utc_iso():
+    assert mf.iso_from_epoch_ms("1712150515000") == "2024-04-03T13:21:55Z"
+
+
+def test_ensure_manifest_creates_empty_minimal_schema(tmp_path, monkeypatch):
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
+
+    mf.ensure_manifest_from_imported_templates(DEVICE, {"templates": []})
+    manifest = mf.load_manifest(DEVICE)
+
+    assert set(manifest.keys()) == {"last_modified", "templates"}
+    assert isinstance(manifest["templates"], dict)

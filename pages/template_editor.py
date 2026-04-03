@@ -5,8 +5,7 @@ reMarkable native JSON vector format, see an instant SVG preview, and
 save the result so it can be deployed to the tablet from the Templates page.
 
 The JSON source (``.template``) files are stored under
-``data/<device>/templates/`` (alongside SVG files) and deployed as-is to
-the tablet — the reMarkable firmware renders them natively.  The SVG
+``data/<device>/templates/`` and deployed as-is to the tablet. The SVG
 preview shown in the editor is generated locally for visual feedback only.
 """
 
@@ -18,15 +17,11 @@ import streamlit as st
 
 from src.constants import DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
 from src.i18n import _
-from src.icon_font import render_icon_grid_html, render_icon_preview_html
-from src.manifest_templates import SYNC_STATUS_PENDING, set_sync_status
 from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
-    StockTemplateNameConflictError,
     add_template_entry,
-    get_template_entry,
-    is_stock_template_name,
+    get_all_labels,
     list_json_templates,
     load_json_template,
     save_json_template,
@@ -197,23 +192,17 @@ _default_name = "" if _is_new_template else os.path.splitext(str(_loaded_choice)
 if not _default_name and not _is_new_template:
     _default_name = "My Template"
 
-_template_entry = None
-if selected_name and selected_name in DEVICES and not _is_new_template:
-    _template_entry = get_template_entry(selected_name, str(_loaded_choice))
-
 try:
     _parsed = json.loads(json_str)
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
+    _default_labels: list[str] = [lbl for lbl in _parsed.get("labels", []) if isinstance(lbl, str)]
 except Exception:
     _default_cats = ["Perso"]
-
-_default_icon_hex = "E9FE"
-if _template_entry and _template_entry.get("iconCode"):
-    _default_icon_hex = f"{ord(_template_entry['iconCode']):04X}"
+    _default_labels = []
 
 _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
 
-col_name, col_icon, col_icn_preview = st.columns([4, 2, 1], vertical_alignment="bottom")
+col_name = st.columns([1], vertical_alignment="bottom")[0]
 with col_name:
     _name_key = f"tpl_editor_name_{_gen}_{selected_name or ''}_{_loaded_choice}"
     tpl_filename: str = st.text_input(
@@ -222,30 +211,33 @@ with col_name:
         placeholder=_("Name of the template file"),
         key=_name_key,
     )
-with col_icon:
-    _icon_key = f"tpl_editor_icon_{_gen}_{selected_name or ''}_{_loaded_choice}"
-    icon_hex: str = st.text_input(
-        _("Icon code (hex)"),
-        value=_default_icon_hex,
-        max_chars=5,
-        key=_icon_key,
-        help=_("Hexadecimal icomoon icon code (e.g. E9FE)."),
-    )
-with col_icn_preview:
-    _icn_preview = ""
-    with suppress(ValueError, OverflowError):
-        _icn_preview = render_icon_preview_html(chr(int(icon_hex.strip(), 16)))
-    if _icn_preview:
-        st.html(_icn_preview)
 
-# Icon grid browser (collapsed by default)
-_grid_html = render_icon_grid_html(
-    selected_cp=int(icon_hex.strip(), 16) if icon_hex.strip() else None,
-    clickable=False,
-)
-if _grid_html:
-    with st.expander(_("Browse icons"), icon=":material/grid_view:"):
-        st.html(_grid_html)
+# Labels and iconData fields
+col_labels, col_icon = st.columns(2)
+with col_labels:
+    _existing_labels = get_all_labels(selected_name)
+    tpl_labels = st.multiselect(
+        _("Labels (optional)"),
+        options=sorted(set(_existing_labels) | set(_default_labels)),
+        default=_default_labels,
+        key=f"tpl_editor_labels_{_gen}",
+        help=_("Add custom labels to organize your template"),
+    )
+    tpl_labels_extra = st.text_input(
+        _("New labels (comma-separated)"),
+        key=f"tpl_editor_labels_extra_{_gen}",
+        placeholder="work, meeting, ...",
+    )
+
+with col_icon:
+    tpl_icon_data = st.text_area(
+        _("Icon data (base64 SVG, optional)"),
+        value="",
+        height=100,
+        key=f"tpl_editor_icon_data_{_gen}",
+        placeholder=_("Paste base64-encoded SVG for custom icon"),
+        help=_("Leave blank for default icon"),
+    )
 
 # Save / Download buttons
 # Enabled as long as the JSON is syntactically valid (preview errors don't block saving).
@@ -270,39 +262,31 @@ with col_save:
         _fallback_name = "My Template"
         _base = tpl_filename.strip() or _default_name or _fallback_name
         filename_tpl = normalise_filename(_base, ext=".template")
-        _loaded_stem = os.path.splitext(str(_loaded_choice))[0] if not _is_new_template else None
-        _same_name_as_loaded = _loaded_stem == os.path.splitext(filename_tpl)[0]
-
-        if is_stock_template_name(selected_name, filename_tpl) and not _same_name_as_loaded:
-            st.error(_("This filename matches a stock template. Choose another name."))
-            st.stop()
 
         # Final categories — read directly from the JSON source
         cats = _default_cats or ["Perso"]
 
-        # Icon code
-        try:
-            icon_code = chr(int(icon_hex.strip(), 16))
-        except (ValueError, OverflowError):
-            icon_code = "\ue9fe"
+        icon_code = "\ue9fe"
+
+        # Get labels and iconData from form inputs
+        labels_list = list(tpl_labels) if tpl_labels else []
+        if tpl_labels_extra:
+            labels_list += [lbl.strip() for lbl in tpl_labels_extra.split(",") if lbl.strip()]
+        labels_list = sorted(set(labels_list))
+        icon_data_str = tpl_icon_data.strip() if tpl_icon_data else None
 
         # Save .template JSON source file (this IS the asset deployed to the tablet)
         save_json_template(selected_name, filename_tpl, json_str)
-        # Register in templates.json so the sync button on the Templates page picks it up
-        try:
-            add_template_entry(
-                selected_name,
-                filename_tpl,
-                cats,
-                icon_code,
-                previous_filename=None if _is_new_template else str(_loaded_choice),
-            )
-            # Saving from the editor updates local .template content even when
-            # metadata (name/categories/icon) stays unchanged, so keep it pending.
-            set_sync_status(selected_name, filename_tpl, SYNC_STATUS_PENDING)
-        except StockTemplateNameConflictError:
-            st.error(_("This filename matches a stock template. Choose another name."))
-            st.stop()
+        # Register/update manifest metadata so sync picks it up on Templates page
+        add_template_entry(
+            selected_name,
+            filename_tpl,
+            cats,
+            icon_code,
+            previous_filename=None if _is_new_template else str(_loaded_choice),
+            labels=labels_list,
+            icon_data=icon_data_str,
+        )
 
         add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
         deferred_toast(_("Template {name} saved").format(name=filename_tpl), ":material/task_alt:")
