@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 import src.templates as tpl
+from src import manifest_templates as mf
 
 DEVICE = "TestDevice"
 SVG_CONTENT = b"<svg><rect width='100' height='100'/></svg>"
@@ -36,6 +37,7 @@ JSON_LOCAL = json.dumps(
 def _patch_data_dir(tmp_path, monkeypatch):
     """Redirect get_device_data_dir to tmp_path so no real data/ is touched."""
     monkeypatch.setattr(tpl, "get_device_data_dir", lambda name: str(tmp_path / name))
+    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
     yield
     # Clear the st.cache_data cache so cached results from one test don't
     # leak into the next (all tests share the same device name "TestDevice").
@@ -330,6 +332,138 @@ class TestJsonHelpers:
         # Stock first in original order, then custom sorted
         assert names == ["StockZ", "StockA", "CustomA", "CustomZ"]
 
+    def test_add_template_entry_rejects_stock_stem_collision(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        with pytest.raises(tpl.StockTemplateNameConflictError):
+            tpl.add_template_entry(DEVICE, "Blank.svg", ["Lines"])
+
+    def test_add_template_entry_allows_stock_stem_when_same_previous_filename(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.save_templates_json(
+            DEVICE,
+            {
+                "templates": [
+                    {
+                        "name": "Blank",
+                        "filename": "Blank",
+                        "iconCode": "\\ue9fe",
+                        "categories": ["Lines"],
+                    }
+                ]
+            },
+        )
+
+        tpl.add_template_entry(
+            DEVICE,
+            "Blank.template",
+            ["Grid"],
+            icon_code="\ue960",
+            previous_filename="Blank.template",
+        )
+
+        data = tpl.load_templates_json(DEVICE)
+        assert len(data["templates"]) == 1
+        assert data["templates"][0]["filename"] == "Blank"
+        assert data["templates"][0]["categories"] == ["Grid"]
+        assert data["templates"][0]["iconCode"] == "\ue960"
+
+    def test_rename_template_entry_rejects_stock_stem_collision(self, tmp_path):
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.add_template_entry(DEVICE, "Custom.svg", ["Lines"])
+        with pytest.raises(tpl.StockTemplateNameConflictError):
+            tpl.rename_template_entry(DEVICE, "Custom.svg", "Blank.svg")
+
+    def test_rename_template_entry_allows_revert_to_previous_synced_name(self, tmp_path):
+        # Simulate a polluted backup where a previously synced custom stem appears.
+        backup_path = tpl.get_device_templates_backup_path(DEVICE)
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
+        with open(backup_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "templates": [
+                        {
+                            "name": "Original",
+                            "filename": "Original",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                },
+                f,
+            )
+
+        tpl.save_templates_json(
+            DEVICE,
+            {
+                "templates": [
+                    {
+                        "name": "Original",
+                        "filename": "Original",
+                        "iconCode": "\\ue9fe",
+                        "categories": ["Lines"],
+                    }
+                ]
+            },
+        )
+        mf.add_or_update_template_entry(DEVICE, "Original.svg", ["Lines"], "\ue9fe")
+        mf.mark_synced(DEVICE)
+
+        tpl.rename_template_entry(DEVICE, "Original.svg", "Temp.svg")
+        # Reverting to the previous synced filename must be allowed.
+        tpl.rename_template_entry(DEVICE, "Temp.svg", "Original.svg")
+
+        entry = tpl.get_template_entry(DEVICE, "Original.svg")
+        assert entry is not None
+        assert entry["filename"] == "Original"
+
 
 class TestGetBackupStems:
     def test_returns_empty_when_no_backup(self):
@@ -364,67 +498,6 @@ class TestGetBackupStems:
 # ---------------------------------------------------------------------------
 # Remote helpers
 # ---------------------------------------------------------------------------
-
-
-class TestCompareAndBackupTemplatesJson:
-    def test_identical_returns_identical(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_STOCK)
-
-        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is True
-        assert msg == "identical"
-
-    def test_different_backups_and_uploads(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_LOCAL)
-
-        with (
-            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
-            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_upload,
-        ):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is True
-        assert msg == "uploaded"
-        backup_path = os.path.join(str(tmp_path / DEVICE), "templates.backup.json")
-        assert os.path.exists(backup_path)
-        with open(backup_path, "rb") as f:
-            assert f.read() == JSON_STOCK
-        mock_upload.assert_called_once()
-
-    def test_no_local_file(self):
-        with patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-        assert ok is False
-        assert msg == "no_local"
-
-    def test_download_failure(self):
-        with patch("src.templates.download_file_ssh", return_value=(None, "timeout")):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-        assert ok is False
-        assert msg.startswith("download_failed")
-
-    def test_upload_failure_returns_upload_failed(self, tmp_path):
-        tpl_json_path = os.path.join(str(tmp_path / DEVICE), "templates.json")
-        os.makedirs(os.path.dirname(tpl_json_path), exist_ok=True)
-        with open(tpl_json_path, "wb") as f:
-            f.write(JSON_LOCAL)
-
-        with (
-            patch("src.templates.download_file_ssh", return_value=(JSON_STOCK, "")),
-            patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
-        ):
-            ok, msg = tpl.compare_and_backup_templates_json("1.2.3.4", "pw", DEVICE)
-
-        assert ok is False
-        assert "upload_failed" in msg
 
 
 class TestUploadTemplateToTablet:
@@ -467,6 +540,43 @@ class TestUploadTemplateToTablet:
         assert "read_local_failed" in msg
 
 
+class TestDeleteTemplateFromTablet:
+    def test_happy_path_with_json_upload(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+
+        with (
+            patch("src.templates.run_ssh_cmd", return_value=("", "")) as mock_cmd,
+            patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up,
+        ):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my file.svg")
+
+        assert ok is True
+        assert msg == "ok"
+        assert mock_cmd.call_count == 2
+        mock_up.assert_called_once()
+
+    def test_remote_delete_failure(self):
+        with patch("src.templates.run_ssh_cmd", return_value=("", "permission denied")):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my.svg")
+        assert ok is False
+        assert "delete_remote_failed" in msg
+
+    def test_json_upload_failure(self, tmp_path):
+        json_path = tmp_path / DEVICE / "templates.json"
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text('{"templates":[]}', encoding="utf-8")
+
+        with (
+            patch("src.templates.run_ssh_cmd", return_value=("", "")),
+            patch("src.templates.upload_file_ssh", return_value=(False, "disk full")),
+        ):
+            ok, msg = tpl.delete_template_from_tablet("1.2.3.4", "pw", DEVICE, "my.svg")
+        assert ok is False
+        assert "upload_json_failed" in msg
+
+
 # ---------------------------------------------------------------------------
 # ensure_remote_template_dirs
 # ---------------------------------------------------------------------------
@@ -487,45 +597,6 @@ class TestEnsureRemoteTemplateDirs:
             )
         assert ok is False
         assert "ssh error" in msg
-
-
-# ---------------------------------------------------------------------------
-# upload_template_svgs
-# ---------------------------------------------------------------------------
-
-
-class TestUploadTemplateSvgs:
-    def test_returns_count_of_uploaded(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "a.svg").write_bytes(b"<svg/>")
-        (svg_dir / "b.svg").write_bytes(b"<svg/>")
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 2
-
-    def test_skips_non_svg_files(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "note.txt").write_bytes(b"text")
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")) as mock_up:
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 0
-        mock_up.assert_not_called()
-
-    def test_skips_missing_dir(self):
-        with patch("src.templates.upload_file_ssh") as mock_up:
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", ["/no/such/dir"], "/remote/custom")
-        assert count == 0
-        mock_up.assert_not_called()
-
-    def test_upload_failure_not_counted(self, tmp_path):
-        svg_dir = tmp_path / "svgs"
-        svg_dir.mkdir()
-        (svg_dir / "c.svg").write_bytes(b"<svg/>")
-        with patch("src.templates.upload_file_ssh", return_value=(False, "error")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(svg_dir)], "/remote/custom")
-        assert count == 0
 
 
 # ---------------------------------------------------------------------------
@@ -550,7 +621,10 @@ class TestFetchAndInitTemplates:
         # Ensure the device directory exists so the backup file can be written
         (tmp_path / DEVICE).mkdir(parents=True, exist_ok=True)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
         assert "fetched" in msg
@@ -560,10 +634,13 @@ class TestFetchAndInitTemplates:
         svgs_dir.mkdir(parents=True)
         (svgs_dir / "custom.svg").write_bytes(SVG_CONTENT)
         remote_json = json.dumps({"templates": []}).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
-        assert "1 local SVG" in msg
+        assert "1 local custom template" in msg
         data = tpl.load_templates_json(DEVICE)
         assert any(t["filename"] == "custom" for t in data["templates"])
 
@@ -578,54 +655,309 @@ class TestFetchAndInitTemplates:
                 ]
             }
         ).encode()
-        with patch("src.templates.download_file_ssh", return_value=(remote_json, "")):
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
             ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
         assert ok is True
-        assert "0 local SVG" in msg
+        assert "0 local custom template" in msg
+
+    def test_include_remote_custom_downloads_files_and_appends_metadata(self, tmp_path):
+        remote_json = json.dumps({"templates": []}).encode()
+        remote_calls: list[str] = []
+
+        def _download_side_effect(_ip, _pw, remote_path):
+            remote_calls.append(remote_path)
+            if remote_path.endswith("templates.json"):
+                return remote_json, ""
+            if remote_path.endswith("remote one.svg"):
+                return SVG_CONTENT, ""
+            return b'{"items":[]}', ""
+
+        with (
+            patch("src.templates.download_file_ssh", side_effect=_download_side_effect),
+            patch(
+                "src.templates._list_remote_custom_templates",
+                return_value=(True, ["remote one.svg", "remote-two.template"]),
+            ),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
+            )
+        assert ok is True
+        assert "2 downloaded" in msg
+        data = tpl.load_templates_json(DEVICE)
+        assert any(t["filename"] == "remote one" for t in data["templates"])
+        assert any(t["filename"] == "remote-two" for t in data["templates"])
+        assert any(call.endswith("remote one.svg") for call in remote_calls)
+
+    def test_include_remote_custom_returns_error_when_listing_fails(self):
+        remote_json = json.dumps({"templates": []}).encode()
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_custom_templates",
+                return_value=(False, "ssh error"),
+            ),
+            patch("src.templates._list_remote_stock_template_stems", return_value=(True, set())),
+        ):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4", "pw", DEVICE, include_remote_custom_templates=True
+            )
+        assert ok is False
+        assert "list_remote_custom_failed" in msg
+
+    def test_refreshes_existing_backup_from_tablet_by_default(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps(
+                {
+                    "templates": [
+                        {
+                            "name": "StockOnly",
+                            "filename": "StockOnly",
+                            "iconCode": "\\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {
+                        "name": "Remote",
+                        "filename": "Remote",
+                        "iconCode": "\ue9ab",
+                        "categories": ["Tablet", "Sketch"],
+                    }
+                ]
+            }
+        ).encode()
+
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Remote"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_refreshed" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["templates"][0]["filename"] == "Remote"
+        entry = tpl.get_template_entry(DEVICE, "Remote")
+        assert entry is not None
+        assert entry["iconCode"] == "\ue9ab"
+        assert entry["categories"] == ["Sketch", "Tablet"]
+
+    def test_overwrites_backup_when_requested(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps({"templates": [{"name": "Old", "filename": "Old"}]}),
+            encoding="utf-8",
+        )
+        remote_json = json.dumps({"templates": [{"name": "New", "filename": "New"}]}).encode()
+
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"New"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates(
+                "1.2.3.4",
+                "pw",
+                DEVICE,
+                overwrite_backup=True,
+            )
+
+        assert ok is True
+        assert "backup_refreshed" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["templates"][0]["filename"] == "New"
+
+    def test_missing_backup_copies_remote_as_is_when_stock_only(self, tmp_path):
+        remote_json = b'{"meta":{"format":2},"templates":[{"filename":"Blank","name":"Blank"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_refreshed" in msg
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        assert backup_path.read_bytes() == remote_json
+
+    def test_missing_backup_rebuilds_stock_only_from_remote_when_mixed(self, tmp_path):
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {"name": "Blank", "filename": "Blank"},
+                    {"name": "Custom", "filename": "Custom"},
+                ]
+            }
+        ).encode()
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_rebuilt_stock_only" in msg
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        with open(backup_path, encoding="utf-8") as f:
+            backup_data = json.load(f)
+        assert [entry["filename"] for entry in backup_data["templates"]] == ["Blank"]
+
+    def test_existing_backup_is_preserved_when_remote_contains_custom(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_text(
+            json.dumps({"templates": [{"name": "Blank", "filename": "Blank"}]}),
+            encoding="utf-8",
+        )
+
+        remote_json = json.dumps(
+            {
+                "templates": [
+                    {"name": "Blank", "filename": "Blank"},
+                    {"name": "Custom", "filename": "Custom"},
+                ]
+            }
+        ).encode()
+
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "backup_preserved" in msg
+        with open(backup_path, encoding="utf-8") as f:
+            backup_data = json.load(f)
+        assert [entry["filename"] for entry in backup_data["templates"]] == ["Blank"]
 
 
 # ---------------------------------------------------------------------------
-# is_templates_dirty + mark_templates_synced
+# refresh_templates_backup_from_tablet
 # ---------------------------------------------------------------------------
 
 
-class TestIsDirtyAndMarkSynced:
-    def test_missing_json_not_dirty(self):
+class TestRefreshTemplatesBackupFromTablet:
+    def test_missing_backup_copies_remote_as_is_when_stock_only(self, tmp_path):
+        remote_json = b'{"meta":{"schema":3},"templates":[{"filename":"Blank","name":"Blank"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.refresh_templates_backup_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert msg == "backup_refreshed"
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        assert backup_path.read_bytes() == remote_json
+
+    def test_existing_backup_preserved_when_remote_contains_custom(self, tmp_path):
+        backup_path = tmp_path / DEVICE / "templates.backup.json"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        original_backup = b'{"templates":[{"filename":"Blank","name":"Blank"}]}'
+        backup_path.write_bytes(original_backup)
+
+        remote_json = b'{"templates":[{"filename":"Blank","name":"Blank"},{"filename":"Custom","name":"Custom"}]}'
+        with (
+            patch("src.templates.download_file_ssh", return_value=(remote_json, "")),
+            patch(
+                "src.templates._list_remote_stock_template_stems",
+                return_value=(True, {"Blank"}),
+            ),
+        ):
+            ok, msg = tpl.refresh_templates_backup_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert msg == "backup_preserved_remote_contains_custom"
+        assert backup_path.read_bytes() == original_backup
+
+    def test_reset_and_initialize_deletes_local_state_before_reimport(self, tmp_path):
+        device_dir = tmp_path / DEVICE
+        templates_dir = device_dir / "templates"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        (templates_dir / "old.svg").write_bytes(SVG_CONTENT)
+        (templates_dir / "old.template").write_bytes(b'{"categories": ["Old"]}')
+        (device_dir / "templates.json").write_text('{"templates": []}', encoding="utf-8")
+        (device_dir / "templates.backup.json").write_text('{"templates": []}', encoding="utf-8")
+        (device_dir / "manifest.json").write_text(
+            '{"version": 1, "lastSync": null, "templates": []}',
+            encoding="utf-8",
+        )
+
+        with patch(
+            "src.templates.fetch_and_init_templates",
+            return_value=(True, "fetched"),
+        ) as mock_fetch:
+            ok, msg = tpl.reset_and_initialize_templates_from_tablet("1.2.3.4", "pw", DEVICE)
+
+        assert ok is True
+        assert "reset" in msg
+        assert not any(templates_dir.iterdir())
+        assert not (device_dir / "templates.json").exists()
+        assert not (device_dir / "templates.backup.json").exists()
+        assert not (device_dir / "manifest.json").exists()
+        mock_fetch.assert_called_once_with(
+            "1.2.3.4",
+            "pw",
+            DEVICE,
+            include_remote_custom_templates=True,
+            overwrite_backup=True,
+        )
+
+
+# ---------------------------------------------------------------------------
+# is_templates_dirty (manifest-based)
+# ---------------------------------------------------------------------------
+
+
+class TestIsDirty:
+    def test_missing_manifest_not_dirty(self):
         assert tpl.is_templates_dirty(DEVICE) is False
 
-    def test_never_synced_no_entries_not_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        assert tpl.is_templates_dirty(DEVICE) is False
-
-    def test_never_synced_with_entries_is_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[{"filename":"a"}]}', encoding="utf-8")
+    def test_pending_entry_is_dirty(self):
+        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
         assert tpl.is_templates_dirty(DEVICE) is True
 
-    def test_synced_matching_hash_not_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        tpl.mark_templates_synced(DEVICE)
-        assert tpl.is_templates_dirty(DEVICE) is False
-
-    def test_synced_then_modified_is_dirty(self, tmp_path):
-        json_path = tmp_path / DEVICE / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-        tpl.mark_templates_synced(DEVICE)
-        json_path.write_text('{"templates":[{"filename":"new"}]}', encoding="utf-8")
+    def test_deleted_entry_is_dirty(self):
+        tpl.add_template_entry(DEVICE, "A.svg", ["Lines"])
+        tpl.remove_template_entry(DEVICE, "A.svg")
         assert tpl.is_templates_dirty(DEVICE) is True
-
-    def test_mark_synced_when_no_json_removes_sync_file(self, tmp_path):
-        sync_path = tmp_path / DEVICE / ".tpl_sync"
-        sync_path.parent.mkdir(parents=True, exist_ok=True)
-        sync_path.write_text("oldhash", encoding="utf-8")
-        tpl.mark_templates_synced(DEVICE)
-        assert not sync_path.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -652,39 +984,6 @@ class TestListDeviceTemplatesJsonTemplates:
         result = tpl.list_device_templates(DEVICE)
         assert "readme.txt" not in result
         assert "C.template" in result
-
-
-# ---------------------------------------------------------------------------
-# upload_template_svgs also handles .template files
-# ---------------------------------------------------------------------------
-
-
-class TestUploadTemplateSvgsWithJsonTemplates:
-    def test_uploads_template_file(self, tmp_path):
-        tpl_dir = tmp_path / "tpl"
-        tpl_dir.mkdir()
-        (tpl_dir / "My.template").write_bytes(b'{"orientation":"portrait"}')
-
-        uploaded_paths: list[str] = []
-        with patch(
-            "src.templates.upload_file_ssh",
-            side_effect=lambda ip, pw, data, path: uploaded_paths.append(path) or (True, "ok"),
-        ):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
-
-        assert count == 1
-        assert any("My.template" in p for p in uploaded_paths)
-
-    def test_uploads_both_svg_and_template(self, tmp_path):
-        tpl_dir = tmp_path / "tpl"
-        tpl_dir.mkdir()
-        (tpl_dir / "Grid.svg").write_bytes(SVG_CONTENT)
-        (tpl_dir / "Lines.template").write_bytes(b'{"orientation":"portrait"}')
-
-        with patch("src.templates.upload_file_ssh", return_value=(True, "ok")):
-            count = tpl.upload_template_svgs("1.2.3.4", "pw", [str(tpl_dir)], "/remote/custom")
-
-        assert count == 2
 
 
 # ---------------------------------------------------------------------------

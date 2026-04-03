@@ -7,7 +7,6 @@ delete flow, sort-by, and upload section render.
 
 import json
 import os
-from contextlib import ExitStack
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -19,6 +18,7 @@ from tests.pages.helpers import (
     empty_cfg,
     make_env,
     with_device,
+    with_two_devices,
 )
 
 # Minimal valid SVG used as synthetic template content.
@@ -33,7 +33,13 @@ def _make_svgs(tmp_path, device: str = "D1", names: list[str] | None = None) -> 
     # Also ensure backup file exists so the page enters the 'else' branch
     backup = tmp_path / device / "templates.backup.json"
     if not backup.exists():
-        backup.write_text("[]", encoding="utf-8")
+        backup.write_text('{"templates": []}', encoding="utf-8")
+    manifest = tmp_path / device / "manifest.json"
+    if not manifest.exists():
+        manifest.write_text(
+            '{"version": 1, "lastSync": null, "templates": []}',
+            encoding="utf-8",
+        )
     for name in names:
         (tdir / name).write_bytes(_SVG)
     return names
@@ -59,10 +65,10 @@ class TestTemplatesPage:
         at = at_page(tmp_path, "pages/templates.py", cfg_path)
         assert not at.exception
         assert any("not been imported yet" in w.value for w in at.warning)
-        assert any("Import templates" in b.label for b in at.button)
+        assert any("Initialize templates" in b.label for b in at.button)
 
     def test_import_button_click_success(self, tmp_path):
-        """Clicking import triggers fetch_and_init_templates; no exception on success."""
+        """Clicking initialize triggers fetch_and_init_templates directly."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with (
@@ -72,7 +78,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            import_btn = next((b for b in at.button if "Import templates" in b.label), None)
+            import_btn = next((b for b in at.button if "Initialize templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
@@ -91,7 +97,7 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/templates.py").run()
-            import_btn = next((b for b in at.button if "Import templates" in b.label), None)
+            import_btn = next((b for b in at.button if "Initialize templates" in b.label), None)
             assert import_btn is not None
             import_btn.click().run()
         assert not at.exception
@@ -143,8 +149,11 @@ class TestTemplatesPage:
             patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.mark_templates_synced"),
+            patch("src.templates.list_remote_custom_templates", return_value=(True, set())),
+            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+            patch("src.template_sync.load_manifest", return_value={"templates": []}),
+            patch("src.template_sync.list_manifest_entries", return_value=[]),
+            patch("src.template_sync.mark_synced"),
             patch("src.ssh.run_ssh_cmd"),
             patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
         ):
@@ -154,6 +163,28 @@ class TestTemplatesPage:
             sync_btn = next((b for b in at.button if "Sync" in b.label), None)
             assert sync_btn is not None
             sync_btn.click().run()
+        assert not at.exception
+
+    def test_reset_reinitialize_button_click_success(self, tmp_path):
+        """Clicking Reset and reinitialize triggers the full local wipe + import flow."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.get_all_categories", return_value=[]),
+            patch(
+                "src.templates.reset_and_initialize_templates_from_tablet",
+                return_value=(True, "reset ok"),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            reset_btn = next((b for b in at.button if "Reset and reinitialize" in b.label), None)
+            assert reset_btn is not None
+            reset_btn.click().run()
         assert not at.exception
 
     def test_sync_button_click_ensure_dirs_failure(self, tmp_path):
@@ -166,9 +197,6 @@ class TestTemplatesPage:
             patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(False, "SSH error")),
-            patch("src.templates.upload_template_svgs", return_value=0),
-            patch("src.templates.mark_templates_synced"),
-            patch("src.ssh.run_ssh_cmd"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -354,30 +382,23 @@ class TestTemplatesPage:
         assert not at.exception
 
     def test_template_delete_confirmed_removes(self, tmp_path):
-        """confirm_del_tpl_local=True deletes the template file."""
+        """Pending local delete renders the delete dialog action buttons."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["gone.svg"])
         env = make_env(tmp_path, cfg_path)
-        deleted: list[str] = []
         with (
             patch.dict(os.environ, env),
             patch("src.templates.is_templates_dirty", return_value=False),
-            patch(
-                "src.templates.delete_device_template",
-                side_effect=lambda n, f: deleted.append(f),
-            ),
-            patch("src.templates.remove_template_entry"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "gone.svg"
-            at.session_state["confirm_del_tpl_local"] = True
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert "gone.svg" in deleted
+        assert any(b.label == "Delete" for b in at.button)
 
     def test_template_delete_cancelled_clears_state(self, tmp_path):
-        """confirm_del_tpl_local=False clears pending state without deleting."""
+        """Pending local delete renders a Cancel action in the delete dialog."""
         cfg_path = with_device(tmp_path, "D1")
         _make_svgs(tmp_path, "D1", ["keep.svg"])
         env = make_env(tmp_path, cfg_path)
@@ -388,10 +409,9 @@ class TestTemplatesPage:
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "keep.svg"
-            at.session_state["confirm_del_tpl_local"] = False
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert at.session_state["tpl_pending_delete_local"] is None
+        assert any(b.label == "Cancel" for b in at.button)
 
     def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
         """When tpl_pending_rename is set, the overwrite confirmation dialog is triggered."""
@@ -492,103 +512,22 @@ class TestTemplatesPage:
             sc.set_value("Categories").run()
         assert not at.exception
 
-
-# ---------------------------------------------------------------------------
-# _sync_templates_to_tablet branches
-# ---------------------------------------------------------------------------
-
-
-class TestSyncBranches:
-    """Unit-style coverage of the private helper called when Sync is clicked."""
-
-    def _run_sync(self, tmp_path, extra_patches):
-        """Helper: render the templates page with a dirty device and click Sync."""
-        cfg_path = with_device(tmp_path, "D1")
-        backup_dir(tmp_path, "D1")
+    def test_edit_template_with_non_default_tablet_does_not_crash(self, tmp_path):
+        """Editing a template after selecting a non-default tablet must not raise StreamlitAPIException."""
+        cfg_path = with_two_devices(tmp_path)
+        d2 = backup_dir(tmp_path, "D2")
+        (d2 / "templates" / "custom.template").write_text("{}", encoding="utf-8")
         env = make_env(tmp_path, cfg_path)
-        with ExitStack() as stack:
-            stack.enter_context(patch.dict(os.environ, env))
-            stack.enter_context(patch("src.templates.is_templates_dirty", return_value=True))
-            stack.enter_context(patch("src.templates.get_all_categories", return_value=[]))
-            for p in extra_patches:
-                stack.enter_context(p)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=False),
+            patch("src.templates.load_json_template", return_value="{}"),
+        ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.selectbox(key="tablet").set_value("D2").run()
+            at.session_state["tpl_edit_target"] = "custom.template"
             at.switch_page("pages/templates.py").run()
-            sync_btn = next((b for b in at.button if "Sync" in b.label), None)
-            assert sync_btn is not None
-            sync_btn.click().run()
-        return at
-
-    def test_sync_svgs_and_json_uploaded(self, tmp_path):
-        """When SVGs are sent and JSON exists, symlinks + JSON upload + restart all succeed."""
-        # Create a JSON file so the upload branch is entered
-        json_path = tmp_path / "D1" / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=2),
-                patch("src.templates.symlink_templates_on_device", return_value=(True, "ok")),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_symlink_exception_returns_false(self, tmp_path):
-        """If symlink_templates_on_device fails, sync fails gracefully."""
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=1),
-                patch(
-                    "src.templates.symlink_templates_on_device",
-                    return_value=(False, "symlink error"),
-                ),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_json_upload_failure(self, tmp_path):
-        """If templates.json upload fails, sync returns False."""
-        json_path = tmp_path / "D1" / "templates.json"
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        json_path.write_text('{"templates":[]}', encoding="utf-8")
-
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=0),
-                patch("src.ssh.run_ssh_cmd"),
-                patch("src.ssh.upload_file_ssh", return_value=(False, "upload failed")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
-        assert not at.exception
-
-    def test_sync_restart_exception(self, tmp_path):
-        """If run_ssh_cmd raises during xochitl restart, sync fails gracefully."""
-        # No JSON file → skip JSON upload; run_ssh_cmd raises on restart call
-        at = self._run_sync(
-            tmp_path,
-            [
-                patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-                patch("src.templates.upload_template_svgs", return_value=0),
-                patch("src.ssh.run_ssh_cmd", side_effect=Exception("restart error")),
-                patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-                patch("src.templates.mark_templates_synced"),
-            ],
-        )
         assert not at.exception
 
 
@@ -690,7 +629,7 @@ class TestTemplateIconCode:
     def _make_template_with_icon(
         self, tmp_path, device: str, filename: str, icon_code: str
     ) -> None:
-        """Create an SVG + templates.json entry (with *icon_code*) + backup stub."""
+        """Create an SVG + templates/manifest entries (with *icon_code*) + backup stub."""
         stem = filename.removesuffix(".svg")
         d = backup_dir(tmp_path, device)
         (d / "templates" / filename).write_bytes(_SVG)
@@ -705,6 +644,26 @@ class TestTemplateIconCode:
                             "categories": ["Lines"],
                         }
                     ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (d / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "lastSync": None,
+                    "templates": [
+                        {
+                            "name": stem,
+                            "filename": stem,
+                            "iconCode": icon_code,
+                            "categories": ["Lines"],
+                            "syncStatus": "synced",
+                            "addedAt": "2025-01-10T09:00:00Z",
+                            "modifiedAt": "2025-01-10T09:00:00Z",
+                        }
+                    ],
                 }
             ),
             encoding="utf-8",
@@ -752,12 +711,30 @@ _JSON_TEMPLATE = '{"orientation":"portrait","constants":[],"items":[]}'
 
 def _make_json_template(tmp_path, device: str = "D1", name: str = "MyLines.template") -> str:
     """Create a .template JSON file in the device templates dir and return its name."""
-    tdir = tmp_path / device / "templates"
-    tdir.mkdir(parents=True, exist_ok=True)
-    backup = tmp_path / device / "templates.backup.json"
-    if not backup.exists():
-        backup.write_text("[]", encoding="utf-8")
+    d = backup_dir(tmp_path, device)
+    tdir = d / "templates"
+    stem = name.removesuffix(".template")
     (tdir / name).write_text(_JSON_TEMPLATE, encoding="utf-8")
+    (d / "manifest.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "lastSync": None,
+                "templates": [
+                    {
+                        "name": stem,
+                        "filename": stem,
+                        "iconCode": "\ue9fe",
+                        "categories": ["Perso"],
+                        "syncStatus": "synced",
+                        "addedAt": "2025-01-10T09:00:00Z",
+                        "modifiedAt": "2025-01-10T09:00:00Z",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     return name
 
 
@@ -843,7 +820,7 @@ class TestTemplatePageJsonTemplates:
         assert any("Add" in s.value for s in at.subheader)
 
     def test_json_template_delete_removes_file(self, tmp_path):
-        """Confirming deletion of a .template file calls delete_device_template."""
+        """Confirming deletion from the dialog calls delete_device_template."""
         cfg_path = with_device(tmp_path, "D1")
         _make_json_template(tmp_path, "D1", "todel.template")
         env = make_env(tmp_path, cfg_path)
@@ -856,12 +833,15 @@ class TestTemplatePageJsonTemplates:
                 side_effect=lambda n, f: deleted.append(f),
             ),
             patch("src.templates.remove_template_entry"),
+            patch("src.templates.delete_template_from_tablet", return_value=(True, "ok")),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["tpl_pending_delete_local"] = "todel.template"
-            at.session_state["confirm_del_tpl_local"] = True
             at.switch_page("pages/templates.py").run()
+            delete_btn = next((b for b in at.button if b.label == "Delete"), None)
+            assert delete_btn is not None
+            delete_btn.click().run()
         assert not at.exception
         assert "todel.template" in deleted
 
@@ -931,6 +911,75 @@ class TestSegmentedControlOptions:
             "tpl_editor_reset_choice" not in at.session_state
             or not at.session_state["tpl_editor_reset_choice"]
         )
+
+
+class TestOrphanActions:
+    """Orphan templates expose explicit adopt/delete actions."""
+
+    def test_orphan_card_shows_add_and_delete_actions(self, tmp_path):
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "orphaned.template")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=True),
+            patch("src.templates.get_template_sync_status", return_value="orphan"),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+
+        assert not at.exception
+        assert any(b.label == "Add orphan" for b in at.button)
+        assert any(b.label == "Delete orphan" for b in at.button)
+
+    def test_add_orphan_action_sets_pending(self, tmp_path):
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "orphaned.template")
+        env = make_env(tmp_path, cfg_path)
+        calls: list[tuple[str, str, str]] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=True),
+            patch("src.templates.get_template_sync_status", return_value="orphan"),
+            patch(
+                "src.templates.set_template_sync_status",
+                side_effect=lambda d, f, s: calls.append((d, f, s)) or True,
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            btn = next((b for b in at.button if b.label == "Add orphan"), None)
+            assert btn is not None
+            btn.click().run()
+
+        assert not at.exception
+        assert ("D1", "orphaned.template", "pending") in calls
+
+    def test_delete_orphan_action_sets_deleted(self, tmp_path):
+        cfg_path = with_device(tmp_path, "D1")
+        _make_json_template(tmp_path, "D1", "orphaned.template")
+        env = make_env(tmp_path, cfg_path)
+        calls: list[tuple[str, str, str]] = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.is_templates_dirty", return_value=True),
+            patch("src.templates.get_template_sync_status", return_value="orphan"),
+            patch(
+                "src.templates.set_template_sync_status",
+                side_effect=lambda d, f, s: calls.append((d, f, s)) or True,
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            btn = next((b for b in at.button if b.label == "Delete orphan"), None)
+            assert btn is not None
+            btn.click().run()
+
+        assert not at.exception
+        assert ("D1", "orphaned.template", "deleted") in calls
 
 
 # ---------------------------------------------------------------------------

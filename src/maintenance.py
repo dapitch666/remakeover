@@ -23,20 +23,14 @@ from src.constants import (
     CMD_CAROUSEL_BACKUP_DIR,
     CMD_CAROUSEL_DISABLE,
     CMD_RESTART_XOCHITL,
-    REMOTE_CUSTOM_TEMPLATES_DIR,
-    REMOTE_TEMPLATES_DIR,
     SUSPENDED_PNG_PATH,
 )
+from src.i18n import _
 from src.images import list_device_images, load_device_image
 from src.models import Device
 from src.ssh import run_ssh_cmd, upload_file_ssh
-from src.templates import (
-    compare_and_backup_templates_json,
-    ensure_remote_template_dirs,
-    get_device_templates_dir,
-    symlink_templates_on_device,
-    upload_template_svgs,
-)
+from src.template_sync import sync_templates_to_tablet
+from src.templates import refresh_templates_backup_from_tablet, remote_templates_dir_has_symlinks
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +92,12 @@ def run_maintenance(
                 image = _random.choice(imgs)
 
     if image:
-        active_steps.append("Upload suspended image")
+        active_steps.append(_("Upload suspended image"))
     if device.templates:
-        active_steps.append("Upload custom templates")
+        active_steps.append(_("Sync templates"))
     if device.carousel:
-        active_steps.append("Disable carousel")
-    active_steps.append("Restart xochitl")
+        active_steps.append(_("Disable carousel"))
+    active_steps.append(_("Restart xochitl"))
 
     total = len(active_steps)
     cur = 0
@@ -129,12 +123,12 @@ def run_maintenance(
     pw = device.password or ""
 
     try:
-        step_fn("Starting maintenance…")
+        step_fn(_("Starting deployment…"))
         progress_fn(0)
 
         # ── 1) Upload suspended.png ────────────────────────────────────────
         if image:
-            _advance("Upload de l'image de veille")
+            _advance(_("Upload suspended image"))
             try:
                 img_blob = load_device_image(device_name, image)
             except Exception as e:
@@ -149,43 +143,34 @@ def run_maintenance(
 
         # ── 2) Custom templates ────────────────────────────────────────────
         if device.templates:
-            _advance("Ajout des templates personnalisés")
+            # If symlinks disappeared after a firmware update, refresh stock templates backup.
+            has_links_ok, has_links_payload = remote_templates_dir_has_symlinks(ip, pw)
+            if not has_links_ok:
+                errors.append(f"templates_stock_check_failed: {has_links_payload}")
+                return {"ok": False, "errors": errors, "details": details}
+            assert isinstance(has_links_payload, bool)
+            if not has_links_payload:
+                ok_backup, msg_backup = refresh_templates_backup_from_tablet(ip, pw, device_name)
+                if not ok_backup:
+                    errors.append(f"templates_backup_refresh_failed: {msg_backup}")
+                    return {"ok": False, "errors": errors, "details": details}
+                _log(f"templates.backup.json refresh result: {msg_backup}")
 
-            ok, msg = ensure_remote_template_dirs(
-                ip, pw, REMOTE_CUSTOM_TEMPLATES_DIR, REMOTE_TEMPLATES_DIR
+            _advance(_("Sync templates"))
+            ok = sync_templates_to_tablet(
+                device_name,
+                device,
+                _log,
+                force=True,
+                restart_xochitl=False,
             )
             if not ok:
-                errors.append(f"ensure_remote_dirs_failed: {msg}")
-                return {"ok": False, "errors": errors, "details": details}
-
-            device_templates_dir = get_device_templates_dir(device_name)
-            sent_count = upload_template_svgs(
-                ip, pw, [device_templates_dir], REMOTE_CUSTOM_TEMPLATES_DIR
-            )
-            if sent_count:
-                ok_link, link_err = symlink_templates_on_device(ip, pw)
-                if not ok_link:
-                    errors.append(f"symlink_failed: {link_err}")
-                    return {"ok": False, "errors": errors, "details": details}
-                _log(f"{sent_count} SVG template(s) uploaded and linked")
-
-            # compare_and_backup_templates_json: downloads the remote templates.json,
-            # saves it as templates.backup.json if different from the local copy,
-            # then uploads the local version to the tablet.
-            ok, msg = compare_and_backup_templates_json(ip, pw, device_name)
-            if msg == "identical":
-                _log("templates.json: identical on tablet, nothing to do")
-            elif msg == "uploaded":
-                _log("templates.json: local version uploaded (remote backed up)")
-            elif msg == "no_local":
-                _log("templates.json: no local version, nothing to do")
-            elif not ok:
-                errors.append(f"templates_json_error: {msg}")
+                errors.append("templates_sync_failed: sync_failed")
                 return {"ok": False, "errors": errors, "details": details}
 
         # ── 3) Disable carousel ────────────────────────────────────────────
         if device.carousel:
-            _advance("Désactivation du carrousel")
+            _advance(_("Disable carousel"))
             try:
                 out, err = run_ssh_cmd(ip, pw, [CMD_CAROUSEL_BACKUP_DIR, CMD_CAROUSEL_DISABLE])
                 details["carousel_out"] = out.strip()
@@ -196,7 +181,7 @@ def run_maintenance(
                 return {"ok": False, "errors": errors, "details": details}
 
         # ── 4) Restart xochitl ─────────────────────────────────────────────
-        _advance("Redémarrage de xochitl")
+        _advance(_("Restart xochitl"))
         try:
             out, err = run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
             details["restart_out"] = out.strip()
@@ -216,9 +201,9 @@ def run_maintenance(
 
     try:
         if result["ok"]:
-            toast_fn("Deployment completed successfully")
+            toast_fn(_("Deployment completed successfully."))
         else:
-            toast_fn("Deployment completed (with errors)")
+            toast_fn(_("Deployment completed with errors."))
     except Exception:
         pass
 

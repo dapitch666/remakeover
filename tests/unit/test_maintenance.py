@@ -46,18 +46,14 @@ def _base_patches(
     return [
         patch("src.maintenance.load_device_image", return_value=load_image_data),
         patch("src.maintenance.list_device_images", return_value=[]),
+        patch("src.maintenance.remote_templates_dir_has_symlinks", return_value=(True, True)),
+        patch("src.maintenance.refresh_templates_backup_from_tablet", return_value=(True, "ok")),
         patch(
             "src.maintenance.upload_file_ssh",
             return_value=(upload_ok, "ok" if upload_ok else "err"),
         ),
         patch("src.maintenance.run_ssh_cmd", return_value=run_cmd_out),
-        patch("src.maintenance.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.maintenance.upload_template_svgs", return_value=0),
-        patch(
-            "src.maintenance.compare_and_backup_templates_json", return_value=(True, "identical")
-        ),
-        patch("src.maintenance.get_device_templates_dir", return_value="/tmp/tpl"),
-        patch("src.maintenance.symlink_templates_on_device", return_value=(True, "ok")),
+        patch("src.maintenance.sync_templates_to_tablet", return_value=True),
     ]
 
 
@@ -143,7 +139,7 @@ class TestImageResolution:
         upload_calls = []
         patches = _base_patches()
         patches[1] = patch("src.maintenance.list_device_images", return_value=[])
-        patches[2] = patch(
+        patches[4] = patch(
             "src.maintenance.upload_file_ssh",
             side_effect=lambda ip, pw, blob, path: upload_calls.append(path) or (True, "ok"),
         )
@@ -174,26 +170,26 @@ class TestRunMaintenanceHappyPath:
 
     def test_with_templates_enabled(self):
         dev = _device(templates=True)
-        ensure_calls = []
+        sync_calls = []
         with ExitStack() as stack:
             for p in _base_patches():
                 stack.enter_context(p)
             stack.enter_context(
                 patch(
-                    "src.maintenance.ensure_remote_template_dirs",
-                    side_effect=lambda ip, pw, c, t: ensure_calls.append((c, t)) or (True, "ok"),
+                    "src.maintenance.sync_templates_to_tablet",
+                    side_effect=lambda *args, **kwargs: sync_calls.append((args, kwargs)) or True,
                 )
             )
             result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
 
         assert result["ok"] is True
-        assert ensure_calls  # template dirs were set up
+        assert sync_calls
 
     def test_with_carousel_enabled(self):
         dev = _device(carousel=True)
         cmd_calls = []
         patches = _base_patches()
-        patches[3] = patch(
+        patches[5] = patch(
             "src.maintenance.run_ssh_cmd",
             side_effect=lambda ip, pw, cmds: cmd_calls.append(cmds) or ("", ""),
         )
@@ -260,42 +256,24 @@ class TestRunMaintenanceErrors:
 
         assert result["ok"] is True
 
-    def test_templates_ensure_dirs_failure_returns_error(self):
-        """ensure_remote_template_dirs failing causes maintenance to return an error."""
+    def test_templates_sync_failure_returns_error(self):
+        """Unified template sync failure aborts maintenance."""
         dev = _device(templates=True)
         patches = _base_patches()
-        patches[4] = patch(
-            "src.maintenance.ensure_remote_template_dirs", return_value=(False, "dirs failed")
-        )
+        patches[6] = patch("src.maintenance.sync_templates_to_tablet", return_value=False)
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
             result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
 
         assert result["ok"] is False
-        assert any("ensure_remote_dirs_failed" in e for e in result["errors"])
-
-    def test_templates_symlink_failure_returns_error(self):
-        """symlink_templates_on_device failing aborts maintenance."""
-        dev = _device(templates=True)
-        patches = _base_patches()
-        patches[5] = patch("src.maintenance.upload_template_svgs", return_value=1)
-        patches[8] = patch(
-            "src.maintenance.symlink_templates_on_device", return_value=(False, "symlink error")
-        )
-        with ExitStack() as stack:
-            for p in patches:
-                stack.enter_context(p)
-            result = run_maintenance("D1", dev, image="bg.png", **_callbacks())
-
-        assert result["ok"] is False
-        assert any("symlink_failed" in e for e in result["errors"])
+        assert any("templates_sync_failed" in e for e in result["errors"])
 
     def test_carousel_failure_returns_error(self):
         """run_ssh_cmd raising during carousel step aborts maintenance."""
         dev = _device(carousel=True)
         patches = _base_patches()
-        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("carousel error"))
+        patches[5] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("carousel error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -308,7 +286,7 @@ class TestRunMaintenanceErrors:
         """run_ssh_cmd raising during xochitl restart aborts maintenance."""
         dev = _device()
         patches = _base_patches()
-        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("restart error"))
+        patches[5] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("restart error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)

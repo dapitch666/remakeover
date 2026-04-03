@@ -155,9 +155,14 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
 
 
 def backup_dir(tmp_path, device: str = "D1"):
-    """Create device data dir and place a stub templates.backup.json."""
+    """Create device data dir with stub backup, templates.json, and manifest.json."""
     d = tmp_path / device
     d.mkdir(parents=True, exist_ok=True)
-    (d / "templates.backup.json").write_text("[]", encoding="utf-8")
+    (d / "templates.backup.json").write_text('{"templates": []}', encoding="utf-8")
+    (d / "templates.json").write_text('{"templates": []}', encoding="utf-8")
+    (d / "manifest.json").write_text(
+        '{"version": 1, "lastSync": null, "templates": []}',
+        encoding="utf-8",
+    )
     (d / "templates").mkdir(exist_ok=True)
     return d

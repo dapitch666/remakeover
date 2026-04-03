@@ -11,7 +11,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from src.constants import DEFAULT_TEMPLATE_JSON
-from tests.pages.helpers import empty_cfg, make_env, with_device
+from tests.pages.helpers import backup_dir, empty_cfg, make_env, with_device
 
 # Minimal valid template JSON
 _VALID_JSON = json.dumps(
@@ -244,6 +244,82 @@ class TestTemplateEditorSave:
         assert not at.exception
         # The filename text input is rendered in the save section
         assert any("Filename" in ti.label for ti in at.text_input)
+
+    def test_save_existing_template_same_stock_name_is_allowed(self, tmp_path):
+        """Editing an existing template keeps the same name even if it matches backup stock stem."""
+        cfg_path = with_device(tmp_path, "D1")
+        device_dir = backup_dir(tmp_path, "D1")
+        (device_dir / "templates.backup.json").write_text(
+            json.dumps(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\ue9fe",
+                            "categories": [],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (device_dir / "templates.json").write_text(
+            json.dumps(
+                {
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\ue9fe",
+                            "categories": ["Lines"],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (device_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "lastSync": "2026-04-01T10:00:00Z",
+                    "templates": [
+                        {
+                            "name": "Blank",
+                            "filename": "Blank",
+                            "iconCode": "\ue9fe",
+                            "categories": ["Perso"],
+                            "syncStatus": "synced",
+                            "addedAt": "2026-04-01T10:00:00Z",
+                            "modifiedAt": "2026-04-01T10:00:00Z",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        _make_template_file(tmp_path, "D1", "Blank.template", _VALID_JSON)
+
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.session_state["tpl_editor_load_choice"] = "Blank.template"
+            at.switch_page("pages/template_editor.py").run()
+
+            save_btn = next((b for b in at.button if "Save" in b.label), None)
+            assert save_btn is not None
+            save_btn.click().run()
+
+        assert not at.exception
+        assert not any("This filename matches a stock template" in err.value for err in at.error)
+        saved_files = list((tmp_path / "D1" / "templates").glob("Blank.template"))
+        assert len(saved_files) == 1
+        manifest = json.loads((device_dir / "manifest.json").read_text(encoding="utf-8"))
+        entry = next(t for t in manifest["templates"] if t["filename"] == "Blank")
+        assert entry["syncStatus"] == "pending"
 
 
 class TestTemplateEditorLoadExisting:

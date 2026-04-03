@@ -19,11 +19,14 @@ import streamlit as st
 from src.constants import DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
 from src.i18n import _
 from src.icon_font import render_icon_grid_html, render_icon_preview_html
+from src.manifest_templates import SYNC_STATUS_PENDING, set_sync_status
 from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
+    StockTemplateNameConflictError,
     add_template_entry,
     get_template_entry,
+    is_stock_template_name,
     list_json_templates,
     load_json_template,
     save_json_template,
@@ -267,6 +270,12 @@ with col_save:
         _fallback_name = "My Template"
         _base = tpl_filename.strip() or _default_name or _fallback_name
         filename_tpl = normalise_filename(_base, ext=".template")
+        _loaded_stem = os.path.splitext(str(_loaded_choice))[0] if not _is_new_template else None
+        _same_name_as_loaded = _loaded_stem == os.path.splitext(filename_tpl)[0]
+
+        if is_stock_template_name(selected_name, filename_tpl) and not _same_name_as_loaded:
+            st.error(_("This filename matches a stock template. Choose another name."))
+            st.stop()
 
         # Final categories — read directly from the JSON source
         cats = _default_cats or ["Perso"]
@@ -280,7 +289,20 @@ with col_save:
         # Save .template JSON source file (this IS the asset deployed to the tablet)
         save_json_template(selected_name, filename_tpl, json_str)
         # Register in templates.json so the sync button on the Templates page picks it up
-        add_template_entry(selected_name, filename_tpl, cats, icon_code)
+        try:
+            add_template_entry(
+                selected_name,
+                filename_tpl,
+                cats,
+                icon_code,
+                previous_filename=None if _is_new_template else str(_loaded_choice),
+            )
+            # Saving from the editor updates local .template content even when
+            # metadata (name/categories/icon) stays unchanged, so keep it pending.
+            set_sync_status(selected_name, filename_tpl, SYNC_STATUS_PENDING)
+        except StockTemplateNameConflictError:
+            st.error(_("This filename matches a stock template. Choose another name."))
+            st.stop()
 
         add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
         deferred_toast(_("Template {name} saved").format(name=filename_tpl), ":material/task_alt:")

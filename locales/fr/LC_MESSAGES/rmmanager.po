@@ -1,14 +1,10 @@
-# French translations for PROJECT.
-# Copyright (C) 2026 ORGANIZATION
-# This file is distributed under the same license as the PROJECT project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
-#
+
 msgid ""
 msgstr ""
-"Project-Id-Version: PROJECT VERSION\n"
+"Project-Id-Version:  rm-manager\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-03-13 14:02+0100\n"
-"PO-Revision-Date: 2026-03-12 12:33+0100\n"
+"POT-Creation-Date: 2026-04-03 11:22+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
 "Language-Team: fr <LL@li.org>\n"
@@ -16,34 +12,34 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.17.0\n"
+"Generated-By: Babel 2.18.0\n"
 
-#: app.py:192
+#: app.py:202
 msgid "Tablet"
 msgstr "Tablette"
 
-#: app.py:201
+#: app.py:210
 msgid "Test SSH connection"
 msgstr "Tester la connexion SSH"
 
-#: app.py:221
+#: app.py:230
 msgid "SSH connection OK"
 msgstr "Connexion SSH OK"
 
-#: app.py:224
+#: app.py:233
 #, python-brace-format
 msgid "SSH connection failed: {err}"
 msgstr "Connexion SSH impossible : {err}"
 
-#: app.py:266
+#: app.py:276
 msgid "Template Editor"
 msgstr "Éditeur de templates"
 
-#: app.py:269
+#: app.py:279
 msgid "Icon Font"
 msgstr "Police d'icônes"
 
-#: app.py:270
+#: app.py:280
 msgid "Deployment"
 msgstr "Déploiement"
 
@@ -84,9 +80,9 @@ msgstr "Type de tablette"
 msgid "Enable templates"
 msgstr "Activer les templates"
 
-#: pages/configuration.py:66
+#: pages/configuration.py:66 src/maintenance.py:99 src/maintenance.py:173
 msgid "Disable carousel"
-msgstr "Désactiver le carousel"
+msgstr "Désactiver le carrousel"
 
 #: pages/configuration.py:70
 msgid ""
@@ -99,8 +95,8 @@ msgstr ""
 " À propos > Copyrights et licences, puis faites défiler la colonne de "
 "droite si nécessaire."
 
-#: pages/configuration.py:77 pages/template_editor.py:147
-#: pages/template_editor.py:210 pages/templates.py:161
+#: pages/configuration.py:77 pages/template_editor.py:184
+#: pages/template_editor.py:262 pages/templates.py:191
 #: tests/unit/test_i18n.py:61 tests/unit/test_i18n.py:69
 msgid "Save"
 msgstr "Sauvegarder"
@@ -132,7 +128,7 @@ msgstr "'{ip}' n'est pas une adresse IP valide (ex. : 192.168.1.100)."
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: pages/configuration.py:123
+#: pages/configuration.py:123 pages/templates.py:248
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -140,8 +136,9 @@ msgstr "Supprimer"
 msgid "Delete this device and its local images"
 msgstr "Supprimer cet appareil et ses images locales"
 
-#: pages/configuration.py:135 pages/templates.py:75 pages/templates.py:123
-#: pages/templates.py:186 src/dialog.py:25 tests/unit/test_i18n.py:79
+#: pages/configuration.py:135 pages/templates.py:90 pages/templates.py:149
+#: pages/templates.py:217 pages/templates.py:239 src/dialog.py:25
+#: tests/unit/test_i18n.py:79
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -158,16 +155,57 @@ msgstr ""
 "Confirmez-vous la suppression de l'appareil '{name}' ? Cette action "
 "supprimera aussi ses images et templates locaux."
 
-#: pages/configuration.py:160 pages/templates.py:332
+#: pages/configuration.py:160 pages/templates.py:276
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr "'{name}' supprimé"
 
-#: pages/deploiement.py:15
+#: pages/deploiement.py:20
+msgid "Failed to load local image"
+msgstr "Échec du chargement de l'image locale"
+
+#: pages/deploiement.py:21
+msgid "Failed to upload suspended image"
+msgstr "Échec de l'upload de l'image de veille"
+
+#: pages/deploiement.py:22
+msgid "Failed to verify template symlinks on tablet"
+msgstr "Échec de la vérification des liens sur la tablette"
+
+#: pages/deploiement.py:24
+msgid "Failed to refresh stock templates backup from tablet"
+msgstr "Échec du rafraichissement des templates de base sur la tablette"
+
+#: pages/deploiement.py:26
+msgid "Failed to prepare template directories on tablet"
+msgstr "Échec de la préparation des répertoires de templates sur la tablette"
+
+#: pages/deploiement.py:27
+msgid "Failed to create template links on tablet"
+msgstr "Échec de la création des liens sur la tablette"
+
+#: pages/deploiement.py:28 pages/deploiement.py:29
+msgid "Error while syncing templates.json"
+msgstr "Une erreur est survenue lors de la synchronisation de templates.json"
+
+#: pages/deploiement.py:30
+msgid "Failed to disable carousel"
+msgstr "Échec de la désactivation du carrousel"
+
+#: pages/deploiement.py:31
+msgid "Failed to restart xochitl"
+msgstr "Échec du redémarrage de xochitl"
+
+#: pages/deploiement.py:37
+#, python-brace-format
+msgid "{label}: {detail}"
+msgstr "{label}: {detail}"
+
+#: pages/deploiement.py:41
 msgid ":material/rocket_launch: Deployment"
 msgstr ":material/rocket_launch: Déploiement"
 
-#: pages/deploiement.py:31
+#: pages/deploiement.py:57
 msgid ""
 "After each firmware update, the tablet's customisations (suspended image,"
 " templates, carousel) are reset by the system. This page lets you "
@@ -178,40 +216,51 @@ msgstr ""
 "le système. Cette page vous permet de **redéployer votre configuration "
 "locale** sur l'appareil en une seule opération."
 
-#: pages/deploiement.py:54
+#: pages/deploiement.py:80
 msgid "**The deployment will perform the following operations:**"
 msgstr "**Le déploiement va effectuer les opérations suivantes :**"
 
-#: pages/deploiement.py:57
+#: pages/deploiement.py:84
 #, python-brace-format
-msgid "- Send {image_desc} as the suspended image (`suspended.png`) to the tablet"
+msgid ""
+"- Send the preferred image (`{image}`) as the suspended image "
+"(`suspended.png`) to the tablet"
 msgstr ""
-"- Envoyer {image_desc} comme image de veille (`suspended.png`) sur la "
-"tablette"
+"- Envoyer l'image préférée (`{image}`)  comme image de veille "
+"(`suspended.png`) sur la tablette"
 
-#: pages/deploiement.py:62
+#: pages/deploiement.py:90
+#, python-brace-format
+msgid ""
+"- Send `{image}` (random choice, no preferred image) as the suspended "
+"image (`suspended.png`) to the tablet"
+msgstr ""
+"- Envoyer `{image}` (choix aléatoire, pas d'image préférée) comme image "
+"de veille (`suspended.png`) sur la tablette"
+
+#: pages/deploiement.py:94
 msgid "- *(No local image — suspended image upload skipped)*"
 msgstr "- *(Aucune image locale — envoi de l'image de veille ignoré)*"
 
-#: pages/deploiement.py:66
+#: pages/deploiement.py:98
 msgid ""
-"- Deploy local templates, create symbolic links and update "
+"- Create symbolic links to the custom templates and update "
 "`templates.json` on the tablet"
 msgstr ""
-"- Déployer les templates locaux, créer les liens symboliques et mettre à "
+"- Créer les liens symboliques vers les templates personnels et mettre à "
 "jour `templates.json` sur la tablette"
 
-#: pages/deploiement.py:71
+#: pages/deploiement.py:102
 msgid "- Disable the carousel by moving illustrations to a backup folder"
 msgstr ""
 "- Désactiver le carrousel en déplaçant les illustrations dans un dossier "
 "de sauvegarde"
 
-#: pages/deploiement.py:72
+#: pages/deploiement.py:103
 msgid "- Restart `xochitl` to apply changes"
 msgstr "- Redémarrer `xochitl` pour appliquer les changements"
 
-#: pages/deploiement.py:82
+#: pages/deploiement.py:113
 msgid ""
 "No deployment actions configured for this tablet (no local image, "
 "templates disabled or empty, carousel disabled). Deployment would only "
@@ -221,27 +270,27 @@ msgstr ""
 "locale, templates désactivés ou inexistants, carrousel désactivé). Le "
 "déploiement ne ferait que redémarrer `xochitl`."
 
-#: pages/deploiement.py:95
+#: pages/deploiement.py:126 src/maintenance.py:204
 msgid "Deployment completed successfully."
 msgstr "Maintenance terminée avec succès."
 
-#: pages/deploiement.py:97
+#: pages/deploiement.py:128
 msgid "Deployment completed with errors:"
 msgstr "Maintenance terminée avec des erreurs :"
 
-#: pages/deploiement.py:101
+#: pages/deploiement.py:136
 msgid "Reset"
 msgstr "Réinitialiser"
 
-#: pages/deploiement.py:112
+#: pages/deploiement.py:147
 msgid "Deploy configuration"
 msgstr "Déployer la configuration"
 
-#: pages/deploiement.py:115
+#: pages/deploiement.py:150
 msgid "Redeploy your local configuration to the tablet after a firmware update"
 msgstr "Redéployer la configuration locale sur la tablette après une mise à jour"
 
-#: pages/deploiement.py:120
+#: pages/deploiement.py:155
 msgid "Deploying…"
 msgstr "Maintenance en cours…"
 
@@ -275,7 +324,7 @@ msgstr "Téléchargement de xochitl et extraction de la police…"
 msgid "Font extracted successfully"
 msgstr "Police extraite avec succès"
 
-#: pages/icon_font.py:72 pages/templates.py:557
+#: pages/icon_font.py:72 pages/templates.py:773
 #, python-brace-format
 msgid "Error: {msg}"
 msgstr "Erreur : {msg}"
@@ -300,11 +349,11 @@ msgstr "Afficher"
 msgid "Rename image"
 msgstr "Renommer l'image"
 
-#: pages/images.py:74 pages/templates.py:260
+#: pages/images.py:74 pages/templates.py:360
 msgid "Click to rename"
 msgstr "Cliquez pour renommer"
 
-#: pages/images.py:89 pages/templates.py:286
+#: pages/images.py:89 pages/templates.py:386
 msgid "Confirm replacement"
 msgstr "Confirmer le remplacement"
 
@@ -318,12 +367,12 @@ msgstr "'{new}' existe déjà. Voulez-vous remplacer ce fichier ?"
 msgid "Confirm deletion of {name}?"
 msgstr "Confirmez-vous la suppression de {name} ?"
 
-#: pages/images.py:154
+#: pages/images.py:154 pages/images.py:239
 #, python-brace-format
 msgid "{name} sent to {device}"
 msgstr "{name} envoyée à {device}"
 
-#: pages/images.py:159 pages/templates.py:181
+#: pages/images.py:159 pages/templates.py:212
 #, python-brace-format
 msgid "Error sending {name}"
 msgstr "Erreur lors de l'envoi de {name}"
@@ -370,11 +419,6 @@ msgstr "Oui"
 #: pages/images.py:224 tests/unit/test_i18n.py:93
 msgid "You can still send it later from the image actions."
 msgstr "Vous pourrez toujours l'envoyer plus tard depuis les actions de l'image."
-
-#: pages/images.py:239
-#, python-brace-format
-msgid "{name} sent to {device}"
-msgstr "{name} envoyée à {device}"
 
 #: pages/images.py:243
 msgid "Error sending image."
@@ -464,36 +508,31 @@ msgstr "Effacer les logs de cette session ?"
 msgid "Logs cleared."
 msgstr "Logs effacés."
 
-#: pages/template_editor.py:41
+#: pages/template_editor.py:46
 msgid ":material/edit_document: Template Editor"
 msgstr ":material/edit_document: Éditeur de templates"
 
-#: pages/template_editor.py:63 pages/template_editor.py:71
-#: pages/template_editor.py:82
+#: pages/template_editor.py:80
 msgid "— New —"
 msgstr "— Nouveau —"
 
-#: pages/template_editor.py:70
+#: pages/template_editor.py:99
 msgid "Load an existing JSON template"
 msgstr "Charger un template JSON existant"
 
-#: pages/template_editor.py:78
-msgid "Load"
-msgstr "Charger"
-
-#: pages/template_editor.py:90
+#: pages/template_editor.py:124
 msgid "New"
 msgstr "Nouveau"
 
-#: pages/template_editor.py:106
+#: pages/template_editor.py:141
 msgid "JSON"
 msgstr "JSON"
 
-#: pages/template_editor.py:119
+#: pages/template_editor.py:154
 msgid "Template JSON"
 msgstr "Template JSON"
 
-#: pages/template_editor.py:123
+#: pages/template_editor.py:158
 msgid ""
 "Enter your reMarkable template JSON here. The preview updates "
 "automatically."
@@ -501,98 +540,125 @@ msgstr ""
 "Entrez ici le JSON de votre template reMarkable. L'aperçu se met à jour "
 "automatiquement."
 
-#: pages/template_editor.py:127
+#: pages/template_editor.py:162
 msgid "Preview"
 msgstr "Aperçu"
 
-#: pages/template_editor.py:138
+#: pages/template_editor.py:175
 msgid ":material/help: reMarkable JSON format documentation"
 msgstr ":material/help: Documentation du format JSON reMarkable"
 
-#: pages/template_editor.py:151
+#: pages/template_editor.py:188
 msgid "Select a tablet in the sidebar to save the template."
 msgstr ""
 "Sélectionnez une tablette dans la barre latérale pour sauvegarder le "
 "template."
 
-#: pages/template_editor.py:170
+#: pages/template_editor.py:220
 msgid "Filename (without extension)"
 msgstr "Nom du fichier (sans extension)"
 
-#: pages/template_editor.py:176 pages/templates.py:441
+#: pages/template_editor.py:222
+msgid "Name of the template file"
+msgstr "Nom du fichier template"
+
+#: pages/template_editor.py:228 pages/templates.py:632
 msgid "Icon code (hex)"
 msgstr "Code d'icône (hex)"
 
-#: pages/template_editor.py:180
+#: pages/template_editor.py:232
 msgid "Hexadecimal icomoon icon code (e.g. E9FE)."
 msgstr "Code hexadécimal de l'icône icomoon (ex : E9FE)."
 
-#: pages/template_editor.py:195 pages/templates.py:457
+#: pages/template_editor.py:247 pages/templates.py:652
 msgid "Browse icons"
 msgstr "Parcourir les icônes"
 
-#: pages/template_editor.py:216
+#: pages/template_editor.py:268
 msgid "Save the .template file to the selected device's library."
 msgstr ""
 "Enregistre le fichier .template dans la bibliothèque de l'appareil "
 "sélectionné."
 
-#: pages/template_editor.py:236 pages/templates.py:488
+#: pages/template_editor.py:277 pages/template_editor.py:304
+#: pages/templates.py:309 pages/templates.py:396
+msgid "This filename matches a stock template. Choose another name."
+msgstr ""
+"Ce nom de fichier correspond à un template de base. Choisissez-en un "
+"autre."
+
+#: pages/template_editor.py:308 pages/templates.py:691
 #, python-brace-format
 msgid "Template {name} saved"
 msgstr "Template {name} sauvegardé"
 
-#: pages/template_editor.py:244
+#: pages/template_editor.py:320
 msgid "Download .template"
 msgstr "Télécharger .template"
 
-#: pages/templates.py:45
+#: pages/templates.py:53 pages/templates.py:456
 msgid "Edit categories"
 msgstr "Modifier les catégories"
 
-#: pages/templates.py:53 pages/templates.py:429
+#: pages/templates.py:61 pages/templates.py:620
 msgid "Existing categories"
 msgstr "Catégories existantes"
 
-#: pages/templates.py:59 pages/templates.py:434
+#: pages/templates.py:67 pages/templates.py:626
 msgid "New categories (comma-separated)"
 msgstr "Nouvelles catégories (séparées par virgule)"
 
-#: pages/templates.py:66 pages/templates.py:109
+#: pages/templates.py:75 pages/templates.py:129
 msgid "Apply"
 msgstr "Valider"
 
-#: pages/templates.py:72
+#: pages/templates.py:78
+msgid "Apply category changes"
+msgstr "Appliquer les modifications de catégories"
+
+#: pages/templates.py:86
 msgid "Categories updated"
 msgstr "Catégories mises à jour"
 
-#: pages/templates.py:82 pages/templates.py:252
+#: pages/templates.py:92
+msgid "Close without saving category changes"
+msgstr "Fermer sans enregistrer les modifications de catégories"
+
+#: pages/templates.py:101 pages/templates.py:352
 msgid "Edit icon"
 msgstr "Modifier l'icône"
 
-#: pages/templates.py:99
+#: pages/templates.py:118
 msgid "Enter a hexadecimal code directly or click an icon below:"
 msgstr ""
 "Entrez directement un code hexadécimal ou cliquez sur une icône ci-"
 "dessous :"
 
-#: pages/templates.py:102
+#: pages/templates.py:121
 msgid "Hex code (e.g. E9FE)"
 msgstr "Code hex (ex : E9FE)"
 
-#: pages/templates.py:114
+#: pages/templates.py:132
+msgid "Apply icon change"
+msgstr "Appliquer le changement d'icône"
+
+#: pages/templates.py:139
 msgid "Invalid hexadecimal code."
 msgstr "Code hexadécimal invalide."
 
-#: pages/templates.py:120 pages/templates.py:523
+#: pages/templates.py:145 pages/templates.py:733
 msgid "Icon updated"
 msgstr "Icône mise à jour"
 
-#: pages/templates.py:127
+#: pages/templates.py:151
+msgid "Close without saving icon changes"
+msgstr "Fermer sans enregistrer les modifications d'icône"
+
+#: pages/templates.py:157
 msgid "Click an icon to apply it directly :"
 msgstr "Cliquez sur une icône pour l'appliquer directement :"
 
-#: pages/templates.py:137
+#: pages/templates.py:167
 msgid ""
 "The icomoon font has not been extracted yet. Use the « Icon Font » page "
 "to extract it."
@@ -600,59 +666,145 @@ msgstr ""
 "La police icomoon n'est pas encore extraite. Utilisez la page « Police "
 "d'icônes » pour l'extraire."
 
-#: pages/templates.py:147
+#: pages/templates.py:177
 msgid "Reload template"
 msgstr "Recharger le template"
 
-#: pages/templates.py:152
+#: pages/templates.py:182
 msgid "New .template file"
 msgstr "Nouveau fichier .template"
 
-#: pages/templates.py:152
+#: pages/templates.py:182
 msgid "New SVG file"
 msgstr "Nouveau fichier SVG"
 
-#: pages/templates.py:176
+#: pages/templates.py:195
+msgid "Replace this template with the selected file"
+msgstr "Remplacer ce template par le fichier sélectionné"
+
+#: pages/templates.py:207
 #, python-brace-format
 msgid "{name} updated on the tablet"
 msgstr "{name} mis à jour sur la tablette"
 
-#: pages/templates.py:219 pages/templates.py:296
-#, python-brace-format
-msgid "Template renamed to '{name}'"
-msgstr "Template renommé en '{name}'"
+#: pages/templates.py:219
+msgid "Close without reloading this template"
+msgstr "Fermer sans recharger ce template"
 
-#: pages/templates.py:227
-msgid "Rename template"
-msgstr "Renommer le template"
+#: pages/templates.py:226
+msgid "Delete template"
+msgstr "Supprimer le template"
 
-#: pages/templates.py:287
-#, python-brace-format
-msgid "'{new}' already exists. Replace this template?"
-msgstr "'{new}' existe déjà. Voulez-vous remplacer ce template ?"
-
-#: pages/templates.py:323
-msgid "Delete locally"
-msgstr "Supprimer localement"
-
-#: pages/templates.py:324
+#: pages/templates.py:229
 #, python-brace-format
 msgid "Delete {name} locally?"
 msgstr "Supprimer {name} localement ?"
 
-#: pages/templates.py:388
+#: pages/templates.py:231
+msgid "Also delete it from the tablet"
+msgstr "Le supprimer aussi de la tablette"
+
+#: pages/templates.py:241
+msgid "Close without deleting this template"
+msgstr "Fermer sans supprimer ce template"
+
+#: pages/templates.py:252
+msgid "Delete this template"
+msgstr "Supprimer ce template"
+
+#: pages/templates.py:266
+#, python-brace-format
+msgid "'{name}' deleted locally and on tablet"
+msgstr "'{name}' supprimé localement et sur la tablette"
+
+#: pages/templates.py:272
+#, python-brace-format
+msgid "'{name}' deleted locally, tablet delete failed"
+msgstr "'{name}' supprimé localement, la suppression sur la tablette a échoué"
+
+#: pages/templates.py:318 pages/templates.py:406
+#, python-brace-format
+msgid "Template renamed to '{name}'"
+msgstr "Template renommé en '{name}'"
+
+#: pages/templates.py:327
+msgid "Rename template"
+msgstr "Renommer le template"
+
+#: pages/templates.py:387
+#, python-brace-format
+msgid "'{new}' already exists. Replace this template?"
+msgstr "'{new}' existe déjà. Voulez-vous remplacer ce template ?"
+
+#: pages/templates.py:425
+msgid "Add orphan"
+msgstr "Ajouter le template"
+
+#: pages/templates.py:428
+msgid "Add this orphan template to the next sync"
+msgstr "Ajouter ce template orphelin à la prochaine synchronisation"
+
+#: pages/templates.py:433
+#, python-brace-format
+msgid "'{name}' marked for sync"
+msgstr "'{name}' marqué pour synchronisation"
+
+#: pages/templates.py:439
+msgid "Delete orphan"
+msgstr "Supprimer l'orphelin"
+
+#: pages/templates.py:442
+msgid "Mark this orphan template for deletion on next sync"
+msgstr ""
+"Marquer ce template orphelin pour suppression lors de la prochaine "
+"synchronisation"
+
+#: pages/templates.py:447
+#, python-brace-format
+msgid "'{name}' marked for deletion"
+msgstr "'{name}' marqué pour suppression"
+
+#: pages/templates.py:511
+msgid "Status:"
+msgstr "Statut :"
+
+#: pages/templates.py:514
+msgid "Synced"
+msgstr "Synchronisé"
+
+#: pages/templates.py:515
+msgid "Pending"
+msgstr "En attente"
+
+#: pages/templates.py:516
+msgid "Invalid"
+msgstr "Invalide"
+
+#: pages/templates.py:517
+msgid "Orphan"
+msgstr "orphelin"
+
+#: pages/templates.py:518
+msgid "Deleted"
+msgstr "Supprimé"
+
+#: pages/templates.py:519
+msgid "Unknown"
+msgstr "Inconnu"
+
+#: pages/templates.py:525
 msgid "Add a template"
 msgstr "Ajouter un template"
 
-#: pages/templates.py:392
+#: pages/templates.py:529
 msgid ":material/upload_file: Import a file"
 msgstr ":material/upload_file: Importer un fichier"
 
-#: pages/templates.py:393
+#: pages/templates.py:530
 msgid ":material/edit_document: Create from scratch"
 msgstr ":material/edit_document: Créer depuis zéro"
 
-#: pages/templates.py:400
+#: pages/templates.py:537
 msgid ""
 "Open the template editor to create a new `.template` file in the "
 "reMarkable JSON format, with live SVG preview."
@@ -660,39 +812,54 @@ msgstr ""
 "Ouvrez l'éditeur de templates pour créer un nouveau fichier `.template` "
 "au format JSON reMarkable, avec prévisualisation SVG en direct."
 
-#: pages/templates.py:405
+#: pages/templates.py:542
 msgid "Open template editor"
 msgstr "Ouvrir l'éditeur de templates"
 
-#: pages/templates.py:419
+#: pages/templates.py:545
+msgid "Create a new .template file in the editor"
+msgstr "Créer un nouveau fichier .template dans l'éditeur"
+
+#: pages/templates.py:560
 msgid "Drag one or more SVG or `.template` files here"
 msgstr "Glisser un ou plusieurs fichiers SVG ou `.template` ici"
 
-#: pages/templates.py:445
+#: pages/templates.py:636
 msgid "Hexadecimal icomoon icon code (e.g. E9FE). Browse icons below."
 msgstr ""
 "Code hexadécimal de l'icône icomoon (ex\\u00a0: E9FE). Parcourez les "
 "icônes ci-dessous."
 
-#: pages/templates.py:461
+#: pages/templates.py:642
+msgid "Icon preview"
+msgstr "Aperçu"
+
+#: pages/templates.py:656
 #, python-brace-format
 msgid "Save ({count} file(s))"
 msgstr "Sauvegarder ({count} fichier(s))"
 
-#: pages/templates.py:464
+#: pages/templates.py:659
 msgid "Save templates locally"
 msgstr "Sauvegarder les templates localement"
 
-#: pages/templates.py:492
+#: pages/templates.py:695
 #, python-brace-format
 msgid "{count} templates saved"
 msgstr "{count} templates sauvegardés"
 
-#: pages/templates.py:500
+#: pages/templates.py:700
+#, python-brace-format
+msgid "{count} file(s) skipped because their name matches a stock template."
+msgstr ""
+"{count} fichier(s) ignoré(s) parce que leur nom correspond à un template "
+"d'origine."
+
+#: pages/templates.py:710
 msgid ":material/description: Templates"
 msgstr ":material/description: Templates"
 
-#: pages/templates.py:538
+#: pages/templates.py:748
 msgid ""
 "The template list for this tablet has not been imported yet. Turn on the "
 "tablet and click the button below to start."
@@ -700,67 +867,134 @@ msgstr ""
 "La liste des templates de cette tablette n'a pas encore été importée. "
 "Allumez la tablette et cliquez sur le bouton ci-dessous pour démarrer."
 
-#: pages/templates.py:544
-msgid "Import templates from tablet"
-msgstr "Importer les templates depuis la tablette"
+#: pages/templates.py:754
+msgid "Initialize templates from this tablet"
+msgstr "Initialiser les templates depuis la tablette"
 
-#: pages/templates.py:549
+#: pages/templates.py:758
+msgid "Import templates from this tablet and initialize local metadata"
+msgstr ""
+"Importer les templates depuis la tablette et initialiser la bibliothèque "
+"locale"
+
+#: pages/templates.py:760
 msgid "Importing…"
 msgstr "Importation en cours…"
 
-#: pages/templates.py:553
+#: pages/templates.py:770
 msgid "Templates imported successfully"
 msgstr "Templates importés avec succès"
 
-#: pages/templates.py:565
-msgid "Local changes have not yet been synced to the tablet."
+#: pages/templates.py:778
+#, python-brace-format
+msgid ""
+"Sync overview: {pending} pending, {orphan} orphan, {deleted} deleted, "
+"{synced} synced"
 msgstr ""
-"Des modifications locales ne sont pas encore synchronisées avec la "
-"tablette."
+"Aperçu de synchronisation : {pending} en attente, {orphan} orphelin(s), "
+"{deleted} supprimé(s), {synced} synchronisé(s)"
 
-#: pages/templates.py:570
-msgid "Sync"
-msgstr "Synchroniser"
+#: pages/templates.py:791
+msgid "Sync now"
+msgstr "Synchroniser maintenant"
 
-#: pages/templates.py:576
+#: pages/templates.py:794
+msgid "Upload pending template changes to the tablet"
+msgstr "Envoyer à la tablette les modifications de templates en attente"
+
+#: pages/templates.py:797 pages/templates.py:812
 msgid "Syncing…"
 msgstr "Synchronisation en cours..."
 
-#: pages/templates.py:579
+#: pages/templates.py:800 pages/templates.py:820
 msgid "Templates synced"
 msgstr "Templates synchronisés"
 
-#: pages/templates.py:581
+#: pages/templates.py:802 pages/templates.py:823
 msgid "Sync error"
 msgstr "Erreur lors de la synchronisation"
 
-#: pages/templates.py:587
+#: pages/templates.py:805
+msgid "Reset and reinitialize"
+msgstr "Réinitialiser et recommencer"
+
+#: pages/templates.py:809
+msgid "Reset local template data and re-import from the tablet"
+msgstr ""
+"Réinitialiser les données locales des templates et les réimporter depuis "
+"la tablette"
+
+#: pages/templates.py:830
+msgid "Manifest contains unsynced changes."
+msgstr "La bibliothèque contient des modifications non synchronisées."
+
+#: pages/templates.py:837
 msgid "Saved templates"
 msgstr "Templates enregistrés"
 
-#: pages/templates.py:590
+#: pages/templates.py:840
 msgid "Sort by"
 msgstr "Trier par"
 
-#: pages/templates.py:591 pages/templates.py:592
+#: pages/templates.py:841 pages/templates.py:842
 msgid "Date"
 msgstr "Date"
 
-#: pages/templates.py:591 pages/templates.py:596
+#: pages/templates.py:841 pages/templates.py:846
 msgid "A → Z"
 msgstr "A → Z"
 
-#: pages/templates.py:591 pages/templates.py:598
+#: pages/templates.py:841 pages/templates.py:848
 msgid "Categories"
 msgstr "Catégories"
 
-#: pages/templates.py:616
-msgid "No templates found for this device."
-msgstr "Aucun template trouvé pour cet appareil."
+#: pages/templates.py:860
+msgid ""
+"Below you will find all templates saved for this tablet. Click a **name**"
+" to rename, click the **categories** to add or remove categories, click "
+"the icon to customize it, and use the action buttons to "
+"(:material/upload_file:) reload (upload a new file), (:material/edit:) "
+"edit, or (:material/delete:) delete templates."
+msgstr ""
+"Vous trouverez ci-dessous tous les templates enregistrés pour cette "
+"tablette. Cliquez sur un **nom** pour le renommer, cliquez sur les "
+"**catégories** pour ajouter ou supprimer des catégories, cliquez sur "
+"l'icône pour la personnaliser, et utilisez les boutons d'action pour "
+"(:material/upload_file:) recharger (importer un nouveau fichier), "
+"(:material/edit:) modifier, ou (:material/delete:) supprimer des "
+"templates."
+
+#: pages/templates.py:880
+msgid ""
+"No templates found for this device. Import templates from your computer "
+"or create new ones using the buttons below."
+msgstr ""
+"Aucun template trouvé pour cet appareil. Importez des templates depuis "
+"votre ordinateur ou créez-en de nouveaux à l'aide des boutons ci-dessous."
 
 #: src/dialog.py:26 tests/unit/test_i18n.py:83
 msgid "Confirm"
 msgstr "Confirmer"
+
+#: src/maintenance.py:95 src/maintenance.py:131
+msgid "Upload suspended image"
+msgstr "Upload de l'image de veille"
+
+#: src/maintenance.py:97 src/maintenance.py:159
+msgid "Sync templates"
+msgstr "Templates synchronisés"
+
+#: src/maintenance.py:100 src/maintenance.py:184
+msgid "Restart xochitl"
+msgstr "Redémarrage de xochitl"
+
+#: src/maintenance.py:126
+msgid "Starting deployment…"
+msgstr "Déploiement démarré..."
+
+#: src/maintenance.py:206
+msgid "Deployment completed with errors."
+msgstr "Déploiement terminé avec des erreurs :"
 
 #: src/ui_common.py:48
 msgid "No device configured. Add one in the page "
@@ -786,6 +1020,6 @@ msgstr "Garder en local uniquement"
 msgid "Send to tablet"
 msgstr "Envoyer sur la tablette"
 
-#~ msgid "'{name}' deleted"
-#~ msgstr "'{name}' supprimé"
+#~ msgid "{status}"
+#~ msgstr "{status}"
 
