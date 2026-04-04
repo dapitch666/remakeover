@@ -2,16 +2,29 @@ import json
 import os
 from unittest.mock import patch
 
+import src.template_sync as sync
 import src.templates as tpl
 from src.manifest_templates import (
     compute_template_sha256_from_template_content,
     get_manifest_entry,
+    load_manifest,
     upsert_manifest_template,
 )
 
 
 def _set_data_dir(tmp_path):
     os.environ["RM_DATA_DIR"] = str(tmp_path)
+
+
+def _uuid_for_filename(device_name: str, filename: str) -> str | None:
+    stem = os.path.splitext(filename)[0]
+    templates = load_manifest(device_name).get("templates", {})
+    if not isinstance(templates, dict):
+        return None
+    for template_uuid, entry in templates.items():
+        if isinstance(template_uuid, str) and isinstance(entry, dict) and entry.get("name") == stem:
+            return template_uuid
+    return None
 
 
 def test_ensure_template_payload_for_rmethods_adds_required_fields():
@@ -30,7 +43,7 @@ def test_list_remote_custom_templates_returns_uuid_template_names():
         ok, payload = tpl.list_remote_custom_templates("1.2.3.4", "pw")
 
     assert ok is True
-    assert payload == {"u1.template", "u2.template"}
+    assert payload == {"u1", "u2"}
 
 
 def test_ensure_remote_template_dirs_creates_xochitl_dir(tmp_path):
@@ -67,12 +80,16 @@ def test_fetch_and_init_templates_imports_remote_rmethods_templates(tmp_path):
 
     with (
         patch("src.templates._list_remote_custom_templates", return_value=(True, [remote_uuid])),
-        patch("src.templates.download_file_ssh", side_effect=_download),
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch(
+            "src.template_sync._push_remote_manifest", return_value=(True, "ok")
+        ) as push_manifest,
     ):
-        ok, msg = tpl.fetch_and_init_templates("1.2.3.4", "pw", "D1")
+        ok, msg = sync.fetch_and_init_templates("1.2.3.4", "pw", "D1")
 
     assert ok is True
     assert "1 template(s) imported" in msg
+    push_manifest.assert_called_once()
 
     local_files = tpl.list_json_templates("D1")
     assert len(local_files) == 1
@@ -82,7 +99,9 @@ def test_fetch_and_init_templates_imports_remote_rmethods_templates(tmp_path):
     assert parsed["labels"] == []
     assert isinstance(parsed["iconData"], str)
 
-    entry = get_manifest_entry("D1", local_files[0])
+    template_uuid = _uuid_for_filename("D1", local_files[0])
+    assert template_uuid is not None
+    entry = get_manifest_entry("D1", template_uuid)
     assert entry is not None
     assert entry["uuid"] == remote_uuid
     assert entry["sha256"]
@@ -117,7 +136,9 @@ def test_upload_template_to_tablet_writes_uuid_triplet_and_sets_remote_uuid(tmp_
     assert any(path.endswith(".metadata") for path in uploaded_paths)
     assert any(path.endswith(".content") for path in uploaded_paths)
 
-    entry = get_manifest_entry("D1", filename)
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+    entry = get_manifest_entry("D1", template_uuid)
     assert entry is not None
     assert any(path.endswith(f"/{entry['uuid']}.template") for path in uploaded_paths)
 

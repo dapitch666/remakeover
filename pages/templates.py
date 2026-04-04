@@ -12,13 +12,12 @@ from src.constants import (
 from src.i18n import _
 from src.manifest_templates import load_manifest
 from src.models import Device
-from src.template_sync import check_sync_status, sync_templates_to_tablet
+from src.template_sync import check_sync_status, fetch_and_init_templates, sync_templates_to_tablet
 from src.templates import (
     add_template_entry,
     delete_device_template,
     delete_template_from_tablet,
     extract_categories_from_template_content,
-    fetch_and_init_templates,
     get_all_categories,
     get_all_labels,
     get_device_manifest_json_path,
@@ -29,7 +28,6 @@ from src.templates import (
     remove_template_entry,
     rename_device_template,
     rename_template_entry,
-    reset_and_initialize_templates_from_tablet,
     save_device_template,
     update_template_categories,
     update_template_labels,
@@ -140,6 +138,8 @@ def _show_labels_dialog(selected_name: str, tpl_name: str, add_log) -> None:
 @st.dialog(_("Reload template"))
 def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
     """Modal dialog to replace a template file locally and push it to the tablet."""
+    entry = get_template_entry(selected_name, tpl_name)
+    ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
     reload_file = st.file_uploader(
         _("New .template file"),
         type=["template"],
@@ -158,18 +158,18 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             assert reload_file is not None
             content = reload_file.read()
             save_device_template(selected_name, content, tpl_name)
-            add_log(f"Template '{tpl_name}' reloaded locally for '{selected_name}'")
+            add_log(f"Template '{ui_name}' reloaded locally for '{selected_name}'")
             ok, msg = upload_template_to_tablet(
                 device.ip, device.password or "", selected_name, tpl_name
             )
             if ok:
                 deferred_toast(
-                    _("{name} updated on the tablet").format(name=tpl_name), ":material/task_alt:"
+                    _("{name} updated on the tablet").format(name=ui_name), ":material/task_alt:"
                 )
-                add_log(f"Template {tpl_name} sent to '{selected_name}'")
+                add_log(f"Template {ui_name} sent to '{selected_name}'")
             else:
-                add_log(f"Failed to send {tpl_name} to '{selected_name}': {msg}")
-                deferred_toast(_("Error sending {name}").format(name=tpl_name), ":material/error:")
+                add_log(f"Failed to send {ui_name} to '{selected_name}': {msg}")
+                deferred_toast(_("Error sending {name}").format(name=ui_name), ":material/error:")
             st.session_state["tpl_reloading"] = None
             st.rerun()
     with col_cancel:
@@ -186,7 +186,9 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
 @st.dialog(_("Delete template"))
 def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
     """Confirm local deletion and optionally delete remotely on the tablet."""
-    st.write(_("Delete {name} locally?").format(name=tpl_name))
+    entry = get_template_entry(selected_name, tpl_name)
+    ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
+    st.write(_("Delete {name} locally?").format(name=ui_name))
     delete_remote = st.checkbox(
         _("Also delete it from the tablet"),
         value=True,
@@ -221,25 +223,25 @@ def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
                 )
                 if ok:
                     remote_deleted = True
-                    add_log(f"Template '{tpl_name}' deleted from tablet for '{selected_name}'")
+                    add_log(f"Template '{ui_name}' deleted from tablet for '{selected_name}'")
                 else:
-                    add_log(f"Remote delete failed for '{tpl_name}' on '{selected_name}': {msg}")
+                    add_log(f"Remote delete failed for '{ui_name}' on '{selected_name}': {msg}")
 
             remove_template_entry(selected_name, tpl_name)
-            add_log(f"Template '{tpl_name}' deleted locally from '{selected_name}'")
+            add_log(f"Template '{ui_name}' deleted locally from '{selected_name}'")
 
             if delete_remote and remote_deleted:
                 deferred_toast(
-                    _("'{name}' deleted locally and on tablet").format(name=tpl_name),
+                    _("'{name}' deleted locally and on tablet").format(name=ui_name),
                     ":material/task_alt:",
                 )
             elif delete_remote and not remote_deleted:
                 deferred_toast(
-                    _("'{name}' deleted locally, tablet delete failed").format(name=tpl_name),
+                    _("'{name}' deleted locally, tablet delete failed").format(name=ui_name),
                     ":material/error:",
                 )
             else:
-                deferred_toast(_("'{name}' deleted").format(name=tpl_name), ":material/delete:")
+                deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
 
             st.session_state["tpl_pending_delete_local"] = None
             st.rerun()
@@ -253,15 +255,28 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
     tpl_path = os.path.join(get_device_templates_dir(selected_name), tpl_name)
     renaming = st.session_state.get("tpl_renaming") == tpl_name
     entry = get_template_entry(selected_name, tpl_name)
+    display_name = (
+        str(entry.get("name") or os.path.splitext(tpl_name)[0])
+        if entry
+        else os.path.splitext(tpl_name)[0]
+    )
+    template_display_ref = f"{display_name}.template"
+    renaming = st.session_state.get("tpl_renaming") in {tpl_name, template_display_ref}
     # ── name / inline rename ──────────────────────────────────────────────
     if renaming:
 
-        def do_rename(_old=tpl_name):
+        def do_rename(_old=template_display_ref):
             raw = st.session_state.get(f"tpl_rename_input_{_old}", "").strip()
             new_name = normalise_filename(raw, ext=".template") if raw else None
+            new_display_name = os.path.splitext(new_name)[0] if new_name else ""
             renamed_to = None
             if new_name and new_name != _old:
-                if new_name in list_device_templates(selected_name):
+                existing_display_names = {
+                    str((get_template_entry(selected_name, candidate) or {}).get("name") or "")
+                    for candidate in list_device_templates(selected_name)
+                    if candidate != _old
+                }
+                if new_display_name in existing_display_names:
                     st.session_state["tpl_pending_rename"] = (_old, new_name)
                     return
                 rename_template_entry(selected_name, _old, new_name)
@@ -281,8 +296,8 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 st.text_input(
                     _("Rename template"),
                     value="",
-                    placeholder=os.path.splitext(tpl_name)[0],
-                    key=f"tpl_rename_input_{tpl_name}",
+                    placeholder=display_name,
+                    key=f"tpl_rename_input_{template_display_ref}",
                     label_visibility="collapsed",
                 )
             with col_btn:
@@ -292,7 +307,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                     width="stretch",
                 )
     else:
-        bare = os.path.splitext(tpl_name)[0]
+        bare = display_name
         display_name = bare if len(bare) <= 20 else bare[:17] + "..."
         if st.button(
             f"**{display_name}**",
@@ -301,7 +316,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             type="tertiary",
             width="stretch",
         ):
-            st.session_state["tpl_renaming"] = tpl_name
+            st.session_state["tpl_renaming"] = template_display_ref
             st.rerun()
 
     # ── preview ───────────────────────────────────────────────────────────
@@ -317,7 +332,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
 
     # Rename overwrite confirmation
     pending_rename = st.session_state.get("tpl_pending_rename")
-    if pending_rename and pending_rename[0] == tpl_name:
+    if pending_rename and pending_rename[0] in {tpl_name, template_display_ref}:
         _old_r, _new_r = pending_rename
         _dialog.confirm(
             _("Confirm replacement"),
@@ -368,30 +383,26 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         _show_labels_dialog(selected_name, tpl_name, add_log)
 
     # Local delete confirmation (+ optional tablet delete)
-    if st.session_state.get("tpl_pending_delete_local") == tpl_name:
+    if st.session_state.get("tpl_pending_delete_local") in {tpl_name, template_display_ref}:
         _show_delete_dialog(tpl_name, selected_name, device, add_log)
 
     # ── segmented control (reload + delete) ──────────────────────────────
-    action_key = f"tpl_action_{tpl_name}"
-    is_json_tpl = tpl_name.lower().endswith(".template")
-    if is_json_tpl:
-        option_map = {
-            "upload": ":material/upload_file:",
-            "edit": ":material/edit:",
-            "delete": ":material/delete:",
-        }
-    else:
-        option_map = {"upload": ":material/upload_file:", "delete": ":material/delete:"}
+    action_key = f"tpl_action_{template_display_ref}"
+    option_map = {
+        "upload": ":material/upload_file:",
+        "edit": ":material/edit:",
+        "delete": ":material/delete:",
+    }
 
     def on_tpl_action(_tpl=tpl_name, _akey=action_key):
         sel = st.session_state.get(_akey)
         if sel == "delete":
-            st.session_state["tpl_pending_delete_local"] = _tpl
+            st.session_state["tpl_pending_delete_local"] = template_display_ref
         elif sel == "upload":
-            st.session_state["tpl_reloading"] = _tpl
+            st.session_state["tpl_reloading"] = template_display_ref
         elif sel == "edit":
-            st.session_state["tpl_editor_load_choice"] = _tpl
-            st.session_state["tpl_edit_target"] = _tpl
+            st.session_state["tpl_editor_load_choice"] = f"{display_name}.template"
+            st.session_state["tpl_edit_target"] = template_display_ref
         st.session_state[_akey] = None
 
     st.segmented_control(
@@ -404,14 +415,14 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         on_change=on_tpl_action,
         width="stretch",
     )
-    if st.session_state.get("tpl_reloading") == tpl_name:
+    if st.session_state.get("tpl_reloading") in {tpl_name, template_display_ref}:
         _show_reload_dialog(tpl_name, selected_name, device, add_log)
-    if st.session_state.get("tpl_edit_target") == tpl_name:
+    if st.session_state.get("tpl_edit_target") in {tpl_name, template_display_ref}:
         st.session_state.pop("tpl_edit_target", None)
         from src.templates import load_json_template
 
         st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, tpl_name)
-        st.session_state["tpl_editor_load_choice"] = tpl_name
+        st.session_state["tpl_editor_load_choice"] = f"{display_name}.template"
         st.switch_page("pages/template_editor.py")
 
 
@@ -652,10 +663,11 @@ else:
             width="stretch",
         ):
             with st.spinner(_("Syncing…")):
-                ok, msg = reset_and_initialize_templates_from_tablet(
+                ok, msg = fetch_and_init_templates(
                     device.ip,
                     device.password or "",
                     selected_name,
+                    overwrite_backup=True,
                 )
             if ok:
                 add_log(f"Templates reset and reinitialized for '{selected_name}' : {msg}")
@@ -705,11 +717,16 @@ else:
             )
 
         if sort_by == _("A \u2192 Z"):
-            stored_templates = sorted(stored_templates, key=lambda f: f.lower())
+            stored_templates = sorted(
+                stored_templates,
+                key=lambda f: str(
+                    (get_template_entry(str(selected_name), f) or {}).get("name") or f
+                ).lower(),
+            )
         elif sort_by == _("Categories"):
 
             def _cat_key(f):
-                entry = get_template_entry(selected_name, f)
+                entry = get_template_entry(str(selected_name), f)
                 cats = entry.get("categories", []) if entry else []
                 return ([c.lower() for c in sorted(cats)] if cats else ["\xff"], f.lower())
 

@@ -3,7 +3,7 @@ import os
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from src.manifest_templates import get_manifest_entry
+from src.manifest_templates import get_manifest_entry, load_manifest
 from src.template_sync import sync_templates_to_tablet
 from src.templates import add_template_entry, save_json_template
 
@@ -14,6 +14,17 @@ class _Device(SimpleNamespace):
 
 def _set_data_dir(tmp_path):
     os.environ["RM_DATA_DIR"] = str(tmp_path)
+
+
+def _uuid_for_filename(device_name: str, filename: str) -> str | None:
+    stem = os.path.splitext(filename)[0]
+    templates = load_manifest(device_name).get("templates", {})
+    if not isinstance(templates, dict):
+        return None
+    for template_uuid, entry in templates.items():
+        if isinstance(template_uuid, str) and isinstance(entry, dict) and entry.get("name") == stem:
+            return template_uuid
+    return None
 
 
 def _device():
@@ -63,7 +74,9 @@ def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_
     assert any(path.endswith(".content") for path in uploaded_paths)
     assert any(path.endswith("/.manifest.json") for path in uploaded_paths)
 
-    entry = get_manifest_entry("D1", filename)
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+    entry = get_manifest_entry("D1", template_uuid)
     assert entry is not None
     assert isinstance(entry.get("uuid"), str)
     assert entry.get("sha256")
@@ -108,7 +121,7 @@ def test_sync_deletes_remote_entries_absent_from_local_manifest(tmp_path):
 
     assert ok is True
     assert removed_payloads
-    assert {f"{remote_uuid}.template"} in removed_payloads
+    assert {remote_uuid} in removed_payloads
 
 
 def test_sync_check_reports_manifest_diff(tmp_path):
@@ -119,7 +132,9 @@ def test_sync_check_reports_manifest_diff(tmp_path):
     save_json_template("D1", filename, json.dumps({"name": "Check", "categories": ["Perso"]}))
     add_template_entry("D1", filename, ["Perso"], "\ue9fe")
 
-    local_entry = get_manifest_entry("D1", filename)
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+    local_entry = get_manifest_entry("D1", template_uuid)
     assert local_entry is not None
     local_uuid = local_entry["uuid"]
 
@@ -195,4 +210,4 @@ def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
 
     assert ok is True
     assert removed_payloads
-    assert {f"{remote_uuid}.template"} in removed_payloads
+    assert {remote_uuid} in removed_payloads

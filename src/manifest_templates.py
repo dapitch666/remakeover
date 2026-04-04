@@ -35,7 +35,7 @@ def _default_manifest() -> dict[str, Any]:
 
 
 def _stem(filename: str) -> str:
-    if filename.lower().endswith((".svg", ".template")):
+    if filename.lower().endswith(".template"):
         return Path(filename).stem
     return filename
 
@@ -137,33 +137,13 @@ def save_manifest(device_name: str, data: dict[str, Any]) -> None:
         json.dump(normalized, f, indent=2, ensure_ascii=True)
 
 
-def _find_uuid_by_name(data: dict[str, Any], name: str) -> str | None:
-    stem = _stem(name)
-    for template_uuid, entry in data.get("templates", {}).items():
-        if entry.get("name") == stem:
-            return template_uuid
-    return None
-
-
-def find_manifest_uuid_by_name(device_name: str, name: str) -> str | None:
-    return _find_uuid_by_name(load_manifest(device_name), name)
-
-
-def get_manifest_entry(device_name: str, template_uuid_or_name: str) -> dict[str, Any] | None:
+def get_manifest_entry(device_name: str, template_uuid: str) -> dict[str, Any] | None:
     data = load_manifest(device_name)
 
-    by_uuid = data.get("templates", {}).get(template_uuid_or_name)
+    by_uuid = data.get("templates", {}).get(template_uuid)
     if isinstance(by_uuid, dict):
-        return {"uuid": template_uuid_or_name, **by_uuid}
-
-    found_uuid = _find_uuid_by_name(data, template_uuid_or_name)
-    if not found_uuid:
-        return None
-
-    entry = data.get("templates", {}).get(found_uuid)
-    if not isinstance(entry, dict):
-        return None
-    return {"uuid": found_uuid, **entry}
+        return {"uuid": template_uuid, **by_uuid}
+    return None
 
 
 def list_manifest_entries(device_name: str) -> list[dict[str, Any]]:
@@ -211,11 +191,8 @@ def delete_manifest_template(device_name: str, template_uuid: str) -> bool:
     return True
 
 
-def rename_manifest_template_by_name(device_name: str, old_name: str, new_name: str) -> bool:
+def rename_manifest_template(device_name: str, template_uuid: str, new_name: str) -> bool:
     data = load_manifest(device_name)
-    template_uuid = _find_uuid_by_name(data, old_name)
-    if not template_uuid:
-        return False
     entry = data.get("templates", {}).get(template_uuid)
     if not isinstance(entry, dict):
         return False

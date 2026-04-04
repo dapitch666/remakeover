@@ -12,7 +12,7 @@ def test_compute_template_sha256_is_canonical():
     assert mf.compute_template_sha256(payload_a) == mf.compute_template_sha256(payload_b)
 
 
-def test_upsert_and_get_manifest_entry_by_name_and_uuid(tmp_path, monkeypatch):
+def test_upsert_and_get_manifest_entry_by_uuid_only(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
 
     template_uuid = "11111111-1111-4111-8111-111111111111"
@@ -25,14 +25,11 @@ def test_upsert_and_get_manifest_entry_by_name_and_uuid(tmp_path, monkeypatch):
     )
 
     by_uuid = mf.get_manifest_entry(DEVICE, template_uuid)
-    by_name = mf.get_manifest_entry(DEVICE, "MyTpl.template")
 
     assert by_uuid is not None
-    assert by_name is not None
     assert by_uuid["uuid"] == template_uuid
-    assert by_name["uuid"] == template_uuid
-    assert by_name["name"] == "MyTpl"
-    assert by_name["sha256"] == "abc123"
+    assert by_uuid["name"] == "MyTpl"
+    assert by_uuid["sha256"] == "abc123"
 
 
 def test_upsert_keeps_created_at_when_entry_exists(tmp_path, monkeypatch):
@@ -76,7 +73,7 @@ def test_delete_manifest_template(tmp_path, monkeypatch):
     assert mf.get_manifest_entry(DEVICE, template_uuid) is None
 
 
-def test_rename_manifest_template_by_name(tmp_path, monkeypatch):
+def test_rename_manifest_template_by_uuid(tmp_path, monkeypatch):
     monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
 
     template_uuid = "44444444-4444-4444-8444-444444444444"
@@ -88,10 +85,10 @@ def test_rename_manifest_template_by_name(tmp_path, monkeypatch):
         sha256="hash",
     )
 
-    assert (
-        mf.rename_manifest_template_by_name(DEVICE, "OldName.template", "NewName.template") is True
-    )
-    assert mf.find_manifest_uuid_by_name(DEVICE, "NewName") == template_uuid
+    assert mf.rename_manifest_template(DEVICE, template_uuid, "NewName.template") is True
+    renamed = mf.get_manifest_entry(DEVICE, template_uuid)
+    assert renamed is not None
+    assert renamed["name"] == "NewName"
 
 
 def test_iso_from_epoch_ms_returns_utc_iso():

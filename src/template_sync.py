@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import suppress
 from typing import Any
 
 import src.ssh as _ssh
@@ -130,13 +131,95 @@ def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[s
     return True, result
 
 
-def _find_local_template_filename(selected_name: str, stem: str) -> str | None:
-    templates_dir = _tpl.get_device_templates_dir(selected_name)
-    for ext in (".template", ".svg"):
-        candidate = f"{stem}{ext}"
-        if os.path.exists(os.path.join(templates_dir, candidate)):
-            return candidate
-    return None
+def fetch_and_init_templates(
+    ip: str,
+    password: str,
+    device_name: str,
+    overwrite_backup: bool = False,
+) -> tuple[bool, str]:
+    """Import rmMethods templates from xochitl, build local manifest, then push it."""
+    pw = password or ""
+
+    if overwrite_backup:
+        templates_dir = _tpl.get_device_templates_dir(device_name)
+        for fname in os.listdir(templates_dir):
+            if fname.lower().endswith((".template", ".metadata", ".content")):
+                with suppress(OSError):
+                    os.remove(os.path.join(templates_dir, fname))
+        manifest_path = _tpl.get_device_manifest_json_path(device_name)
+        with suppress(FileNotFoundError):
+            os.remove(manifest_path)
+
+    ok, payload = _tpl._list_remote_custom_templates(ip, pw)
+    if not ok:
+        assert isinstance(payload, str)
+        return False, f"list_remote_templates_failed: {payload}"
+    assert isinstance(payload, list)
+
+    imported = 0
+    for remote_uuid in payload:
+        metadata_bytes, meta_err = _ssh.download_file_ssh(
+            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
+        )
+        if metadata_bytes is None:
+            _tpl.logger.warning("Skipping %s: metadata download failed (%s)", remote_uuid, meta_err)
+            continue
+
+        template_bytes, tpl_err = _ssh.download_file_ssh(
+            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
+        )
+        if template_bytes is None:
+            _tpl.logger.warning("Skipping %s: template download failed (%s)", remote_uuid, tpl_err)
+            continue
+
+        content_bytes, content_err = _ssh.download_file_ssh(
+            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.content"
+        )
+        if content_bytes is None:
+            _tpl.logger.info(
+                "No remote .content for %s (%s), using empty object", remote_uuid, content_err
+            )
+            content_bytes = b"{}"
+
+        try:
+            metadata = json.loads(metadata_bytes.decode("utf-8"))
+            payload_json = json.loads(template_bytes.decode("utf-8"))
+        except Exception:
+            continue
+
+        if metadata.get("type") != "TemplateType":
+            continue
+
+        normalized_payload = _tpl.ensure_template_payload_for_rmethods(payload_json)
+        visible_name = str(
+            metadata.get("visibleName") or normalized_payload.get("name") or remote_uuid
+        )
+        paths = _tpl._triplet_paths(device_name, remote_uuid)
+        _tpl._write_json_file(paths["template"], normalized_payload)
+        with open(paths["metadata"], "wb") as f:
+            f.write(metadata_bytes)
+        with open(paths["content"], "wb") as f:
+            f.write(content_bytes)
+
+        _tpl._ensure_local_sidecars(device_name, remote_uuid, visible_name)
+        sha256 = _tpl.compute_template_sha256(normalized_payload)
+        created_at = _tpl.iso_from_epoch_ms(metadata.get("createdTime")) or _tpl.utc_now_iso()
+        _tpl.upsert_manifest_template(
+            device_name,
+            remote_uuid,
+            name=visible_name,
+            created_at=created_at,
+            sha256=sha256,
+        )
+        imported += 1
+
+    ok_manifest_upload, manifest_upload_msg = _push_remote_manifest(
+        ip, pw, load_manifest(device_name)
+    )
+    if not ok_manifest_upload:
+        return False, f"upload_remote_manifest_failed: {manifest_upload_msg}"
+
+    return True, f"fetched ({imported} template(s) imported from rmMethods)"
 
 
 def sync_templates_to_tablet(
@@ -171,15 +254,12 @@ def sync_templates_to_tablet(
     for job in diff["to_upload"]:
         template_uuid = job["uuid"]
         local_entry = local_templates.get(template_uuid, {})
-        stem = str(local_entry.get("name") or "")
-        if not stem:
+        visible_name = str(local_entry.get("name") or "")
+        if not visible_name:
             add_log(f"Sync templates — invalid local manifest entry for UUID {template_uuid}")
             return False
 
-        local_filename = _find_local_template_filename(selected_name, stem)
-        if local_filename is None:
-            add_log(f"Sync templates — local file missing for '{stem}'")
-            return False
+        local_filename = f"{template_uuid}.template"
 
         try:
             payload = json.loads(_tpl.load_json_template(selected_name, local_filename))
@@ -188,7 +268,6 @@ def sync_templates_to_tablet(
             return False
 
         payload = _tpl.ensure_template_payload_for_rmethods(payload)
-        visible_name = str(local_entry.get("name") or stem)
         for ext, blob in _tpl.build_rmethods_triplet_payloads(payload, visible_name).items():
             ok_upload, upload_msg = _ssh.upload_file_ssh(
                 ip,
@@ -204,7 +283,7 @@ def sync_templates_to_tablet(
         uploaded += 1
 
     deleted = 0
-    to_delete = {f"{template_uuid}.template" for template_uuid in diff["to_delete_remote"]}
+    to_delete = set(diff["to_delete_remote"])
     if to_delete:
         ok_delete, delete_msg = _tpl.remove_remote_custom_templates(ip, pw, to_delete)
         if not ok_delete:

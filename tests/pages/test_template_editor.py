@@ -125,7 +125,9 @@ class TestTemplateEditorWithDevice:
             {"selected_name": "D1", "tpl_editor_load_choice": "existing.template"},
         )
         assert not at.exception
-        assert at.text_area[0].value == loaded_json
+        loaded_value = json.loads(at.text_area[0].value)
+        assert loaded_value["name"] == "loaded-template"
+        assert loaded_value["orientation"] == "portrait"
         filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
         assert filename_input is not None
         assert filename_input.value == "existing"
@@ -237,7 +239,7 @@ class TestTemplateEditorSave:
             save_btn.click().run()
 
         assert not at.exception
-        saved_files = list((tmp_path / "D1" / "templates").glob("Blank.template"))
+        saved_files = list((tmp_path / "D1" / "templates").glob(f"{template_uuid}.template"))
         assert len(saved_files) == 1
         manifest = json.loads((device_dir / "manifest.json").read_text(encoding="utf-8"))
         entry = manifest["templates"][template_uuid]
@@ -280,7 +282,9 @@ class TestTemplateEditorLoadExisting:
             at.session_state["tpl_editor_load_choice"] = "lines.template"
             at.switch_page("pages/template_editor.py").run()
 
-            assert at.text_area[0].value == loaded_json
+            loaded_value = json.loads(at.text_area[0].value)
+            assert loaded_value["name"] == "loaded-template"
+            assert loaded_value["orientation"] == "portrait"
 
             tpl_select = next((s for s in at.selectbox if "lines.template" in str(s.options)), None)
             assert tpl_select is not None

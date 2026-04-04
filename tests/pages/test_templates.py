@@ -21,13 +21,13 @@ from tests.pages.helpers import (
     with_two_devices,
 )
 
-# Minimal valid SVG used as synthetic template content.
-_SVG = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>'
+# Minimal valid reMarkable JSON template used as synthetic template content.
+_TEMPLATE_BYTES = b'{"orientation":"portrait","constants":[],"items":[]}'
 
 
-def _make_svgs(tmp_path, device: str = "D1", names: list[str] | None = None) -> list[str]:
-    """Create real SVG files inside the device templates dir and return their names."""
-    names = names or ["alpha.svg", "beta.svg"]
+def _make_templates(tmp_path, device: str = "D1", names: list[str] | None = None) -> list[str]:
+    """Create real .template files inside the device templates dir and return their names."""
+    names = names or ["alpha.template", "beta.template"]
     tdir = tmp_path / device / "templates"
     tdir.mkdir(parents=True, exist_ok=True)
     manifest = tmp_path / device / "manifest.json"
@@ -37,7 +37,7 @@ def _make_svgs(tmp_path, device: str = "D1", names: list[str] | None = None) -> 
             encoding="utf-8",
         )
     for name in names:
-        (tdir / name).write_bytes(_SVG)
+        (tdir / name).write_bytes(_TEMPLATE_BYTES)
     return names
 
 
@@ -69,7 +69,7 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.fetch_and_init_templates", return_value=(True, "3 templates")),
+            patch("src.template_sync.fetch_and_init_templates", return_value=(True, "3 templates")),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -86,7 +86,7 @@ class TestTemplatesPage:
         with (
             patch.dict(os.environ, env),
             patch(
-                "src.templates.fetch_and_init_templates",
+                "src.template_sync.fetch_and_init_templates",
                 return_value=(False, "SSH connection refused"),
             ),
         ):
@@ -174,7 +174,7 @@ class TestTemplatesPage:
             patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
             patch(
-                "src.templates.reset_and_initialize_templates_from_tablet",
+                "src.template_sync.fetch_and_init_templates",
                 return_value=(True, "reset ok"),
             ),
         ):
@@ -230,7 +230,7 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         mock_upload = SimpleNamespace(
             name="alpha.template",
-            read=lambda: _SVG,
+            read=lambda: _TEMPLATE_BYTES,
         )
         with (
             patch.dict(os.environ, env),
@@ -332,9 +332,9 @@ class TestTemplatesPage:
     # -- template card grid ---------------------------------------------
 
     def test_template_card_renders_grid(self, tmp_path):
-        """With real SVG files in the templates dir, the card grid renders."""
+        """With real .template files in the templates dir, the card grid renders."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["card_a.svg", "card_b.svg"])
+        _make_templates(tmp_path, "D1", ["card_a.template", "card_b.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -350,7 +350,7 @@ class TestTemplatesPage:
     def test_template_card_rename_mode_shows_form(self, tmp_path):
         """Setting tpl_renaming in session state renders the inline rename form."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["mypic.svg"])
+        _make_templates(tmp_path, "D1", ["mypic.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -358,7 +358,7 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_renaming"] = "mypic.svg"
+            at.session_state["tpl_renaming"] = "mypic.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(":material/check:" in b.label for b in at.button)
@@ -366,7 +366,7 @@ class TestTemplatesPage:
     def test_template_delete_pending_triggers_confirm(self, tmp_path):
         """Setting tpl_pending_delete_local renders the confirm dialog."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["todel.svg"])
+        _make_templates(tmp_path, "D1", ["todel.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -374,14 +374,14 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_delete_local"] = "todel.svg"
+            at.session_state["tpl_pending_delete_local"] = "todel.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
 
     def test_template_delete_confirmed_removes(self, tmp_path):
         """Pending local delete renders the delete dialog action buttons."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["gone.svg"])
+        _make_templates(tmp_path, "D1", ["gone.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -389,7 +389,7 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_delete_local"] = "gone.svg"
+            at.session_state["tpl_pending_delete_local"] = "gone.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Delete" for b in at.button)
@@ -397,7 +397,7 @@ class TestTemplatesPage:
     def test_template_delete_cancelled_clears_state(self, tmp_path):
         """Pending local delete renders a Cancel action in the delete dialog."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["keep.svg"])
+        _make_templates(tmp_path, "D1", ["keep.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -405,7 +405,7 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_delete_local"] = "keep.svg"
+            at.session_state["tpl_pending_delete_local"] = "keep.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Cancel" for b in at.button)
@@ -413,7 +413,7 @@ class TestTemplatesPage:
     def test_rename_conflict_shows_confirm_dialog(self, tmp_path):
         """When tpl_pending_rename is set, the overwrite confirmation dialog is triggered."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        _make_templates(tmp_path, "D1", ["old.template", "new.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -421,14 +421,14 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.session_state["tpl_pending_rename"] = ("old.template", "new.template")
             at.switch_page("pages/templates.py").run()
         assert not at.exception
 
     def test_rename_conflict_confirmed_renames_template(self, tmp_path):
         """When confirm_rename_tpl is True, the template is renamed and state cleared."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        _make_templates(tmp_path, "D1", ["old.template", "new.template"])
         env = make_env(tmp_path, cfg_path)
         renamed: list[tuple] = []
         with (
@@ -442,18 +442,18 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.session_state["tpl_pending_rename"] = ("old.template", "new.template")
             at.session_state["confirm_rename_tpl"] = True
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert ("old.svg", "new.svg") in renamed
+        assert ("old.template", "new.template") in renamed
         assert at.session_state["tpl_pending_rename"] is None
         assert at.session_state["tpl_renaming"] is None
 
     def test_rename_conflict_cancelled_clears_state(self, tmp_path):
         """When confirm_rename_tpl is False, state is cleared without renaming."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["old.svg", "new.svg"])
+        _make_templates(tmp_path, "D1", ["old.template", "new.template"])
         env = make_env(tmp_path, cfg_path)
         renamed: list[tuple] = []
         with (
@@ -467,7 +467,7 @@ class TestTemplatesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_pending_rename"] = ("old.svg", "new.svg")
+            at.session_state["tpl_pending_rename"] = ("old.template", "new.template")
             at.session_state["confirm_rename_tpl"] = False
             at.switch_page("pages/templates.py").run()
         assert not at.exception
@@ -478,7 +478,7 @@ class TestTemplatesPage:
     def test_sort_az_renders_without_error(self, tmp_path):
         """Sort-by 'A → Z' is applied without error when templates exist."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["zzz.svg", "aaa.svg"])
+        _make_templates(tmp_path, "D1", ["zzz.template", "aaa.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -495,7 +495,7 @@ class TestTemplatesPage:
     def test_sort_categories_renders_without_error(self, tmp_path):
         """Sort-by 'Catégories' is applied without error when templates exist."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["zzz.svg", "aaa.svg"])
+        _make_templates(tmp_path, "D1", ["zzz.template", "aaa.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -534,7 +534,7 @@ class TestTemplatesPage:
 
 
 class TestTemplateReload:
-    """Tests for the per-card reload (update SVG) feature."""
+    """Tests for the per-card reload (update template) feature."""
 
     """When a saved template overwrites an existing file and templates are not dirty,
     the user is asked whether to push the file to the tablet immediately."""
@@ -542,7 +542,7 @@ class TestTemplateReload:
     def test_reload_dialog_shows_when_reloading(self, tmp_path):
         """When tpl_reloading is set, the reload dialog opens with Save and Cancel buttons."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["my.svg"])
+        _make_templates(tmp_path, "D1", ["my.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -550,7 +550,7 @@ class TestTemplateReload:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_reloading"] = "my.svg"
+            at.session_state["tpl_reloading"] = "my.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Save" for b in at.button)
@@ -559,7 +559,7 @@ class TestTemplateReload:
     def test_reload_save_button_present(self, tmp_path):
         """The Save button in the reload dialog is present (disabled until file selected)."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["my.svg"])
+        _make_templates(tmp_path, "D1", ["my.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -569,7 +569,7 @@ class TestTemplateReload:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_reloading"] = "my.svg"
+            at.session_state["tpl_reloading"] = "my.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Save" for b in at.button)
@@ -577,7 +577,7 @@ class TestTemplateReload:
     def test_reload_cancel_clears_state(self, tmp_path):
         """Clicking Cancel in the reload dialog sets tpl_reloading to None."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["my.svg"])
+        _make_templates(tmp_path, "D1", ["my.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -585,7 +585,7 @@ class TestTemplateReload:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_reloading"] = "my.svg"
+            at.session_state["tpl_reloading"] = "my.template"
             at.switch_page("pages/templates.py").run()
             cancel_btn = next((b for b in at.button if b.label == "Cancel"), None)
             assert cancel_btn is not None
@@ -596,7 +596,7 @@ class TestTemplateReload:
     def test_reload_upload_failure_logs_error(self, tmp_path):
         """When upload_template_to_tablet fails, the dialog still renders without exception."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["my.svg"])
+        _make_templates(tmp_path, "D1", ["my.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -609,14 +609,14 @@ class TestTemplateReload:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_reloading"] = "my.svg"
+            at.session_state["tpl_reloading"] = "my.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert any(b.label == "Save" for b in at.button)
 
 
 # ---------------------------------------------------------------------------
-# .template files alongside SVG files
+# Additional .template-only scenarios
 # ---------------------------------------------------------------------------
 
 # Minimal reMarkable JSON template
@@ -666,10 +666,10 @@ class TestTemplatePageJsonTemplates:
         assert not at.exception
         assert any("grid" in b.label.lower() for b in at.button)
 
-    def test_both_svg_and_json_template_cards_render(self, tmp_path):
-        """SVG and .template files coexist on the page."""
+    def test_two_template_cards_render(self, tmp_path):
+        """Two distinct .template files coexist on the page."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["my_svg.svg"])
+        _make_templates(tmp_path, "D1", ["my_svg.template"])
         _make_json_template(tmp_path, "D1", "my_json.template")
         env = make_env(tmp_path, cfg_path)
         with (
@@ -712,8 +712,8 @@ class TestTemplatePageJsonTemplates:
             _, new_name = renamed[0]
             assert new_name.endswith(".template")
 
-    def test_upload_section_accepts_both_svg_and_template(self, tmp_path):
-        """The file uploader label mentions both svg and template."""
+    def test_upload_section_accepts_template_files(self, tmp_path):
+        """The upload section remains available for .template files."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -753,7 +753,8 @@ class TestTemplatePageJsonTemplates:
             assert delete_btn is not None
             delete_btn.click().run()
         assert not at.exception
-        assert "todel.template" in deleted
+        assert len(deleted) == 1
+        assert deleted[0].endswith(".template")
 
 
 # ---------------------------------------------------------------------------
@@ -762,12 +763,12 @@ class TestTemplatePageJsonTemplates:
 
 
 class TestSegmentedControlOptions:
-    """The edit option must be present for .template files and absent for .svg files."""
+    """The edit option must be present for .template files."""
 
-    def test_svg_card_has_no_edit_option(self, tmp_path):
-        """An SVG template card's action control has upload and delete, but no edit."""
+    def test_template_card_has_edit_option(self, tmp_path):
+        """A .template card's action control includes the edit option."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["photo.svg"])
+        _make_templates(tmp_path, "D1", ["photo.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -777,10 +778,10 @@ class TestSegmentedControlOptions:
             at.run()
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        sc = next((s for s in at.button_group if s.key == "tpl_action_photo.svg"), None)
+        sc = next((s for s in at.button_group if s.key == "tpl_action_photo.template"), None)
         assert sc is not None
-        # SVG cards: upload + delete only (2 options, no edit)
-        assert len(sc.options) == 2
+        # .template cards: upload + edit + delete (3 options)
+        assert len(sc.options) == 3
 
     def test_json_template_card_has_edit_option(self, tmp_path):
         """A .template card's action control includes the edit option (3 options total)."""
@@ -879,8 +880,8 @@ class TestMultiRowGrid:
     def test_multi_row_grid_renders_divider(self, tmp_path):
         """When there are more than GRID_COLUMNS (5) templates, a divider is rendered."""
         cfg_path = with_device(tmp_path, "D1")
-        # Create 6 SVG files so the grid spans two rows (GRID_COLUMNS = 5)
-        _make_svgs(tmp_path, "D1", [f"t{i}.svg" for i in range(6)])
+        # Create 6 .template files so the grid spans two rows (GRID_COLUMNS = 5)
+        _make_templates(tmp_path, "D1", [f"t{i}.template" for i in range(6)])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -907,7 +908,7 @@ class TestLongTemplateName:
         """A template stem longer than 20 chars is shown as first-17-chars + '...'."""
         long_stem = "a_very_long_template_name_indeed"  # 32 chars
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", [f"{long_stem}.svg"])
+        _make_templates(tmp_path, "D1", [f"{long_stem}.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -933,7 +934,7 @@ class TestCategoryDialog:
     def test_category_button_shows_dialog_controls(self, tmp_path):
         """Clicking the category button renders the dialog multiselect and action buttons."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        _make_templates(tmp_path, "D1", ["mycard.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -956,7 +957,7 @@ class TestCategoryDialog:
     def test_category_dialog_annuler_closes_without_saving(self, tmp_path):
         """Clicking Cancel in the category dialog does not call update_template_categories."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        _make_templates(tmp_path, "D1", ["mycard.template"])
         env = make_env(tmp_path, cfg_path)
         calls: list = []
         with (
@@ -989,7 +990,7 @@ class TestLabelsDialog:
     def test_labels_button_shows_dialog_controls(self, tmp_path):
         """Clicking the labels button renders the dialog controls."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        _make_templates(tmp_path, "D1", ["mycard.template"])
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
@@ -1011,7 +1012,7 @@ class TestLabelsDialog:
     def test_labels_dialog_cancel_closes_without_saving(self, tmp_path):
         """Clicking Cancel in labels dialog does not call update_template_labels."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_svgs(tmp_path, "D1", ["mycard.svg"])
+        _make_templates(tmp_path, "D1", ["mycard.template"])
         env = make_env(tmp_path, cfg_path)
         calls: list = []
         with (
