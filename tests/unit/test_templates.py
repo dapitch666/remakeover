@@ -24,6 +24,9 @@ def _uuid_for_filename(device_name: str, filename: str) -> str | None:
     for template_uuid, entry in templates.items():
         if isinstance(template_uuid, str) and isinstance(entry, dict) and entry.get("name") == stem:
             return template_uuid
+    if len(templates) == 1:
+        only_uuid = next(iter(templates.keys()))
+        return only_uuid if isinstance(only_uuid, str) else None
     return None
 
 
@@ -95,7 +98,7 @@ def test_fetch_and_init_templates_imports_remote_rmethods_templates(tmp_path):
     assert len(local_files) == 1
     content = tpl.load_json_template("D1", local_files[0])
     parsed = json.loads(content)
-    assert parsed["name"] == "Remote Name"
+    assert parsed["name"] == "My Remote Template"
     assert parsed["labels"] == []
     assert isinstance(parsed["iconData"], str)
 
@@ -135,12 +138,76 @@ def test_upload_template_to_tablet_writes_uuid_triplet_and_sets_remote_uuid(tmp_
     assert any(path.endswith(".template") for path in uploaded_paths)
     assert any(path.endswith(".metadata") for path in uploaded_paths)
     assert any(path.endswith(".content") for path in uploaded_paths)
+    assert any(path.endswith("/.manifest.json") for path in uploaded_paths)
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None
     entry = get_manifest_entry("D1", template_uuid)
     assert entry is not None
     assert any(path.endswith(f"/{entry['uuid']}.template") for path in uploaded_paths)
+
+
+def test_rename_device_template_updates_json_metadata_and_manifest(tmp_path):
+    _set_data_dir(tmp_path)
+
+    filename = "original.template"
+    tpl.save_json_template(
+        "D1",
+        filename,
+        json.dumps({"name": "Original", "categories": ["Perso"]}),
+    )
+    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+
+    assert tpl.rename_device_template("D1", filename, "Renamed.template") is True
+
+    entry = get_manifest_entry("D1", template_uuid)
+    assert entry is not None
+    assert entry["name"] == "Renamed"
+
+    payload = json.loads(tpl.load_json_template("D1", f"{template_uuid}.template"))
+    assert payload["name"] == "Renamed"
+
+    metadata_path = os.path.join(tpl.get_device_templates_dir("D1"), f"{template_uuid}.metadata")
+    with open(metadata_path, encoding="utf-8") as f:
+        metadata = json.loads(f.read())
+    assert metadata["visibleName"] == "Renamed"
+
+
+def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_path):
+    _set_data_dir(tmp_path)
+
+    filename = "editor.template"
+    tpl.save_json_template(
+        "D1",
+        filename,
+        json.dumps({"name": "Initial Name", "categories": ["Perso"]}),
+    )
+    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+
+    tpl.save_json_template(
+        "D1",
+        filename,
+        json.dumps({"name": "Edited Name", "categories": ["Perso"]}),
+    )
+    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe", previous_filename=filename)
+
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+
+    entry = get_manifest_entry("D1", template_uuid)
+    assert entry is not None
+    assert entry["name"] == "Edited Name"
+
+    payload = json.loads(tpl.load_json_template("D1", f"{template_uuid}.template"))
+    assert payload["name"] == "Edited Name"
+
+    metadata_path = os.path.join(tpl.get_device_templates_dir("D1"), f"{template_uuid}.metadata")
+    with open(metadata_path, encoding="utf-8") as f:
+        metadata = json.loads(f.read())
+    assert metadata["visibleName"] == "Edited Name"
 
 
 def test_delete_template_from_tablet_removes_uuid_triplet(tmp_path):

@@ -18,6 +18,7 @@ from typing import Any
 from src.config import get_device_data_dir
 from src.constants import (
     CMD_RESTART_XOCHITL,
+    REMOTE_MANIFEST_FILENAME,
     REMOTE_XOCHITL_DATA_DIR,
 )
 from src.manifest_templates import (
@@ -27,7 +28,6 @@ from src.manifest_templates import (
     get_manifest_entry,
     iso_from_epoch_ms,
     load_manifest,
-    rename_manifest_template,
     save_manifest,
     upsert_manifest_template,
     utc_now_iso,
@@ -168,15 +168,42 @@ def delete_device_template(device_name: str, filename: str) -> None:
         os.remove(path)
 
 
-def rename_device_template(device_name: str, old_filename: str, new_filename: str) -> bool:
+def rename_device_template(
+    device_name: str, old_filename: str, new_filename: str
+) -> bool:  # TODO: Rename old/new_filename to old/new_name
     """Rename logical template display name while keeping UUID filenames unchanged."""
     template_uuid = _resolve_template_uuid(device_name, old_filename)
     if not template_uuid:
         return False
 
-    display_name = _stem(new_filename)
-    _ensure_local_sidecars(device_name, template_uuid, display_name)
-    return rename_manifest_template(device_name, template_uuid, display_name)
+    display_name = _stem(new_filename).strip()
+    if not display_name:
+        return False
+
+    paths = _triplet_paths(device_name, template_uuid)
+    payload = _read_json_file(paths["template"])
+    if not isinstance(payload, dict):
+        return False
+
+    normalized_payload = ensure_template_payload_for_rmethods(payload)
+    normalized_payload["name"] = display_name
+    _write_json_file(paths["template"], normalized_payload)
+    sha256 = compute_template_sha256(normalized_payload)
+
+    metadata = _ensure_local_sidecars(device_name, template_uuid, display_name)
+    existing = get_manifest_entry(device_name, template_uuid)
+    created_at = str(existing.get("created_at") or "").strip() if existing else ""
+    if not created_at:
+        created_at = iso_from_epoch_ms(metadata.get("createdTime")) or utc_now_iso()
+
+    upsert_manifest_template(
+        device_name,
+        template_uuid,
+        name=display_name,
+        created_at=created_at,
+        sha256=sha256,
+    )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -328,20 +355,31 @@ def refresh_local_manifest(device_name: str) -> None:
             continue
 
         normalized_payload = ensure_template_payload_for_rmethods(payload)
-        _write_json_file(paths["template"], normalized_payload)
-        sha256 = compute_template_sha256(normalized_payload)
 
         metadata = _read_json_file(paths["metadata"]) or {}
         existing_entry = existing_templates.get(template_uuid)
+        metadata_name = str(metadata.get("visibleName") or "").strip()
+        manifest_name = (
+            str(existing_entry.get("name") or "").strip()
+            if isinstance(existing_entry, dict)
+            else ""
+        )
+        payload_name = str(normalized_payload.get("name") or "").strip()
+
         display_name = str(
-            metadata.get("visibleName")
-            or (existing_entry.get("name") if isinstance(existing_entry, dict) else "")
-            or original_stem
-            or normalized_payload.get("name")
-            or template_uuid
+            metadata_name or manifest_name or original_stem or payload_name or template_uuid
         ).strip()
         if not display_name:
             display_name = template_uuid
+
+        # Keep legacy payload names when neither metadata nor manifest provide an explicit name.
+        canonical_payload_name = payload_name
+        if metadata_name or manifest_name or not canonical_payload_name:
+            canonical_payload_name = display_name
+
+        normalized_payload["name"] = canonical_payload_name
+        _write_json_file(paths["template"], normalized_payload)
+        sha256 = compute_template_sha256(normalized_payload)
 
         metadata = _ensure_local_sidecars(device_name, template_uuid, display_name)
         created_at = (
@@ -458,16 +496,18 @@ def add_template_entry(
         return
 
     normalized_payload = ensure_template_payload_for_rmethods(payload)
-    _write_json_file(paths["template"], normalized_payload)
-    sha256 = compute_template_sha256(normalized_payload)
-
-    desired_name = stem
+    payload_name = str(normalized_payload.get("name") or "").strip()
+    desired_name = payload_name if (previous_filename and payload_name) else stem
     if _is_uuid_stem(desired_name):
         desired_name = str(
-            (entry.get("name") if entry else "") or normalized_payload.get("name") or template_uuid
+            (entry.get("name") if entry else "") or payload_name or template_uuid
         ).strip()
     if not desired_name:
         desired_name = template_uuid
+
+    normalized_payload["name"] = desired_name
+    _write_json_file(paths["template"], normalized_payload)
+    sha256 = compute_template_sha256(normalized_payload)
 
     metadata = _ensure_local_sidecars(device_name, template_uuid, desired_name)
     if not created_at:
@@ -490,12 +530,8 @@ def remove_template_entry(device_name: str, filename: str) -> None:
 
 
 def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
-    """Rename one template entry in manifest.json."""
-    template_uuid = _resolve_template_uuid(device_name, old_filename)
-    if template_uuid:
-        display_name = _stem(new_filename)
-        if rename_manifest_template(device_name, template_uuid, display_name):
-            _ensure_local_sidecars(device_name, template_uuid, display_name)
+    """Compatibility wrapper for logical template rename."""
+    rename_device_template(device_name, old_filename, new_filename)
 
 
 def update_template_categories(device_name: str, filename: str, categories: list[str]) -> None:
@@ -605,6 +641,19 @@ def remove_remote_custom_templates(
     return True, "ok"
 
 
+def upload_remote_manifest(ip: str, password: str, device_name: str) -> tuple[bool, str]:
+    """Upload local manifest.json to rmMethods remote manifest path."""
+    manifest_blob = json.dumps(load_manifest(device_name), indent=2, ensure_ascii=True).encode(
+        "utf-8"
+    )
+    return upload_file_ssh(
+        ip,
+        password,
+        manifest_blob,
+        f"{REMOTE_XOCHITL_DATA_DIR}/{REMOTE_MANIFEST_FILENAME}",
+    )
+
+
 def delete_template_from_tablet(
     ip: str, password: str, device_name: str, filename: str
 ) -> tuple[bool, str]:
@@ -674,6 +723,10 @@ def upload_template_to_tablet(
         )
         if not ok:
             return False, f"upload_{ext}_failed: {msg}"
+
+    ok_manifest, msg_manifest = upload_remote_manifest(ip, password, device_name)
+    if not ok_manifest:
+        return False, f"upload_manifest_failed: {msg_manifest}"
 
     try:
         run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])

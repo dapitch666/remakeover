@@ -16,7 +16,6 @@ from src.template_sync import check_sync_status, fetch_and_init_templates, sync_
 from src.templates import (
     add_template_entry,
     delete_device_template,
-    delete_template_from_tablet,
     extract_categories_from_template_content,
     get_all_categories,
     get_all_labels,
@@ -27,7 +26,6 @@ from src.templates import (
     refresh_local_manifest,
     remove_template_entry,
     rename_device_template,
-    rename_template_entry,
     save_device_template,
     update_template_categories,
     update_template_labels,
@@ -184,16 +182,11 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
 
 
 @st.dialog(_("Delete template"))
-def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
-    """Confirm local deletion and optionally delete remotely on the tablet."""
+def _show_delete_dialog(tpl_name: str, selected_name: str, add_log) -> None:
+    """Confirm local-only deletion of a template."""
     entry = get_template_entry(selected_name, tpl_name)
     ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
-    st.write(_("Delete {name} locally?").format(name=ui_name))
-    delete_remote = st.checkbox(
-        _("Also delete it from the tablet"),
-        value=True,
-        key=f"tpl_delete_remote_{tpl_name}",
-    )
+    st.write(_("Do you really want to delete {name}?").format(name=ui_name))
 
     col_cancel, col_delete = st.columns(2)
     with col_cancel:
@@ -214,34 +207,10 @@ def _show_delete_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             help=_("Delete this template"),
             width="stretch",
         ):
-            remote_deleted = False
             delete_device_template(selected_name, tpl_name)
-
-            if delete_remote:
-                ok, msg = delete_template_from_tablet(
-                    device.ip, device.password or "", selected_name, tpl_name
-                )
-                if ok:
-                    remote_deleted = True
-                    add_log(f"Template '{ui_name}' deleted from tablet for '{selected_name}'")
-                else:
-                    add_log(f"Remote delete failed for '{ui_name}' on '{selected_name}': {msg}")
-
             remove_template_entry(selected_name, tpl_name)
             add_log(f"Template '{ui_name}' deleted locally from '{selected_name}'")
-
-            if delete_remote and remote_deleted:
-                deferred_toast(
-                    _("'{name}' deleted locally and on tablet").format(name=ui_name),
-                    ":material/task_alt:",
-                )
-            elif delete_remote and not remote_deleted:
-                deferred_toast(
-                    _("'{name}' deleted locally, tablet delete failed").format(name=ui_name),
-                    ":material/error:",
-                )
-            else:
-                deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
+            deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
 
             st.session_state["tpl_pending_delete_local"] = None
             st.rerun()
@@ -279,7 +248,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
                 if new_display_name in existing_display_names:
                     st.session_state["tpl_pending_rename"] = (_old, new_name)
                     return
-                rename_template_entry(selected_name, _old, new_name)
                 rename_device_template(selected_name, _old, new_name)
                 add_log(f"Renamed template '{_old}' \u2192 '{new_name}' for '{selected_name}'")
                 renamed_to = new_name
@@ -341,7 +309,6 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
         )
         result = st.session_state.get("confirm_rename_tpl")
         if result is True:
-            rename_template_entry(selected_name, _old_r, _new_r)
             rename_device_template(selected_name, _old_r, _new_r)
             add_log(f"Renamed template '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'")
             deferred_toast(
@@ -384,7 +351,7 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
 
     # Local delete confirmation (+ optional tablet delete)
     if st.session_state.get("tpl_pending_delete_local") in {tpl_name, template_display_ref}:
-        _show_delete_dialog(tpl_name, selected_name, device, add_log)
+        _show_delete_dialog(tpl_name, selected_name, add_log)
 
     # ── segmented control (reload + delete) ──────────────────────────────
     action_key = f"tpl_action_{template_display_ref}"

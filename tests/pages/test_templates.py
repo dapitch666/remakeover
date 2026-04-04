@@ -377,6 +377,7 @@ class TestTemplatesPage:
             at.session_state["tpl_pending_delete_local"] = "todel.template"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
+        assert not any(c.label == "Also delete it from the tablet" for c in at.checkbox)
 
     def test_template_delete_confirmed_removes(self, tmp_path):
         """Pending local delete renders the delete dialog action buttons."""
@@ -438,7 +439,6 @@ class TestTemplatesPage:
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
             ),
-            patch("src.templates.rename_template_entry"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -463,7 +463,6 @@ class TestTemplatesPage:
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
             ),
-            patch("src.templates.rename_template_entry"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -697,7 +696,6 @@ class TestTemplatePageJsonTemplates:
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
             ),
-            patch("src.templates.rename_template_entry"),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -743,7 +741,6 @@ class TestTemplatePageJsonTemplates:
                 side_effect=lambda n, f: deleted.append(f),
             ),
             patch("src.templates.remove_template_entry"),
-            patch("src.templates.delete_template_from_tablet", return_value=(True, "ok")),
         ):
             at = AppTest.from_file("app.py")
             at.run()

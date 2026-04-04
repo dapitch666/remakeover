@@ -20,6 +20,9 @@ REMOTE_CAROUSEL_DIR = "/usr/share/remarkable/carousel"
 # Backup sub-folder for disabled carousel illustrations
 REMOTE_CAROUSEL_BACKUP_DIR = "/usr/share/remarkable/carousel/backupIllustrations"
 
+# Manifest filename stored alongside templates on the tablet
+REMOTE_MANIFEST_FILENAME = ".manifest.json"
+
 # ---------------------------------------------------------------------------
 # Remote commands
 # ---------------------------------------------------------------------------

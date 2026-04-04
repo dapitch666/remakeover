@@ -113,7 +113,6 @@ def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[s
     ip = device.ip
     pw = device.password or ""
 
-    _tpl.refresh_local_manifest(selected_name)
     local_manifest = load_manifest(selected_name)
 
     ok_remote, remote_manifest, status_msg = _fetch_remote_manifest(ip, pw)
@@ -239,7 +238,6 @@ def sync_templates_to_tablet(
         add_log(f"Sync templates — ensure dirs: {msg}")
         return False
 
-    _tpl.refresh_local_manifest(selected_name)
     local_manifest = load_manifest(selected_name)
 
     ok_remote, remote_manifest, remote_state = _fetch_remote_manifest(ip, pw)

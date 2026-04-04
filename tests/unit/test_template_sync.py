@@ -24,6 +24,9 @@ def _uuid_for_filename(device_name: str, filename: str) -> str | None:
     for template_uuid, entry in templates.items():
         if isinstance(template_uuid, str) and isinstance(entry, dict) and entry.get("name") == stem:
             return template_uuid
+    if len(templates) == 1:
+        only_uuid = next(iter(templates.keys()))
+        return only_uuid if isinstance(only_uuid, str) else None
     return None
 
 
@@ -211,3 +214,30 @@ def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
     assert ok is True
     assert removed_payloads
     assert {remote_uuid} in removed_payloads
+
+
+def test_sync_does_not_refresh_local_manifest(tmp_path):
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "no_refresh_needed.template"
+    save_json_template("D1", filename, json.dumps({"name": "No Refresh", "categories": []}))
+    add_template_entry("D1", filename, [], "\ue9fe")
+
+    def _download(_ip, _pw, remote_path):
+        if remote_path.endswith("/.manifest.json"):
+            return None, "No such file"
+        return None, "missing"
+
+    with (
+        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+        patch("src.ssh.run_ssh_cmd", return_value=("", "")),
+        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        patch("src.templates.refresh_local_manifest", side_effect=AssertionError("unexpected")),
+    ):
+        ok = sync_templates_to_tablet("D1", _device(), add_log)
+
+    assert ok is True
+    assert any("Templates synced" in msg for msg in logs)
