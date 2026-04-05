@@ -10,7 +10,7 @@ import src.maintenance as _maint
 from src.i18n import _
 from src.models import Device
 from src.templates import list_device_templates
-from src.ui_common import deferred_toast, rainbow_divider, require_device
+from src.ui_common import deferred_toast, init_page, rainbow_divider
 
 
 def _localize_maintenance_error(err: str) -> str:
@@ -34,13 +34,8 @@ def _localize_maintenance_error(err: str) -> str:
 st.title(_(":material/rocket_launch: Deployment"))
 rainbow_divider()
 
-config = st.session_state.get("config", {})
+config, selected_name, DEVICES = init_page()
 add_log = st.session_state.get("add_log", lambda msg: None)
-selected_name = st.session_state.get("selected_name")
-
-DEVICES = config.get("devices", {})
-
-require_device(DEVICES, selected_name)
 assert isinstance(selected_name, str)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])

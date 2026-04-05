@@ -31,7 +31,13 @@ from src.templates import (
     update_template_labels,
     upload_template_to_tablet,
 )
-from src.ui_common import deferred_toast, normalise_filename, rainbow_divider, require_device
+from src.ui_common import (
+    deferred_toast,
+    handle_rename_confirmation,
+    init_page,
+    normalise_filename,
+    rainbow_divider,
+)
 
 # ── Category dialog ───────────────────────────────────────────────────────────
 
@@ -307,22 +313,17 @@ def _render_template_card(tpl_name, selected_name, device, add_log):
             _("'{new}' already exists. Replace this template?").format(new=_new_r),
             key="confirm_rename_tpl",
         )
-        result = st.session_state.get("confirm_rename_tpl")
-        if result is True:
+
+        def _do_rename_tpl() -> None:
             rename_device_template(selected_name, _old_r, _new_r)
             add_log(f"Renamed template '{_old_r}' \u2192 '{_new_r}' for '{selected_name}'")
             deferred_toast(
                 _("Template renamed to '{name}'").format(name=_new_r), ":material/task_alt:"
             )
-            st.session_state.pop("confirm_rename_tpl", None)
-            st.session_state["tpl_pending_rename"] = None
-            st.session_state["tpl_renaming"] = None
-            st.rerun()
-        elif result is False:
-            st.session_state.pop("confirm_rename_tpl", None)
-            st.session_state["tpl_pending_rename"] = None
-            st.session_state["tpl_renaming"] = None
-            st.rerun()
+
+        handle_rename_confirmation(
+            "confirm_rename_tpl", "tpl_pending_rename", "tpl_renaming", _do_rename_tpl
+        )
 
     # ── categories button → modal ─────────────────────────────────────────
     current_cats = entry.get("categories", []) if entry else []
@@ -511,12 +512,11 @@ def _render_template_upload_section(selected_name, add_log):
                 else []
             )
             categories = list(sel_cats) + extra_list
-            icon_code = "\ue9fe"
             saved = []
             for uf, content in uploaded_payloads:
                 filename = normalise_filename(uf.name, ext=".template")
                 save_device_template(selected_name, content, filename)
-                add_template_entry(selected_name, filename, categories, icon_code)
+                add_template_entry(selected_name, filename, categories)
                 add_log(f"{filename} template saved for '{selected_name}'")
                 saved.append(filename)
             if len(saved) == 1:
@@ -536,13 +536,8 @@ def _render_template_upload_section(selected_name, add_log):
 st.title(_(":material/description: Templates"))
 rainbow_divider()
 
-config = st.session_state.get("config", {})
+config, selected_name, DEVICES = init_page()
 add_log = st.session_state.get("add_log", lambda msg: None)
-selected_name = st.session_state.get("selected_name")
-
-DEVICES = config.get("devices", {})
-
-require_device(DEVICES, selected_name)
 assert isinstance(selected_name, str)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])
@@ -598,11 +593,9 @@ else:
             with st.spinner(_("Checking…")):
                 ok_check, payload = check_sync_status(selected_name, device, add_log)
             if ok_check:
-                assert isinstance(payload, dict)
                 st.session_state[f"tpl_sync_check_result_{selected_name}"] = payload
                 deferred_toast(_("Sync status checked"), ":material/task_alt:")
             else:
-                assert isinstance(payload, str)
                 add_log(f"Sync check failed for '{selected_name}' : {payload}")
                 deferred_toast(_("Sync check error"), ":material/error:")
 

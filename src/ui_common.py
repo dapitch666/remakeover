@@ -33,6 +33,23 @@ def show_deferred_toast() -> None:
         st.toast(msg, icon=icon)
 
 
+def init_page(require_selected: bool = True) -> tuple[dict, str | None, dict]:
+    """Extract common page session state and return (config, selected_name, DEVICES).
+
+    ``config``, ``selected_name`` and ``DEVICES`` are read from
+    ``st.session_state`` — the same boilerplate that every page repeats.
+
+    When *require_selected* is True (default), calls ``require_device`` which
+    stops rendering if no device is configured or selected.
+    """
+    config: dict = st.session_state.get("config", {})
+    selected_name: str | None = st.session_state.get("selected_name")
+    devices: dict = config.get("devices", {})
+    if require_selected:
+        require_device(devices, selected_name)
+    return config, selected_name, devices
+
+
 def require_device(devices: dict, selected_name) -> None:
     """Guard helper called at the top of every device-specific page.
 
@@ -81,6 +98,31 @@ def normalise_filename(filename: str, ext: str = ".png") -> str:
     if current_ext in _KNOWN_EXTENSIONS:
         filename = os.path.splitext(filename)[0]
     return filename + ext
+
+
+def handle_rename_confirmation(
+    confirm_key: str,
+    pending_key: str,
+    renaming_key: str,
+    on_confirm,
+) -> None:
+    """Handle the True/False/None result of a rename overwrite confirmation dialog.
+
+    Cleans up session state and reruns on resolution. Calls *on_confirm()* when
+    the user accepts; does nothing extra when they cancel.
+    """
+    result = st.session_state.get(confirm_key)
+    if result is True:
+        on_confirm()
+        st.session_state.pop(confirm_key, None)
+        st.session_state[pending_key] = None
+        st.session_state[renaming_key] = None
+        st.rerun()
+    elif result is False:
+        st.session_state.pop(confirm_key, None)
+        st.session_state[pending_key] = None
+        st.session_state[renaming_key] = None
+        st.rerun()
 
 
 def send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:

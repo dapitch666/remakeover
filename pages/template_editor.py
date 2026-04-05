@@ -21,12 +21,11 @@ from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.templates import (
     add_template_entry,
-    get_all_labels,
     list_json_templates,
     load_json_template,
     save_json_template,
 )
-from src.ui_common import deferred_toast, normalise_filename, rainbow_divider
+from src.ui_common import deferred_toast, init_page, normalise_filename, rainbow_divider
 
 # ---------------------------------------------------------------------------
 # Default template shown when the editor is opened fresh
@@ -41,10 +40,8 @@ _DEFAULT_JSON: str = DEFAULT_TEMPLATE_JSON
 st.title(_(":material/edit_document: Template Editor"))
 rainbow_divider()
 
-config = st.session_state.get("config", {})
+config, selected_name, DEVICES = init_page(require_selected=False)
 add_log = st.session_state.get("add_log", lambda msg: None)
-selected_name = st.session_state.get("selected_name")
-DEVICES = config.get("devices", {})
 
 _selected_device = Device.from_dict(str(selected_name or ""), DEVICES.get(selected_name, {}))
 _portrait_w, _portrait_h = DEVICE_SIZES[_selected_device.resolve_type()]
@@ -185,6 +182,8 @@ if not (selected_name and selected_name in DEVICES):
     )
     st.stop()
 
+assert selected_name is not None  # guaranteed by guard above
+
 # Pre-fill fields from the parsed JSON when possible
 _loaded_choice = st.session_state.get("tpl_editor_loaded_choice", _new_choice_label)
 _is_new_template = _loaded_choice == _new_choice_label
@@ -195,10 +194,8 @@ if not _default_name and not _is_new_template:
 try:
     _parsed = json.loads(json_str)
     _default_cats: list[str] = _parsed.get("categories", ["Perso"])
-    _default_labels: list[str] = [lbl for lbl in _parsed.get("labels", []) if isinstance(lbl, str)]
 except Exception:
     _default_cats = ["Perso"]
-    _default_labels = []
 
 _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
 
@@ -210,33 +207,6 @@ with col_name:
         value=_default_name,
         placeholder=_("Name of the template file"),
         key=_name_key,
-    )
-
-# Labels and iconData fields
-col_labels, col_icon = st.columns(2)
-with col_labels:
-    _existing_labels = get_all_labels(selected_name)
-    tpl_labels = st.multiselect(
-        _("Labels (optional)"),
-        options=sorted(set(_existing_labels) | set(_default_labels)),
-        default=_default_labels,
-        key=f"tpl_editor_labels_{_gen}",
-        help=_("Add custom labels to organize your template"),
-    )
-    tpl_labels_extra = st.text_input(
-        _("New labels (comma-separated)"),
-        key=f"tpl_editor_labels_extra_{_gen}",
-        placeholder="work, meeting, ...",
-    )
-
-with col_icon:
-    tpl_icon_data = st.text_area(
-        _("Icon data (base64 SVG, optional)"),
-        value="",
-        height=100,
-        key=f"tpl_editor_icon_data_{_gen}",
-        placeholder=_("Paste base64-encoded SVG for custom icon"),
-        help=_("Leave blank for default icon"),
     )
 
 # Save / Download buttons
@@ -266,15 +236,6 @@ with col_save:
         # Final categories — read directly from the JSON source
         cats = _default_cats or ["Perso"]
 
-        icon_code = "\ue9fe"
-
-        # Get labels and iconData from form inputs
-        labels_list = list(tpl_labels) if tpl_labels else []
-        if tpl_labels_extra:
-            labels_list += [lbl.strip() for lbl in tpl_labels_extra.split(",") if lbl.strip()]
-        labels_list = sorted(set(labels_list))
-        icon_data_str = tpl_icon_data.strip() if tpl_icon_data else None
-
         # Save .template JSON source file (this IS the asset deployed to the tablet)
         save_json_template(selected_name, filename_tpl, json_str)
         # Register/update manifest metadata so sync picks it up on Templates page
@@ -282,10 +243,7 @@ with col_save:
             selected_name,
             filename_tpl,
             cats,
-            icon_code,
             previous_filename=None if _is_new_template else str(_loaded_choice),
-            labels=labels_list,
-            icon_data=icon_data_str,
         )
 
         add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")

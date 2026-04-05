@@ -10,16 +10,13 @@ import src.dialog as _dialog
 from src.config import get_device_data_dir, save_config
 from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES
 from src.i18n import _
-from src.ui_common import deferred_toast, rainbow_divider
-
-config = st.session_state.get("config", {})
-add_log = st.session_state.get("add_log", lambda msg: None)
+from src.ui_common import deferred_toast, init_page, rainbow_divider
 
 st.title(_(":material/settings: Device Configuration"))
 rainbow_divider()
 
-DEVICES = config.get("devices", {})
-selected_name = st.session_state.get("selected_name")
+config, selected_name, DEVICES = init_page(require_selected=False)
+add_log = st.session_state.get("add_log", lambda msg: None)
 
 # Determine whether we're in "create new" mode
 creating_new = st.session_state.get("config_creating_new", False)

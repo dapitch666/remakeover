@@ -12,7 +12,6 @@ import shlex
 import time
 import uuid
 from contextlib import suppress
-from pathlib import Path
 from typing import Any
 
 from src.config import get_device_data_dir
@@ -22,6 +21,7 @@ from src.constants import (
     REMOTE_XOCHITL_DATA_DIR,
 )
 from src.manifest_templates import (
+    _stem,
     compute_template_sha256,
     delete_manifest_template,
     get_device_manifest_path,
@@ -209,13 +209,6 @@ def rename_device_template(
 # ---------------------------------------------------------------------------
 # Local metadata helpers
 # ---------------------------------------------------------------------------
-
-
-def _stem(filename: str) -> str:
-    """Return filename stem (strips .template extension, case-insensitive)."""
-    if filename.lower().endswith(".template"):
-        return Path(filename).stem
-    return filename
 
 
 def _is_uuid_stem(value: str) -> bool:
@@ -457,14 +450,11 @@ def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None
 def add_template_entry(
     device_name: str,
     filename: str,
-    categories: list[str],
-    icon_code: str = "\ue9fe",
+    categories: list[str] | None = None,
     previous_filename: str | None = None,
-    labels: list[str] | None = None,
-    icon_data: str | None = None,
 ) -> None:
     """Add or update one local template manifest entry using UUID-keyed schema."""
-    del categories, icon_code, labels, icon_data
+    del categories
 
     template_uuid = None
     if previous_filename:
@@ -545,17 +535,6 @@ def update_template_categories(device_name: str, filename: str, categories: list
     add_template_entry(device_name, filename, categories)
 
 
-def update_template_icon_code(device_name: str, filename: str, icon_code: str) -> None:
-    """Update iconCode directly in the local template JSON file."""
-    try:
-        payload = json.loads(load_json_template(device_name, filename))
-    except Exception:
-        return
-    payload["iconCode"] = icon_code
-    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
-    add_template_entry(device_name, filename, [])
-
-
 def update_template_labels(device_name: str, filename: str, labels: list[str]) -> None:
     """Update labels directly in the local template JSON file."""
     try:
@@ -605,9 +584,9 @@ def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, set[str]
     """Return remote rmMethods UUID values currently present."""
     ok, payload = _list_remote_custom_templates(ip, password)
     if not ok:
-        assert isinstance(payload, str)
-        return False, payload
-    assert isinstance(payload, list)
+        return False, str(payload)
+    if not isinstance(payload, list):
+        raise TypeError(f"Expected list from _list_remote_custom_templates, got {type(payload)}")
     return True, set(payload)
 
 
@@ -735,52 +714,6 @@ def upload_template_to_tablet(
 
     logger.info("Template %s uploaded and xochitl restarted", filename)
     return True, "ok"
-
-
-def is_templates_dirty(device_name: str) -> bool:
-    """Legacy compatibility helper.
-
-    Sync status is no longer persisted in manifest entries, so this now always
-    returns False.
-    """
-    del device_name
-    return False
-
-
-def get_template_sync_status(device_name: str, filename: str) -> str | None:
-    """Legacy compatibility helper.
-
-    Per-template persistent sync status was removed.
-    """
-    del device_name, filename
-    return None
-
-
-def get_templates_sync_overview(device_name: str) -> dict[str, int]:
-    """Legacy compatibility helper.
-
-    Per-status counters no longer exist in the new manifest schema.
-    """
-    del device_name
-    return {"pending": 0, "orphan": 0, "deleted": 0, "synced": 0}
-
-
-def set_template_sync_status(device_name: str, filename: str, status: str) -> bool:
-    """Legacy compatibility helper.
-
-    Per-template persistent sync status was removed.
-    """
-    del device_name, filename, status
-    return False
-
-
-def set_template_remote_uuid(device_name: str, filename: str, remote_uuid: str | None) -> bool:
-    """Legacy compatibility helper.
-
-    UUID is now the manifest key and is no longer stored as a mutable field.
-    """
-    del device_name, filename, remote_uuid
-    return False
 
 
 # ---------------------------------------------------------------------------

@@ -108,7 +108,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
         ):
             at = AppTest.from_file("app.py")
@@ -126,7 +125,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
         ):
             at = AppTest.from_file("app.py")
@@ -148,7 +146,6 @@ class TestTemplatesPage:
 
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
             patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
@@ -171,7 +168,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
             patch(
                 "src.template_sync.fetch_and_init_templates",
@@ -193,7 +189,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=True),
             patch("src.templates.get_all_categories", return_value=[]),
             patch("src.templates.ensure_remote_template_dirs", return_value=(False, "SSH error")),
         ):
@@ -214,7 +209,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
         ):
             at = AppTest.from_file("app.py")
@@ -234,7 +228,6 @@ class TestTemplatesPage:
         )
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=["Lines", "Grid"]),
             patch("streamlit.file_uploader", return_value=[mock_upload]),
         ):
@@ -266,7 +259,6 @@ class TestTemplatesPage:
         )
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=["Grid", "Lines"]),
             patch("streamlit.file_uploader", return_value=[mock_upload]),
         ):
@@ -305,7 +297,6 @@ class TestTemplatesPage:
         )
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=["Grid", "Lines"]),
             patch("streamlit.file_uploader", return_value=[upload_a, upload_b]),
         ):
@@ -338,7 +329,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -354,7 +344,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -370,7 +359,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -386,7 +374,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -402,7 +389,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -418,7 +404,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -434,7 +419,6 @@ class TestTemplatesPage:
         renamed: list[tuple] = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch(
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
@@ -458,7 +442,6 @@ class TestTemplatesPage:
         renamed: list[tuple] = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch(
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
@@ -481,7 +464,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -498,7 +480,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -516,7 +497,6 @@ class TestTemplatesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.load_json_template", return_value="{}"),
         ):
             at = AppTest.from_file("app.py")
@@ -545,7 +525,6 @@ class TestTemplateReload:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -562,7 +541,6 @@ class TestTemplateReload:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.save_device_template"),
             patch("src.templates.upload_template_to_tablet", return_value=(True, "ok")),
         ):
@@ -580,7 +558,6 @@ class TestTemplateReload:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -599,7 +576,6 @@ class TestTemplateReload:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.save_device_template"),
             patch(
                 "src.templates.upload_template_to_tablet",
@@ -657,7 +633,6 @@ class TestTemplatePageJsonTemplates:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -673,7 +648,6 @@ class TestTemplatePageJsonTemplates:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -691,7 +665,6 @@ class TestTemplatePageJsonTemplates:
         renamed: list[tuple] = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch(
                 "src.templates.rename_device_template",
                 side_effect=lambda n, o, f: renamed.append((o, f)),
@@ -717,7 +690,6 @@ class TestTemplatePageJsonTemplates:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
         ):
             at = AppTest.from_file("app.py")
@@ -735,7 +707,6 @@ class TestTemplatePageJsonTemplates:
         deleted: list[str] = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch(
                 "src.templates.delete_device_template",
                 side_effect=lambda n, f: deleted.append(f),
@@ -769,7 +740,6 @@ class TestSegmentedControlOptions:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -787,7 +757,6 @@ class TestSegmentedControlOptions:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -805,7 +774,6 @@ class TestSegmentedControlOptions:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -882,7 +850,6 @@ class TestMultiRowGrid:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -909,7 +876,6 @@ class TestLongTemplateName:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -935,7 +901,6 @@ class TestCategoryDialog:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=["Lines", "Dots"]),
         ):
             at = AppTest.from_file("app.py")
@@ -959,7 +924,6 @@ class TestCategoryDialog:
         calls: list = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_categories", return_value=[]),
             patch(
                 "src.templates.update_template_categories",
@@ -991,7 +955,6 @@ class TestLabelsDialog:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_labels", return_value=["work", "study"]),
         ):
             at = AppTest.from_file("app.py")
@@ -1014,7 +977,6 @@ class TestLabelsDialog:
         calls: list = []
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.is_templates_dirty", return_value=False),
             patch("src.templates.get_all_labels", return_value=[]),
             patch(
                 "src.templates.update_template_labels",

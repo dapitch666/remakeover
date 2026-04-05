@@ -119,7 +119,7 @@ def test_upload_template_to_tablet_writes_uuid_triplet_and_sets_remote_uuid(tmp_
         filename,
         json.dumps({"name": "Visible Name", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    tpl.add_template_entry("D1", filename, ["Perso"])
 
     uploaded_paths = []
 
@@ -156,7 +156,7 @@ def test_rename_device_template_updates_json_metadata_and_manifest(tmp_path):
         filename,
         json.dumps({"name": "Original", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    tpl.add_template_entry("D1", filename, ["Perso"])
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None
@@ -185,14 +185,14 @@ def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_pa
         filename,
         json.dumps({"name": "Initial Name", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    tpl.add_template_entry("D1", filename, ["Perso"])
 
     tpl.save_json_template(
         "D1",
         filename,
         json.dumps({"name": "Edited Name", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"], "\ue9fe", previous_filename=filename)
+    tpl.add_template_entry("D1", filename, ["Perso"], previous_filename=filename)
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None

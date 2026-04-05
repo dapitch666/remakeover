@@ -9,48 +9,12 @@ from typing import Any
 
 import src.ssh as _ssh
 import src.templates as _tpl
-from src.constants import CMD_RESTART_XOCHITL, REMOTE_XOCHITL_DATA_DIR
-from src.manifest_templates import load_manifest
-
-REMOTE_MANIFEST_FILENAME = ".manifest.json"
+from src.constants import CMD_RESTART_XOCHITL, REMOTE_MANIFEST_FILENAME, REMOTE_XOCHITL_DATA_DIR
+from src.manifest_templates import _default_manifest, _normalize_manifest, load_manifest
 
 
 def _remote_manifest_path() -> str:
     return f"{REMOTE_XOCHITL_DATA_DIR}/{REMOTE_MANIFEST_FILENAME}"
-
-
-def _default_manifest() -> dict[str, Any]:
-    return {"last_modified": None, "templates": {}}
-
-
-def _normalize_manifest(data: Any) -> dict[str, Any]:
-    if not isinstance(data, dict):
-        return _default_manifest()
-
-    templates_raw = data.get("templates", {})
-    if not isinstance(templates_raw, dict):
-        templates_raw = {}
-
-    templates: dict[str, dict[str, str]] = {}
-    for template_uuid, entry in templates_raw.items():
-        if not isinstance(template_uuid, str) or not template_uuid:
-            continue
-        if not isinstance(entry, dict):
-            continue
-        name = str(entry.get("name") or "").strip()
-        created_at = str(entry.get("created_at") or "").strip()
-        sha256 = str(entry.get("sha256") or "").strip().lower()
-        if not name or not created_at or not sha256:
-            continue
-        templates[template_uuid] = {
-            "name": name,
-            "created_at": created_at,
-            "sha256": sha256,
-        }
-
-    last_modified_raw = data.get("last_modified")
-    last_modified = str(last_modified_raw).strip() if last_modified_raw else None
-    return {"last_modified": last_modified, "templates": templates}
 
 
 def _is_missing_remote_manifest_error(err: str) -> bool:
@@ -151,9 +115,9 @@ def fetch_and_init_templates(
 
     ok, payload = _tpl._list_remote_custom_templates(ip, pw)
     if not ok:
-        assert isinstance(payload, str)
         return False, f"list_remote_templates_failed: {payload}"
-    assert isinstance(payload, list)
+    if not isinstance(payload, list):
+        raise TypeError(f"Expected list from _list_remote_custom_templates, got {type(payload)}")
 
     imported = 0
     for remote_uuid in payload:

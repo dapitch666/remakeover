@@ -276,7 +276,7 @@ def main():
             title=_("Template Editor"),
             icon=":material/edit_document:",
         ),
-        st.Page("pages/deploiement.py", title=_("Deployment"), icon=":material/rocket_launch:"),
+        st.Page("pages/deployment.py", title=_("Deployment"), icon=":material/rocket_launch:"),
         config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),
     ]
