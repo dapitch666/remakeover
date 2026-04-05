@@ -66,12 +66,6 @@ GRID_COLUMNS = 5
 
 # Default JSON used when creating a new template from scratch.
 DEFAULT_TEMPLATE_JSON: str = """{
-    "name": "mytemplate",
-    "author": "",
-    "templateVersion": "1.0.0",
-    "formatVersion": 1,
-    "categories": ["Perso"],
-    "orientation": "portrait",
     "constants": [
         { "marginLeft": 120 },
         { "lineSpacing": 62 }

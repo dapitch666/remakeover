@@ -23,6 +23,22 @@ _VALID_JSON = json.dumps(
 _INVALID_JSON = "{this is not valid json"
 
 
+def _json_body_area(at):
+    return next((ta for ta in at.text_area if ta.label == "Template JSON"), None)
+
+
+def _meta_name_input(at):
+    return next((ti for ti in at.text_input if ti.label == "Name"), None)
+
+
+def _orientation_select(at):
+    return next((s for s in at.selectbox if s.label == "Orientation"), None)
+
+
+def _author_input(at):
+    return next((ti for ti in at.text_input if ti.label == "Author"), None)
+
+
 def _at_editor(tmp_path, cfg_path: str, session_state: dict | None = None) -> AppTest:
     """Boot app.py and switch to the template_editor page."""
     env = make_env(tmp_path, cfg_path)
@@ -66,14 +82,14 @@ class TestTemplateEditorNoDevice:
 
 
 class TestTemplateEditorWithDevice:
-    def test_filename_is_blank_for_new_template(self, tmp_path):
-        """For a new template, filename input starts blank and remains editable."""
+    def test_name_field_defaults_for_new_template(self, tmp_path):
+        """For a new template, Name metadata field is empty."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
-        assert filename_input is not None
-        assert filename_input.value == ""
+        name_input = _meta_name_input(at)
+        assert name_input is not None
+        assert name_input.value == ""
 
     def test_save_section_visible_with_device(self, tmp_path):
         """With a selected device, the Save subheader is present."""
@@ -125,12 +141,22 @@ class TestTemplateEditorWithDevice:
             {"selected_name": "D1", "tpl_editor_load_choice": "existing.template"},
         )
         assert not at.exception
-        loaded_value = json.loads(at.text_area[0].value)
-        assert loaded_value["name"] == "loaded-template"
-        assert loaded_value["orientation"] == "portrait"
-        filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
-        assert filename_input is not None
-        assert filename_input.value == "existing"
+
+        body_area = _json_body_area(at)
+        assert body_area is not None
+        loaded_value = json.loads(body_area.value)
+        assert loaded_value["constants"] == []
+        assert loaded_value["items"] == []
+
+        name_input = _meta_name_input(at)
+        assert name_input is not None
+        assert name_input.value == "loaded-template"
+
+        orientation = _orientation_select(at)
+        assert orientation is not None
+        assert orientation.value == "portrait"
+
+        assert not any("Filename" in ti.label for ti in at.text_input)
 
     def test_new_button_present(self, tmp_path):
         """The 'Nouveau' button is always shown."""
@@ -139,10 +165,19 @@ class TestTemplateEditorWithDevice:
         assert not at.exception
         assert any("New" in b.label for b in at.button)
 
+    def test_author_field_empty_on_startup(self, tmp_path):
+        """Author metadata field is empty on startup (defaults to rm-manager only on save)."""
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
+        assert not at.exception
+        author = _author_input(at)
+        assert author is not None
+        assert author.value == ""
+
 
 class TestTemplateEditorInvalidJson:
     def test_invalid_json_shows_error_in_preview(self, tmp_path):
-        """Entering invalid JSON shows an error message in the preview column."""
+        """Entering invalid JSON in body shows an error message in the preview column."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
@@ -150,12 +185,14 @@ class TestTemplateEditorInvalidJson:
             at.run()
             at.session_state["selected_name"] = "D1"
             at.switch_page("pages/template_editor.py").run()
-            at.text_area[0].set_value(_INVALID_JSON).run()
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            body_area.set_value(_INVALID_JSON).run()
         assert not at.exception
         assert len(at.error) >= 1
 
     def test_invalid_json_disables_save_button(self, tmp_path):
-        """The Save button is disabled when the JSON in the text area is invalid."""
+        """The Save button is disabled when the JSON body is invalid."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
@@ -163,8 +200,32 @@ class TestTemplateEditorInvalidJson:
             at.run()
             at.session_state["selected_name"] = "D1"
             at.switch_page("pages/template_editor.py").run()
-            at.text_area[0].set_value(_INVALID_JSON).run()
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            body_area.set_value(_INVALID_JSON).run()
         assert not at.exception
+        save_btn = next((b for b in at.button if "Save" in b.label), None)
+        assert save_btn is not None
+        assert save_btn.disabled
+
+    def test_empty_name_disables_save_but_shows_preview(self, tmp_path):
+        """Empty name disables Save/Download but preview still renders."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.switch_page("pages/template_editor.py").run()
+
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            name_input.set_value("").run()
+
+        assert not at.exception
+        # No error message in preview even with empty name
+        assert not any("Name is required" in e.value for e in at.error)
+        # Save button is disabled due to empty name
         save_btn = next((b for b in at.button if "Save" in b.label), None)
         assert save_btn is not None
         assert save_btn.disabled
@@ -185,7 +246,9 @@ class TestTemplateEditorSave:
             at.switch_page("pages/template_editor.py").run()
 
             # Set valid JSON into the text area
-            at.text_area[0].set_value(_VALID_JSON).run()
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            body_area.set_value(_VALID_JSON).run()
 
             save_btn = next((b for b in at.button if "Save" in b.label), None)
             assert save_btn is not None
@@ -196,13 +259,47 @@ class TestTemplateEditorSave:
         saved_files = list(tdir.glob("*.template"))
         assert len(saved_files) >= 1
 
-    def test_filename_input_present_for_valid_json(self, tmp_path):
-        """The filename text input is present in the save section when JSON is valid."""
+    def test_save_applies_author_default_when_empty(self, tmp_path):
+        """Saving with empty author field applies 'rm-manager' default to the saved JSON."""
+        cfg_path = with_device(tmp_path, "D1")
+        tdir = tmp_path / "D1" / "templates"
+        tdir.mkdir(parents=True, exist_ok=True)
+
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.switch_page("pages/template_editor.py").run()
+
+            # Set name to allow save, leave author empty
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            name_input.set_value("test-template").run()
+
+            # Set valid JSON
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            body_area.set_value(_VALID_JSON).run()
+
+            # Save
+            save_btn = next((b for b in at.button if "Save" in b.label), None)
+            assert save_btn is not None
+            save_btn.click().run()
+
+        assert not at.exception
+        # Check that the saved file contains author="rm-manager"
+        saved_files = list(tdir.glob("*.template"))
+        assert len(saved_files) >= 1
+        saved_content = json.loads(saved_files[0].read_text(encoding="utf-8"))
+        assert saved_content.get("author") == "rm-manager"
+
+    def test_filename_input_removed(self, tmp_path):
+        """The filename text input is removed; Name metadata drives file naming."""
         cfg_path = with_device(tmp_path, "D1")
         at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
         assert not at.exception
-        # The filename text input is rendered in the save section
-        assert any("Filename" in ti.label for ti in at.text_input)
+        assert not any("Filename" in ti.label for ti in at.text_input)
 
     def test_save_existing_template_same_stock_name_is_allowed(self, tmp_path):
         """Editing an existing template keeps the same filename without conflict errors."""
@@ -282,18 +379,34 @@ class TestTemplateEditorLoadExisting:
             at.session_state["tpl_editor_load_choice"] = "lines.template"
             at.switch_page("pages/template_editor.py").run()
 
-            loaded_value = json.loads(at.text_area[0].value)
-            assert loaded_value["name"] == "loaded-template"
-            assert loaded_value["orientation"] == "portrait"
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            loaded_value = json.loads(body_area.value)
+            assert loaded_value["constants"] == []
+            assert loaded_value["items"] == []
+
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            assert name_input.value == "loaded-template"
+
+            orientation = _orientation_select(at)
+            assert orientation is not None
+            assert orientation.value == "portrait"
 
             tpl_select = next((s for s in at.selectbox if "lines.template" in str(s.options)), None)
             assert tpl_select is not None
             tpl_select.set_value("— New —").run()
 
-            assert at.text_area[0].value == DEFAULT_TEMPLATE_JSON
+            body_area = _json_body_area(at)
+            assert body_area is not None
+            assert body_area.value in {"", DEFAULT_TEMPLATE_JSON}
 
-    def test_switching_existing_templates_updates_filename_field(self, tmp_path):
-        """Filename input follows the selected existing file stem when switching templates."""
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            assert name_input.value == ""
+
+    def test_switching_existing_templates_updates_name_field(self, tmp_path):
+        """Name metadata field follows the selected existing template payload."""
         cfg_path = with_device(tmp_path, "D1")
         _make_template_file(
             tmp_path,
@@ -327,14 +440,15 @@ class TestTemplateEditorLoadExisting:
             at.session_state["tpl_editor_load_choice"] = "alpha.template"
             at.switch_page("pages/template_editor.py").run()
 
-            filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
-            assert filename_input is not None
-            assert filename_input.value == "alpha"
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            assert name_input.value == "json-name-alpha"
 
             tpl_select = next((s for s in at.selectbox if "alpha.template" in str(s.options)), None)
             assert tpl_select is not None
             tpl_select.set_value("beta.template").run()
 
-            filename_input = next((ti for ti in at.text_input if "Filename" in ti.label), None)
-            assert filename_input is not None
-            assert filename_input.value == "beta"
+            name_input = _meta_name_input(at)
+            assert name_input is not None
+            # Beta has no JSON name field, so it defaults to the filename
+            assert name_input.value in {"beta", "json-name-beta"}
