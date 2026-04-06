@@ -110,7 +110,7 @@ def _inject_css():
         "       font-size: 1.1rem;"
         "   }"
         "   .block-container {"
-        "       max-width: 65rem;"
+        "       max-width: 90%;"
         "       padding-top: 3rem;"
         "   }"
         "</style>"
@@ -244,8 +244,8 @@ def main():
     st.set_page_config(
         page_title="rM Manager",
         page_icon="assets/favicon.png",
-        layout="centered",
-        initial_sidebar_state="expanded",
+        layout="wide",
+        initial_sidebar_state="auto",
     )
     st.logo(image="assets/logo.svg", size="large")
 
@@ -271,11 +271,6 @@ def main():
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
-        st.Page(
-            "pages/template_editor.py",
-            title=_("Template Editor"),
-            icon=":material/edit_document:",
-        ),
         st.Page("pages/deployment.py", title=_("Deployment"), icon=":material/rocket_launch:"),
         config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),

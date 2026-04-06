@@ -210,6 +210,221 @@ def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_pa
     assert metadata["visibleName"] == "Edited Name"
 
 
+# ---------------------------------------------------------------------------
+# extract_categories_from_template_content
+# ---------------------------------------------------------------------------
+
+
+def test_extract_categories_valid():
+    content = json.dumps({"name": "T", "categories": ["Lines", "Grids"]}).encode()
+    result = tpl.extract_categories_from_template_content(content)
+    assert result == ["Lines", "Grids"]
+
+
+def test_extract_categories_empty_list():
+    content = json.dumps({"name": "T", "categories": []}).encode()
+    result = tpl.extract_categories_from_template_content(content)
+    assert result == []
+
+
+def test_extract_categories_missing_key():
+    content = json.dumps({"name": "T"}).encode()
+    result = tpl.extract_categories_from_template_content(content)
+    assert result == []
+
+
+def test_extract_categories_filters_non_strings():
+    content = json.dumps({"categories": ["A", 42, None, "B"]}).encode()
+    result = tpl.extract_categories_from_template_content(content)
+    assert result == ["A", "B"]
+
+
+def test_extract_categories_non_list_returns_none():
+    content = json.dumps({"categories": "Lines"}).encode()
+    assert tpl.extract_categories_from_template_content(content) is None
+
+
+def test_extract_categories_invalid_json_returns_none():
+    assert tpl.extract_categories_from_template_content(b"not json") is None
+
+
+def test_extract_categories_invalid_encoding_returns_none():
+    assert tpl.extract_categories_from_template_content(b"\xff\xfe") is None
+
+
+# ---------------------------------------------------------------------------
+# get_all_categories / get_all_labels
+# ---------------------------------------------------------------------------
+
+
+def test_get_all_categories_aggregates_across_templates(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template(
+        "D1", "a.template", json.dumps({"name": "A", "categories": ["Lines", "Grids"]})
+    )
+    tpl.save_json_template(
+        "D1", "b.template", json.dumps({"name": "B", "categories": ["Grids", "Perso"]})
+    )
+    tpl.add_template_entry("D1", "a.template")
+    tpl.add_template_entry("D1", "b.template")
+    cats = tpl.get_all_categories("D1")
+    assert cats == sorted({"Lines", "Grids", "Perso"})
+
+
+def test_get_all_categories_empty_when_no_templates(tmp_path):
+    _set_data_dir(tmp_path)
+    assert tpl.get_all_categories("D1") == []
+
+
+def test_get_all_labels_aggregates_across_templates(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "a.template", json.dumps({"name": "A", "labels": ["x", "y"]}))
+    tpl.save_json_template("D1", "b.template", json.dumps({"name": "B", "labels": ["y", "z"]}))
+    tpl.add_template_entry("D1", "a.template")
+    tpl.add_template_entry("D1", "b.template")
+    labels = tpl.get_all_labels("D1")
+    assert labels == sorted({"x", "y", "z"})
+
+
+def test_get_all_labels_empty_when_no_templates(tmp_path):
+    _set_data_dir(tmp_path)
+    assert tpl.get_all_labels("D1") == []
+
+
+# ---------------------------------------------------------------------------
+# get_template_entry
+# ---------------------------------------------------------------------------
+
+
+def test_get_template_entry_returns_combined_data(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template(
+        "D1",
+        "Entry.template",
+        json.dumps({"name": "Entry", "categories": ["Work"], "labels": ["l1"]}),
+    )
+    tpl.add_template_entry("D1", "Entry.template")
+    entry = tpl.get_template_entry("D1", "Entry.template")
+    assert entry is not None
+    assert entry["name"] == "Entry"
+    assert "Work" in entry["categories"]
+    assert "l1" in entry["labels"]
+
+
+def test_get_template_entry_returns_none_for_unknown(tmp_path):
+    _set_data_dir(tmp_path)
+    result = tpl.get_template_entry("D1", "ghost.template")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# list_device_templates / list_json_templates
+# ---------------------------------------------------------------------------
+
+
+def test_list_device_templates_returns_uuid_filenames(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "named.template", json.dumps({"name": "Named"}))
+    tpl.add_template_entry("D1", "named.template")
+    files = tpl.list_device_templates("D1")
+    assert len(files) == 1
+    # After add_template_entry the file is stored as a UUID
+    import uuid as _uuid
+
+    stem = os.path.splitext(files[0])[0]
+    _uuid.UUID(stem)  # must not raise
+
+
+def test_list_json_templates_returns_display_names(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "DisplayName.template", json.dumps({"name": "DisplayName"}))
+    tpl.add_template_entry("D1", "DisplayName.template")
+    names = tpl.list_json_templates("D1")
+    assert "DisplayName.template" in names
+
+
+# ---------------------------------------------------------------------------
+# save / load / delete device template
+# ---------------------------------------------------------------------------
+
+
+def test_save_and_load_device_template(tmp_path):
+    _set_data_dir(tmp_path)
+    content = b'{"name": "raw"}'
+    path = tpl.save_device_template("D1", content, "raw.template")
+    assert os.path.exists(path)
+    loaded = tpl.load_device_template("D1", "raw.template")
+    assert loaded == content
+
+
+def test_delete_device_template_removes_files(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "del.template", json.dumps({"name": "Del"}))
+    tpl.add_template_entry("D1", "del.template")
+    files_before = tpl.list_device_templates("D1")
+    assert len(files_before) == 1
+    tpl.delete_device_template("D1", "del.template")
+    files_after = tpl.list_device_templates("D1")
+    assert len(files_after) == 0
+
+
+# ---------------------------------------------------------------------------
+# remove_template_entry
+# ---------------------------------------------------------------------------
+
+
+def test_remove_template_entry_deletes_manifest_entry(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "rem.template", json.dumps({"name": "ToRemove"}))
+    tpl.add_template_entry("D1", "rem.template")
+    assert len(load_manifest("D1").get("templates", {})) == 1
+    tpl.remove_template_entry("D1", "rem.template")
+    assert len(load_manifest("D1").get("templates", {})) == 0
+
+
+# ---------------------------------------------------------------------------
+# update_template_categories / update_template_labels
+# ---------------------------------------------------------------------------
+
+
+def test_update_template_categories_writes_to_json(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "cat.template", json.dumps({"name": "Cat", "categories": ["Old"]}))
+    tpl.add_template_entry("D1", "cat.template")
+    uuid_file = tpl.list_device_templates("D1")[0]
+    tpl.update_template_categories("D1", uuid_file, ["New", "Extra"])
+    payload = json.loads(tpl.load_json_template("D1", uuid_file))
+    assert set(payload["categories"]) == {"New", "Extra"}
+
+
+def test_update_template_labels_writes_to_json(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "lbl.template", json.dumps({"name": "Lbl", "labels": ["old"]}))
+    tpl.add_template_entry("D1", "lbl.template")
+    uuid_file = tpl.list_device_templates("D1")[0]
+    tpl.update_template_labels("D1", uuid_file, ["a", "b"])
+    payload = json.loads(tpl.load_json_template("D1", uuid_file))
+    assert set(payload["labels"]) == {"a", "b"}
+
+
+# ---------------------------------------------------------------------------
+# rename_device_template edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_rename_device_template_returns_false_for_unknown(tmp_path):
+    _set_data_dir(tmp_path)
+    assert tpl.rename_device_template("D1", "ghost.template", "new.template") is False
+
+
+def test_rename_device_template_returns_false_for_empty_name(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "orig.template", json.dumps({"name": "Orig"}))
+    tpl.add_template_entry("D1", "orig.template")
+    # Passing only whitespace strips to empty display_name → returns False
+    assert tpl.rename_device_template("D1", "orig.template", "   ") is False
+
+
 def test_delete_template_from_tablet_removes_uuid_triplet(tmp_path):
     _set_data_dir(tmp_path)
 
