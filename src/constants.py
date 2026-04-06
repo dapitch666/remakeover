@@ -64,6 +64,9 @@ GRID_COLUMNS = 5
 # Template editor
 # ---------------------------------------------------------------------------
 
+# Default base64-encoded SVG used for new templates with no icon.
+DEFAULT_ICON_DATA = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTUwIDIwMCI+CiAgPHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjE0NiIgaGVpZ2h0PSIxOTYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iNCIvPgo8L3N2Zz4="
+
 # Default JSON used when creating a new template from scratch.
 DEFAULT_TEMPLATE_JSON: str = """{
     "constants": [

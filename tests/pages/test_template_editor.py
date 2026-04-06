@@ -4,6 +4,7 @@ Covers: page renders without device, page renders with device, load/new controls
 save/download section, and interaction between the editor and local file storage.
 """
 
+import base64
 import json
 import os
 from unittest.mock import patch
@@ -452,3 +453,121 @@ class TestTemplateEditorLoadExisting:
             assert name_input is not None
             # Beta has no JSON name field, so it defaults to the filename
             assert name_input.value in {"beta", "json-name-beta"}
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_SVG_150x200 = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="200">'
+    '<rect x="2" y="2" width="146" height="196"/>'
+    "</svg>"
+)
+_SVG_WRONG_SIZE = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
+
+
+def _svg_textarea(at):
+    return next((ta for ta in at.text_area if "SVG" in ta.label), None)
+
+
+class TestIconSvgUI:
+    """Tests for the icon SVG rendering/editing section in the Advanced expander."""
+
+    def test_icon_svg_textarea_is_present(self, tmp_path):
+        """The icon SVG code textarea is rendered on the page."""
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
+        assert not at.exception
+        assert _svg_textarea(at) is not None
+
+    def test_icon_svg_textarea_contains_decoded_svg_by_default(self, tmp_path):
+        """The SVG textarea initially contains decoded SVG markup (not base64)."""
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1"})
+        assert not at.exception
+        svg_area = _svg_textarea(at)
+        assert svg_area is not None
+        assert "<svg" in svg_area.value
+        # Must not be raw base64 (base64 never contains '<')
+        assert "<" in svg_area.value
+
+    def test_valid_icon_size_produces_no_warning(self, tmp_path):
+        """Setting iconData to a valid 150×200 SVG raises no size warning."""
+        b64 = base64.b64encode(_SVG_150x200.encode()).decode()
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1", "tpl_meta_icon_data": b64})
+        assert not at.exception
+        assert not any("150" in w.value and "200" in w.value for w in at.warning)
+
+    def test_wrong_icon_size_shows_warning(self, tmp_path):
+        """Setting iconData to an SVG with wrong dimensions triggers a size warning."""
+        b64 = base64.b64encode(_SVG_WRONG_SIZE.encode()).decode()
+        cfg_path = with_device(tmp_path, "D1")
+        at = _at_editor(tmp_path, cfg_path, {"selected_name": "D1", "tpl_meta_icon_data": b64})
+        assert not at.exception
+        assert any("150" in w.value for w in at.warning)
+
+    def test_loading_template_with_icon_data_decodes_into_svg_textarea(self, tmp_path):
+        """Loading a template whose iconData carries a custom SVG shows that SVG decoded."""
+        b64 = base64.b64encode(_SVG_150x200.encode()).decode()
+        tpl = json.dumps(
+            {
+                "name": "icon-tpl",
+                "iconData": b64,
+                "orientation": "portrait",
+                "constants": [],
+                "items": [],
+            },
+            indent=2,
+        )
+        cfg_path = with_device(tmp_path, "D1")
+        _make_template_file(tmp_path, "D1", "icon_tpl.template", tpl)
+        at = _at_editor(
+            tmp_path,
+            cfg_path,
+            {"selected_name": "D1", "tpl_editor_load_choice": "icon_tpl.template"},
+        )
+        assert not at.exception
+        svg_area = _svg_textarea(at)
+        assert svg_area is not None
+        assert "<svg" in svg_area.value
+        assert 'width="150"' in svg_area.value
+
+    def test_editing_svg_textarea_with_valid_svg_updates_icon_data(self, tmp_path):
+        """Changing the SVG textarea to a valid 150×200 SVG re-encodes it into iconData."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.switch_page("pages/template_editor.py").run()
+
+            svg_area = _svg_textarea(at)
+            assert svg_area is not None
+            svg_area.set_value(_SVG_150x200).run()
+
+        assert not at.exception
+        stored_b64 = at.session_state["tpl_meta_icon_data"]
+        decoded = base64.b64decode(stored_b64).decode("utf-8")
+        assert 'width="150"' in decoded
+        assert 'height="200"' in decoded
+
+    def test_editing_svg_textarea_with_invalid_size_does_not_update_icon_data(self, tmp_path):
+        """Setting the SVG textarea to a wrong-sized SVG leaves iconData unchanged."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["selected_name"] = "D1"
+            at.switch_page("pages/template_editor.py").run()
+
+            original_b64 = at.session_state["tpl_meta_icon_data"]
+            svg_area = _svg_textarea(at)
+            assert svg_area is not None
+            svg_area.set_value(_SVG_WRONG_SIZE).run()
+
+        assert not at.exception
+        assert at.session_state["tpl_meta_icon_data"] == original_b64

@@ -242,6 +242,8 @@ def sync_templates_to_tablet(
                     f"Sync templates — upload '{local_filename}' ({ext}, {template_uuid}): {upload_msg}"
                 )
                 return False
+        thumbnails_dir = f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.thumbnails"
+        _ssh.run_ssh_cmd(ip, pw, ["rm", "-rf", thumbnails_dir])
         uploaded += 1
 
     deleted = 0

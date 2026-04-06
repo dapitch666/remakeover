@@ -17,6 +17,7 @@ from typing import Any
 from src.config import get_device_data_dir
 from src.constants import (
     CMD_RESTART_XOCHITL,
+    DEFAULT_ICON_DATA,
     REMOTE_MANIFEST_FILENAME,
     REMOTE_XOCHITL_DATA_DIR,
 )
@@ -55,19 +56,9 @@ def ensure_template_payload_for_rmethods(payload: dict[str, Any]) -> dict[str, A
     icon_data = normalized.get("iconData")
     if not isinstance(icon_data, str) or not icon_data.strip():
         # The value is consumed by the device as an encoded SVG payload.
-        normalized["iconData"] = _DEFAULT_ICON_DATA_B64
+        normalized["iconData"] = DEFAULT_ICON_DATA
 
     return normalized
-
-
-_DEFAULT_ICON_DATA_B64 = (
-    "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTUwIDIwMCI+"
-    "PHJlY3Qgd2lkdGg9IjE1MCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmNmY2ZjQiLz48cmVjdCB4PSIxNiIgeT0iMjQiIHdpZHRoPSIxMTgiIGhlaWdodD0iMTUy"
-    "IiByeD0iOCIgZmlsbD0iI2ZmZmZmZiIgc3Ryb2tlPSIjZDdkN2QzIi8+PGxpbmUgeDE9IjI4IiB5MT0iNjQiIHgyPSIxMjIiIHkyPSI2NCIgc3Ryb2tlPSIj"
-    "YzdjN2MzIiBzdHJva2Utd2lkdGg9IjMiLz48bGluZSB4MT0iMjgiIHkxPSI5MiIgeDI9IjEyMiIgeTI9IjkyIiBzdHJva2U9IiNjN2M3YzMiIHN0cm9rZS13"
-    "aWR0aD0iMyIvPjxsaW5lIHgxPSIyOCIgeTE9IjEyMCIgeDI9IjEyMiIgeTI9IjEyMCIgc3Ryb2tlPSIjYzdjN2MzIiBzdHJva2Utd2lkdGg9IjMiLz48bGlu"
-    "ZSB4MT0iMjgiIHkxPSIxNDgiIHgyPSIxMDAiIHkyPSIxNDgiIHN0cm9rZT0iI2M3YzdjMyIgc3Ryb2tlLXdpZHRoPSIzIi8+PC9zdmc+"
-)
 
 
 def build_rmethods_metadata_payload(visible_name: str) -> dict[str, Any]:

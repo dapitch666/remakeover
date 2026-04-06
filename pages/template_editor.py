@@ -9,13 +9,15 @@ The JSON source (``.template``) files are stored under
 preview shown in the editor is generated locally for visual feedback only.
 """
 
+import base64
 import json
 import os
+import re
 from contextlib import suppress
 
 import streamlit as st
 
-from src.constants import DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
+from src.constants import DEFAULT_ICON_DATA, DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
 from src.i18n import _
 from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
@@ -67,11 +69,59 @@ _META_DEFAULTS: dict[str, str | int] = {
     "tpl_meta_format_version": "1",
     "tpl_meta_categories": "Perso",
     "tpl_meta_orientation": "portrait",
-    "tpl_meta_icon_data": "",
+    "tpl_meta_icon_data": DEFAULT_ICON_DATA,
     "tpl_meta_labels": "",
 }
 
 _DEFAULT_JSON: str = DEFAULT_TEMPLATE_JSON
+
+
+# ---------------------------------------------------------------------------
+# Icon data helpers
+# ---------------------------------------------------------------------------
+
+
+def _decode_icon_data(b64: str) -> str:
+    """Decode a base64 iconData string to raw SVG text."""
+    try:
+        return base64.b64decode(b64).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _encode_svg_to_icon_data(svg: str) -> str:
+    """Encode raw SVG text to base64 for use as iconData."""
+    return base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _validate_svg_size(svg: str) -> tuple[bool, str]:
+    """Return ``(ok, error_msg)``. ok is True when the SVG is exactly 150×200."""
+    svg_tag_m = re.search(r"<svg\b[^>]*>", svg, re.DOTALL)
+    if not svg_tag_m:
+        return False, _("No <svg> root element found.")
+    tag = svg_tag_m.group(0)
+    w_m = re.search(r'\bwidth=["\'](\d+(?:\.\d+)?)["\']', tag)
+    h_m = re.search(r'\bheight=["\'](\d+(?:\.\d+)?)["\']', tag)
+    if not w_m:
+        return False, _("SVG must have an explicit width attribute.")
+    if not h_m:
+        return False, _("SVG must have an explicit height attribute.")
+    w, h = int(float(w_m.group(1))), int(float(h_m.group(1)))
+    if w != 150 or h != 200:
+        return False, _("SVG must be 150×200 px (got {w}×{h}).").format(w=w, h=h)
+    return True, ""
+
+
+def _on_icon_svg_change() -> None:
+    """on_change callback for the SVG code textarea — syncs back to base64 iconData."""
+    svg = str(st.session_state.get("tpl_meta_icon_svg_code") or "")
+    if not svg.strip():
+        return
+    ok, _err = _validate_svg_size(svg)
+    if ok:
+        new_b64 = _encode_svg_to_icon_data(svg)
+        st.session_state["tpl_meta_icon_data"] = new_b64
+        st.session_state["_icon_b64_prev"] = new_b64
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +289,15 @@ if _meta_detected:
     _meta_to_session(_meta_detected)
     st.session_state["tpl_editor_textarea"] = _body_detected
 
+# Keep the decoded-SVG textarea in sync with iconData (handles template loads and resets).
+_icon_b64_now = st.session_state.get("tpl_meta_icon_data", DEFAULT_ICON_DATA)
+if (
+    st.session_state.get("_icon_b64_prev") != _icon_b64_now
+    or "tpl_meta_icon_svg_code" not in st.session_state
+):
+    st.session_state["tpl_meta_icon_svg_code"] = _decode_icon_data(_icon_b64_now)
+    st.session_state["_icon_b64_prev"] = _icon_b64_now
+
 # ---------------------------------------------------------------------------
 # Compute editor height from orientation (read from meta form state)
 # ---------------------------------------------------------------------------
@@ -350,12 +409,52 @@ with _mf5:
 with st.expander(_("Advanced"), expanded=False):
     _adv1, _adv2 = st.columns([2, 1])
     with _adv1:
+        # ---- Icon (SVG) section ----
+        _icon_svg_now = st.session_state.get("tpl_meta_icon_svg_code", "")
+        if _icon_svg_now.strip():
+            _icon_valid_preview, _icon_err_msg = _validate_svg_size(_icon_svg_now)
+        else:
+            _icon_valid_preview, _icon_err_msg = False, ""
+
+        # Rendered preview
+        if _icon_valid_preview:
+            st.html(svg_as_img_tag(_icon_svg_now, max_width=75, max_height=100))
+        else:
+            st.html(
+                '<div style="width:75px;height:100px;background:#eee;'
+                'border:1px dashed #aaa;display:inline-block;margin-bottom:4px;"></div>'
+            )
+
+        # SVG code editor (decoded, editable)
         st.text_area(
-            _("Icon data (base64 SVG)"),
-            key="tpl_meta_icon_data",
-            height=80,
-            help=_("Base64-encoded SVG icon. Leave empty to use the default icon."),
+            _("Icon SVG code (150×200 px)"),
+            key="tpl_meta_icon_svg_code",
+            height=130,
+            on_change=_on_icon_svg_change,
+            help=_("Raw SVG source — not base64. Must be exactly 150×200 px."),
         )
+
+        if _icon_err_msg:
+            st.warning(_icon_err_msg, icon=":material/warning:")
+
+        # File uploader
+        _svg_upload = st.file_uploader(
+            _("Upload SVG file"),
+            type=["svg"],
+            key="tpl_meta_icon_upload",
+        )
+        if _svg_upload is not None:
+            _upl_svg = _svg_upload.read().decode("utf-8")
+            _upl_ok, _upl_err = _validate_svg_size(_upl_svg)
+            if not _upl_ok:
+                st.error(_upl_err, icon=":material/error:")
+            else:
+                _new_b64 = _encode_svg_to_icon_data(_upl_svg)
+                st.session_state["tpl_meta_icon_data"] = _new_b64
+                st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
+                st.session_state["_icon_b64_prev"] = _new_b64
+                st.rerun()
+
     with _adv2:
         st.text_input(
             _("Template version"),
