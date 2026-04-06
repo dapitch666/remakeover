@@ -47,6 +47,11 @@ _SVG_150x200 = (
     '<rect x="2" y="2" width="146" height="196"/>'
     "</svg>"
 )
+_SVG_200x150 = (
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">'
+    '<rect x="2" y="2" width="196" height="146"/>'
+    "</svg>"
+)
 _SVG_WRONG_SIZE = '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
 
 
@@ -581,8 +586,8 @@ class TestEditorPanelNew:
         assert save is not None
         assert save.disabled
 
-    def test_icon_svg_textarea_present_in_advanced(self, tmp_path):
-        """The icon SVG code textarea is rendered in the Advanced expander."""
+    def test_icon_svg_textarea_present(self, tmp_path):
+        """The icon SVG code textarea is rendered in the editor panel."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
@@ -612,6 +617,23 @@ class TestEditorPanelNew:
         assert not at.exception
         assert not any("150" in w.value and "200" in w.value for w in at.warning)
 
+    def test_valid_landscape_icon_size_no_warning(self, tmp_path):
+        """A valid 200×150 iconData raises no size warning in landscape mode."""
+        b64 = base64.b64encode(_SVG_200x150.encode()).decode()
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(
+            tmp_path,
+            cfg_path,
+            {
+                "tpl_unified_selected": "__new__",
+                "tpl_meta_orientation": "landscape",
+                "tpl_meta_icon_data": b64,
+            },
+        )
+        assert not at.exception
+        assert not any("200" in w.value and "150" in w.value for w in at.warning)
+
     def test_wrong_icon_size_shows_warning(self, tmp_path):
         """An SVG with wrong dimensions triggers a size warning."""
         b64 = base64.b64encode(_SVG_WRONG_SIZE.encode()).decode()
@@ -624,6 +646,23 @@ class TestEditorPanelNew:
         )
         assert not at.exception
         assert any("150" in w.value for w in at.warning)
+
+    def test_portrait_icon_in_landscape_shows_warning(self, tmp_path):
+        """A portrait iconData in landscape mode triggers a 200×150 warning."""
+        b64 = base64.b64encode(_SVG_150x200.encode()).decode()
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(
+            tmp_path,
+            cfg_path,
+            {
+                "tpl_unified_selected": "__new__",
+                "tpl_meta_orientation": "landscape",
+                "tpl_meta_icon_data": b64,
+            },
+        )
+        assert not at.exception
+        assert any("200" in w.value and "150" in w.value for w in at.warning)
 
     def test_editing_svg_with_valid_size_updates_icon_data(self, tmp_path):
         """Setting the SVG textarea to a valid 150×200 SVG re-encodes it to iconData."""
@@ -662,6 +701,44 @@ class TestEditorPanelNew:
             area.set_value(_SVG_WRONG_SIZE).run()
         assert not at.exception
         assert at.session_state["tpl_meta_icon_data"] == original_b64
+
+    def test_editing_svg_with_landscape_size_updates_icon_data(self, tmp_path):
+        """Setting the SVG textarea to a valid 200×150 SVG updates iconData in landscape."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected"] = "__new__"
+            at.session_state["tpl_meta_orientation"] = "landscape"
+            at.switch_page("pages/templates.py").run()
+            area = _svg_area(at)
+            assert area is not None
+            area.set_value(_SVG_200x150).run()
+        assert not at.exception
+        stored = at.session_state["tpl_meta_icon_data"]
+        decoded = base64.b64decode(stored).decode("utf-8")
+        assert 'width="200"' in decoded
+        assert 'height="150"' in decoded
+
+    def test_icon_label_changes_with_orientation(self, tmp_path):
+        """In landscape mode, the SVG editor label advertises 200×150 dimensions."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at_landscape = _at_templates(
+            tmp_path,
+            cfg_path,
+            {
+                "tpl_unified_selected": "__new__",
+                "tpl_meta_orientation": "landscape",
+            },
+        )
+        assert not at_landscape.exception
+        area = _svg_area(at_landscape)
+        assert area is not None
+        assert "200" in area.label and "150" in area.label
 
 
 # ---------------------------------------------------------------------------

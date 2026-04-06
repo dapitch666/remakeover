@@ -19,6 +19,7 @@ from src.templates import (
     delete_device_template,
     extract_categories_from_template_content,
     get_all_categories,
+    get_all_labels,
     get_device_manifest_json_path,
     get_template_entry,
     list_device_templates,
@@ -91,7 +92,13 @@ def _encode_svg_to_icon_data(svg: str) -> str:
     return base64.b64encode(svg.encode("utf-8")).decode("ascii")
 
 
-def _validate_svg_size(svg: str) -> tuple[bool, str]:
+def _expected_icon_dimensions(orientation: str = "portrait") -> tuple[int, int]:
+    if orientation == "landscape":
+        return 200, 150
+    return 150, 200
+
+
+def _validate_svg_size(svg: str, orientation: str = "portrait") -> tuple[bool, str]:
     svg_tag_m = re.search(r"<svg\b[^>]*>", svg, re.DOTALL)
     if not svg_tag_m:
         return False, _("No <svg> root element found.")
@@ -103,8 +110,14 @@ def _validate_svg_size(svg: str) -> tuple[bool, str]:
     if not h_m:
         return False, _("SVG must have an explicit height attribute.")
     w, h = int(float(w_m.group(1))), int(float(h_m.group(1)))
-    if w != 150 or h != 200:
-        return False, _("SVG must be 150×200 px (got {w}×{h}).").format(w=w, h=h)
+    expected_w, expected_h = _expected_icon_dimensions(orientation)
+    if w != expected_w or h != expected_h:
+        return False, _("SVG must be {ew}×{eh} px (got {w}×{h}).").format(
+            ew=expected_w,
+            eh=expected_h,
+            w=w,
+            h=h,
+        )
     return True, ""
 
 
@@ -112,7 +125,8 @@ def _on_icon_svg_change() -> None:
     svg = str(st.session_state.get("tpl_meta_icon_svg_code") or "")
     if not svg.strip():
         return
-    ok, _err = _validate_svg_size(svg)
+    orientation = str(st.session_state.get("tpl_meta_orientation", "portrait"))
+    ok, _err = _validate_svg_size(svg, orientation=orientation)
     if ok:
         new_b64 = _encode_svg_to_icon_data(svg)
         st.session_state["tpl_meta_icon_data"] = new_b64
@@ -485,7 +499,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
         else:
             local_manifest = load_manifest(selected_name)
             if local_manifest.get("last_modified"):
-                st.caption(local_manifest["last_modified"])
+                st.caption(_("Last modified: {date}").format(date=local_manifest["last_modified"]))
 
             if st.button(
                 _("Check sync"),
@@ -546,22 +560,33 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
     st.divider()
 
     # Filter: text search + category multiselect
-    filter_text = st.text_input(
-        _("Search"),
-        key="tpl_filter_text",
-        placeholder=_("Filter by name…"),
-        label_visibility="collapsed",
-    )
-    all_cats = get_all_categories(selected_name)
-    filter_cats: list[str] = []
-    if all_cats:
-        filter_cats = st.multiselect(
-            _("Categories"),
-            options=all_cats,
-            key="tpl_filter_cats",
+    with st.expander(_(":material/filter_list: Filters"), expanded=False):
+        filter_text = st.text_input(
+            _("Search"),
+            key="tpl_filter_text",
+            placeholder=_("Filter by name…"),
             label_visibility="collapsed",
-            placeholder=_("Filter by category…"),
         )
+        all_cats = get_all_categories(selected_name)
+        filter_cats: list[str] = []
+        if all_cats:
+            filter_cats = st.multiselect(
+                _("Categories"),
+                options=all_cats,
+                key="tpl_filter_cats",
+                label_visibility="collapsed",
+                placeholder=_("Filter by category…"),
+            )
+        all_labels = get_all_labels(selected_name)
+        filter_labels: list[str] = []
+        if all_labels:
+            filter_labels = st.multiselect(
+                _("Labels"),
+                options=all_labels,
+                key="tpl_filter_labels",
+                label_visibility="collapsed",
+                placeholder=_("Filter by label…"),
+            )
 
     # Build filtered template list
     stored_templates = list_device_templates(selected_name)
@@ -578,6 +603,10 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
         if filter_cats:
             tpl_cats = entry.get("categories", []) if entry else []
             if not any(c in tpl_cats for c in filter_cats):
+                return False
+        if filter_labels:
+            tpl_labels = entry.get("labels", []) if entry else []
+            if not any(lbl in tpl_labels for lbl in filter_labels):
                 return False
         return True
 
@@ -605,7 +634,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
         icon_svg = _get_template_icon_svg(selected_name, tpl_name)
 
         with st.container():
-            icon_col, name_col = st.columns([1, 3], gap="small", vertical_alignment="center")
+            icon_col, name_col = st.columns([1, 3], gap="xxsmall", vertical_alignment="center")
             with icon_col:
                 if icon_svg:
                     st.html(svg_as_img_tag(icon_svg, max_width=30, max_height=40))
@@ -635,13 +664,9 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
     selected = st.session_state.get("tpl_unified_selected")
 
     if selected is None:
-        st.html(
-            '<div style="display:flex;align-items:center;justify-content:center;'
-            "height:300px;color:#888;font-size:1.05em;"
-            'gap:8px;">'
-            "<span>←</span>"
-            "<span>" + _("Select a template, or click 'New'") + "</span>"
-            "</div>"
+        st.info(
+            _("Select a template from the list, or click 'New' to create one."),
+            icon=":material/arrow_left_alt:",
         )
         return
 
@@ -684,6 +709,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
         _canvas_w, _canvas_h = _portrait_w, _portrait_h
     _editor_height = int(round(_base_editor_width * (_canvas_h / _canvas_w)))
     _editor_height = max(300, min(1000, _editor_height))
+    _icon_expected_w, _icon_expected_h = _expected_icon_dimensions(_orientation)
 
     # ── Header ─────────────────────────────────────────────────────────────
     _header_name = str(st.session_state.get("tpl_meta_name") or "").strip()
@@ -716,30 +742,32 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             help=_("Comma-separated list of labels"),
         )
 
-    with st.expander(_("Advanced"), expanded=False):
-        _adv1, _adv2 = st.columns([2, 1])
-        with _adv1:
+    with st.expander(_(":material/grid_on: Icon"), expanded=False):
+        _ico1, _ico2 = st.columns([1, 3])
+        with _ico1:
             _icon_svg_now = st.session_state.get("tpl_meta_icon_svg_code", "")
             if _icon_svg_now.strip():
-                _icon_valid_preview, _icon_err_msg = _validate_svg_size(_icon_svg_now)
+                _icon_valid_preview, _icon_err_msg = _validate_svg_size(
+                    _icon_svg_now,
+                    orientation=_orientation,
+                )
             else:
                 _icon_valid_preview, _icon_err_msg = False, ""
             if _icon_valid_preview:
-                st.html(svg_as_img_tag(_icon_svg_now, max_width=75, max_height=100))
+                st.html(
+                    svg_as_img_tag(
+                        _icon_svg_now,
+                        max_width=_icon_expected_w // 2,
+                        max_height=_icon_expected_h // 2,
+                        label=_("Icon preview"),
+                    )
+                )
             else:
                 st.html(
-                    '<div style="width:75px;height:100px;background:#eee;'
+                    f'<div style="width:{_icon_expected_w}px;height:{_icon_expected_h}px;background:#eee;'
                     'border:1px dashed #aaa;display:inline-block;margin-bottom:4px;"></div>'
                 )
-            st.text_area(
-                _("Icon SVG code (150×200 px)"),
-                key="tpl_meta_icon_svg_code",
-                height=130,
-                on_change=_on_icon_svg_change,
-                help=_("Raw SVG source — not base64. Must be exactly 150×200 px."),
-            )
-            if _icon_err_msg:
-                st.warning(_icon_err_msg, icon=":material/warning:")
+
             _svg_upload = st.file_uploader(
                 _("Upload SVG file"),
                 type=["svg"],
@@ -747,7 +775,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             )
             if _svg_upload is not None:
                 _upl_svg = _svg_upload.read().decode("utf-8")
-                _upl_ok, _upl_err = _validate_svg_size(_upl_svg)
+                _upl_ok, _upl_err = _validate_svg_size(_upl_svg, orientation=_orientation)
                 if not _upl_ok:
                     st.error(_upl_err, icon=":material/error:")
                 else:
@@ -756,6 +784,32 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
                     st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
                     st.session_state["_icon_b64_prev"] = _new_b64
                     st.rerun()
+        with _ico2:
+            st.html(
+                "<style>"
+                ".st-key-tpl_meta_icon_svg_code textarea {"
+                "  font-family: JetBrainsMono, Consolas, Menlo, monospace;"
+                "  font-size: 13px;"
+                "  line-height: 1.5;"
+                "  white-space: pre;"
+                "  overflow-x: auto;"
+                "}"
+                "</style>"
+            )
+            st.text_area(
+                _("Icon SVG code ({w}×{h} px)").format(w=_icon_expected_w, h=_icon_expected_h),
+                key="tpl_meta_icon_svg_code",
+                height=300,
+                on_change=_on_icon_svg_change,
+                help=_("Raw SVG source — not base64. Must match the selected orientation."),
+            )
+            if _icon_err_msg:
+                st.warning(_icon_err_msg, icon=":material/warning:")
+
+    with st.expander(_("Advanced"), expanded=False):
+        _adv1, _adv2 = st.columns([2, 1])
+        with _adv1:
+            pass
         with _adv2:
             st.text_input(
                 _("Template version"), key="tpl_meta_template_version", placeholder="1.0.0"
