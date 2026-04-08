@@ -46,8 +46,6 @@ def _base_patches(
     return [
         patch("src.maintenance.load_device_image", return_value=load_image_data),
         patch("src.maintenance.list_device_images", return_value=[]),
-        patch("src.maintenance.remote_templates_dir_has_symlinks", return_value=(True, True)),
-        patch("src.maintenance.refresh_templates_backup_from_tablet", return_value=(True, "ok")),
         patch(
             "src.maintenance.upload_file_ssh",
             return_value=(upload_ok, "ok" if upload_ok else "err"),
@@ -139,7 +137,7 @@ class TestImageResolution:
         upload_calls = []
         patches = _base_patches()
         patches[1] = patch("src.maintenance.list_device_images", return_value=[])
-        patches[4] = patch(
+        patches[2] = patch(
             "src.maintenance.upload_file_ssh",
             side_effect=lambda ip, pw, blob, path: upload_calls.append(path) or (True, "ok"),
         )
@@ -189,7 +187,7 @@ class TestRunMaintenanceHappyPath:
         dev = _device(carousel=True)
         cmd_calls = []
         patches = _base_patches()
-        patches[5] = patch(
+        patches[3] = patch(
             "src.maintenance.run_ssh_cmd",
             side_effect=lambda ip, pw, cmds: cmd_calls.append(cmds) or ("", ""),
         )
@@ -260,7 +258,7 @@ class TestRunMaintenanceErrors:
         """Unified template sync failure aborts maintenance."""
         dev = _device(templates=True)
         patches = _base_patches()
-        patches[6] = patch("src.maintenance.sync_templates_to_tablet", return_value=False)
+        patches[4] = patch("src.maintenance.sync_templates_to_tablet", return_value=False)
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -273,7 +271,7 @@ class TestRunMaintenanceErrors:
         """run_ssh_cmd raising during carousel step aborts maintenance."""
         dev = _device(carousel=True)
         patches = _base_patches()
-        patches[5] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("carousel error"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("carousel error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)
@@ -286,7 +284,7 @@ class TestRunMaintenanceErrors:
         """run_ssh_cmd raising during xochitl restart aborts maintenance."""
         dev = _device()
         patches = _base_patches()
-        patches[5] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("restart error"))
+        patches[3] = patch("src.maintenance.run_ssh_cmd", side_effect=Exception("restart error"))
         with ExitStack() as stack:
             for p in patches:
                 stack.enter_context(p)

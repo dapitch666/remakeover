@@ -396,7 +396,9 @@ def render_template_json_str(
         return "", f"Erreur de rendu : {e}"
 
 
-def svg_as_img_tag(svg: str, max_height: int = 650, max_width: int | None = None) -> str:
+def svg_as_img_tag(
+    svg: str, max_height: int = 650, max_width: int | None = None, label: str | None = None
+) -> str:
     """Return an ``<img>`` tag embedding *svg* as a base64 data URI.
 
     Using an ``<img>`` tag (rather than inline SVG) lets the browser derive
@@ -404,10 +406,18 @@ def svg_as_img_tag(svg: str, max_height: int = 650, max_width: int | None = None
     """
     import base64
 
-    b64 = base64.b64encode(svg.encode("utf-8")).decode()
-    max_width_css = f"max-width:{max_width}px;" if max_width else ""
-    return (
-        f'<img src="data:image/svg+xml;base64,{b64}" '
-        f'style="width:100%;{max_width_css}max-height:{max_height}px;object-fit:contain;'
-        f'border:1px solid rgba(49,51,63,0.2);border-radius:6px;background:#ffffff;"/>'
+    b64 = base64.b64encode(svg.encode()).decode()
+
+    style = (
+        "width:100%;"
+        f"{f'max-width:{max_width}px;' if max_width else ''}"
+        f"max-height:{max_height}px;"
+        "object-fit:contain;"
+        "border:1px solid rgba(49,51,63,0.2);"
+        "border-radius:6px;"
+        "background:#ffffff;"
     )
+
+    label_html = f'<label style="font-size:14px;">{label}</label><br/>' if label else ""
+
+    return f'{label_html}<img src="data:image/svg+xml;base64,{b64}" style="{style}"/>'

@@ -1,4 +1,4 @@
-"""Tests for pages/deploiement.py.
+"""Tests for pages/deployment.py.
 
 Covers: empty-config warning, device-selected render, action availability,
 full maintenance deploy flow, preferred-image description, random-image description,
@@ -51,35 +51,35 @@ def _cfg_with_images(tmp_path, preferred: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_deploiement_page_warns_when_no_devices(tmp_path):
-    """Deploiement page shows 'No device' message with empty config."""
+def test_deployment_page_warns_when_no_devices(tmp_path):
+    """Deployment page shows 'No device' message with empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert any("No device" in m.value for m in at.markdown)
 
 
-def test_deploiement_page_prompts_tablet_selection(tmp_path):
-    """With a device configured and selected, deploiement page renders info or warning."""
+def test_deployment_page_prompts_tablet_selection(tmp_path):
+    """With a device configured and selected, deployment page renders info or warning."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert at.info or at.warning
 
 
-def test_deploiement_page_shows_info_when_actions_available(tmp_path):
-    """Deploiement page shows an active deploy button when actions exist."""
+def test_deployment_page_shows_info_when_actions_available(tmp_path):
+    """Deployment page shows an active deploy button when actions exist."""
     cfg_path = with_device(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
@@ -88,7 +88,7 @@ def test_deploiement_page_shows_info_when_actions_available(tmp_path):
     assert not any("aucune action" in w.value.lower() for w in at.warning)
 
 
-def test_deploiement_page_shows_warning_and_disables_button_when_no_actions(tmp_path):
+def test_deployment_page_shows_warning_and_disables_button_when_no_actions(tmp_path):
     """When a device has no images, templates=False and carousel=False, deploy is disabled."""
     cfg = {
         "devices": {
@@ -105,7 +105,7 @@ def test_deploiement_page_shows_warning_and_disables_button_when_no_actions(tmp_
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert any(
@@ -116,7 +116,7 @@ def test_deploiement_page_shows_warning_and_disables_button_when_no_actions(tmp_
     assert deploy_btn.disabled
 
 
-def test_deploiement_page_shows_warning_when_templates_enabled_but_no_local_files(tmp_path):
+def test_deployment_page_shows_warning_when_templates_enabled_but_no_local_files(tmp_path):
     """When templates=True but no local SVG files exist, deploy is still disabled."""
     cfg = {
         "devices": {
@@ -133,7 +133,7 @@ def test_deploiement_page_shows_warning_when_templates_enabled_but_no_local_file
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert any(
@@ -197,7 +197,7 @@ def test_run_maintenance_flow(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.sidebar.selectbox[0].set_value("D1").run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
         mbtn = next(
             (b for b in at.button if getattr(b, "label", None) == "Deploy configuration"),
@@ -225,7 +225,7 @@ def test_preferred_image_shown_in_description(tmp_path):
     ):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     all_text = " ".join(m.value for m in at.info)
@@ -243,7 +243,7 @@ def test_random_image_shown_in_description(tmp_path):
     ):
         at = AppTest.from_file("app.py")
         at.run()
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     all_text = " ".join(m.value for m in at.info)
@@ -263,7 +263,7 @@ def test_maintenance_result_success_display(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.session_state["maint_result_D1"] = {"ok": True, "errors": [], "details": {}}
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert at.success
@@ -281,7 +281,7 @@ def test_maintenance_result_error_display(tmp_path):
             "errors": ["restart_failed: timeout"],
             "details": {},
         }
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
 
     assert not at.exception
     assert at.error
@@ -296,7 +296,7 @@ def test_maintenance_reset_button_clears_result(tmp_path):
         at = AppTest.from_file("app.py")
         at.run()
         at.session_state["maint_result_D1"] = {"ok": True, "errors": [], "details": {}}
-        at.switch_page("pages/deploiement.py").run()
+        at.switch_page("pages/deployment.py").run()
         reset_btn = next((b for b in at.button if "reset" in b.label.lower()), None)
         assert reset_btn is not None
         reset_btn.click().run()

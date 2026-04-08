@@ -11,11 +11,8 @@ Import from here rather than hard-coding strings in individual modules.
 # Suspended / sleep-screen image shown when the tablet is locked
 SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
 
-# Built-in templates directory (read-only on stock firmware)
-REMOTE_TEMPLATES_DIR = "/usr/share/remarkable/templates"
-
-# User-writable directory for custom templates
-REMOTE_CUSTOM_TEMPLATES_DIR = "/home/root/templates"
+# rmMethods template storage directory (persists across firmware updates)
+REMOTE_XOCHITL_DATA_DIR = "/home/root/.local/share/remarkable/xochitl"
 
 # Carousel illustrations directory
 REMOTE_CAROUSEL_DIR = "/usr/share/remarkable/carousel"
@@ -23,8 +20,8 @@ REMOTE_CAROUSEL_DIR = "/usr/share/remarkable/carousel"
 # Backup sub-folder for disabled carousel illustrations
 REMOTE_CAROUSEL_BACKUP_DIR = "/usr/share/remarkable/carousel/backupIllustrations"
 
-# Remote templates.json (inside REMOTE_TEMPLATES_DIR)
-REMOTE_TEMPLATES_JSON = f"{REMOTE_TEMPLATES_DIR}/templates.json"
+# Manifest filename stored alongside templates on the tablet
+REMOTE_MANIFEST_FILENAME = ".manifest.json"
 
 # ---------------------------------------------------------------------------
 # Remote commands
@@ -67,14 +64,36 @@ GRID_COLUMNS = 5
 # Template editor
 # ---------------------------------------------------------------------------
 
+# Default base64-encoded SVG used for new templates with no icon.
+DEFAULT_ICON_DATA = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgMTUwIDIwMCI+CiAgPHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjE0NiIgaGVpZ2h0PSIxOTYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS13aWR0aD0iNCIvPgo8L3N2Zz4="
+
+# Editor meta field constants
+META_FIELDS = frozenset(
+    [
+        "name",
+        "author",
+        "iconData",
+        "templateVersion",
+        "formatVersion",
+        "categories",
+        "labels",
+        "orientation",
+    ]
+)
+
+META_DEFAULTS: dict[str, str | int | list[str]] = {
+    "tpl_meta_name": "",
+    "tpl_meta_author": "",
+    "tpl_meta_icon_data": DEFAULT_ICON_DATA,
+    "tpl_meta_template_version": "1.0.0",
+    "tpl_meta_format_version": "1",
+    "tpl_meta_categories": ["Perso"],
+    "tpl_meta_labels": [],
+    "tpl_meta_orientation": "portrait",
+}
+
 # Default JSON used when creating a new template from scratch.
 DEFAULT_TEMPLATE_JSON: str = """{
-    "name": "mytemplate",
-    "author": "",
-    "templateVersion": "1.0.0",
-    "formatVersion": 1,
-    "categories": ["Perso"],
-    "orientation": "portrait",
     "constants": [
         { "marginLeft": 120 },
         { "lineSpacing": 62 }

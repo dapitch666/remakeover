@@ -14,9 +14,10 @@ from src.i18n import _
 from src.models import Device
 from src.ui_common import (
     deferred_toast,
+    handle_rename_confirmation,
+    init_page,
     normalise_filename,
     rainbow_divider,
-    require_device,
     send_suspended_png,
 )
 
@@ -90,8 +91,8 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
             _("'{new}' already exists. Replace this file?").format(new=_new_r),
             key="confirm_rename_img",
         )
-        result = st.session_state.get("confirm_rename_img")
-        if result is True:
+
+        def _do_rename_img() -> None:
             _images.rename_device_image(selected_name, _old_r, _new_r)
             if device.is_preferred(_old_r):
                 device.set_preferred(_new_r)
@@ -102,15 +103,10 @@ def _render_image_card(img_name, selected_name, device, config, add_log):
                 )
             add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{selected_name}'")
             deferred_toast(f"Image renommée : '{_new_r}'", ":material/task_alt:")
-            st.session_state.pop("confirm_rename_img", None)
-            st.session_state["img_pending_rename"] = None
-            st.session_state["img_renaming"] = None
-            st.rerun()
-        elif result is False:
-            st.session_state.pop("confirm_rename_img", None)
-            st.session_state["img_pending_rename"] = None
-            st.session_state["img_renaming"] = None
-            st.rerun()
+
+        handle_rename_confirmation(
+            "confirm_rename_img", "img_pending_rename", "img_renaming", _do_rename_img
+        )
 
     # Deletion confirmation
     if st.session_state.get("img_pending_delete") == img_name:
@@ -257,13 +253,8 @@ def _render_upload_section(selected_name, device, add_log):
 st.title(_(":material/image: Images"))
 rainbow_divider()
 
-config = st.session_state.get("config", {})
+config, selected_name, DEVICES = init_page()
 add_log = st.session_state.get("add_log", lambda msg: None)
-selected_name = st.session_state.get("selected_name")
-
-DEVICES = config.get("devices", {})
-
-require_device(DEVICES, selected_name)
 assert isinstance(selected_name, str)
 
 device = Device.from_dict(selected_name, DEVICES[selected_name])

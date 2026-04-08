@@ -74,10 +74,8 @@ data/
 ├── config.json             # Device configuration (created automatically)
 ├── MyDevice/               # One sub-folder per device
 │   ├── images/             # Sleep-screen images saved locally
-│   ├── templates/          # Local SVG and .template (JSON) files
-│   ├── templates.json      # Local template index
-│   ├── templates.backup.json  # Backup of the remote templates.json
-│   └── .tpl_sync           # Sync-state sentinel (MD5 of last pushed templates.json)
+│   ├── templates/          # Local .template (JSON) files
+│   └── manifest.json       # Local template manifest (last_modified + templates keyed by UUID)
 └── ...
 ```
 
@@ -94,17 +92,18 @@ Manage sleep-screen images (`suspended.png`):
 - **Rename** or **delete** local images
 
 ### 📄 Templates
-Manage custom templates (SVG and `.template` JSON format):
+Manage custom templates (`.template` JSON format):
 - **Import** templates from the tablet (initial setup)
-- **Add** new SVG or `.template` files
-- **Edit categories** and **icon code** for each template
+- **Add** new `.template` files
+- **Edit categories and labels** for each template
 - **Rename**, **delete**, or **reload** templates
-- **Sync** changes to the tablet (a warning badge appears when local templates are out of sync with the last deployed state)
+- **Check sync status** by comparing local and tablet manifests
+- **Sync** changes to the tablet (local manifest is applied to the device)
 
 ### 🚀 Deployment
 Re-deploy your configuration after a firmware update (which resets all customisations):
 - Sends the preferred sleep-screen image (or a random one)
-- Uploads SVG / `.template` files, creates symlinks in the device's templates directory, and pushes `templates.json`
+- Syncs local `.template` files to rmMethods UUID triplets in xochitl
 - Disables the carousel (moves stock illustrations to a backup folder)
 - Restarts `xochitl` to apply the changes
 
@@ -115,9 +114,6 @@ Add, edit, or delete devices.
 
 ### ✏️ Éditeur de templates
 Create and edit `.template` JSON-format files with a live SVG preview. Save results to the local device library for deployment from the Templates page.
-
-### 🔤 Police d'icônes
-Extract the icomoon TTF font from the xochitl binary and browse all available icon glyphs. Filter by in-use or unused glyphs, and copy icon codes for use in template definitions.
 
 ### 📋 Logs
 View the history of operations for the current session.

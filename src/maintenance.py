@@ -7,8 +7,7 @@ post-update routine by calling into `src.ssh`, `src.images` and
 The routine includes:
 1. Uploading a `suspended.png` image (preferred from device images,
    fallback to a random library image, skipped if none available)
-2. Uploading local SVG templates, creating symlinks (only when at least
-   one SVG was uploaded), and pushing `templates.json`
+2. Syncing local `.template` files to rmMethods UUID triplets in xochitl
    — only when `device.templates` is True
 3. Disabling the carousel by moving illustrations to a backup folder
    — only when device.carousel is True
@@ -30,7 +29,6 @@ from src.images import list_device_images, load_device_image
 from src.models import Device
 from src.ssh import run_ssh_cmd, upload_file_ssh
 from src.template_sync import sync_templates_to_tablet
-from src.templates import refresh_templates_backup_from_tablet, remote_templates_dir_has_symlinks
 
 logger = logging.getLogger(__name__)
 
@@ -143,19 +141,6 @@ def run_maintenance(
 
         # ── 2) Custom templates ────────────────────────────────────────────
         if device.templates:
-            # If symlinks disappeared after a firmware update, refresh stock templates backup.
-            has_links_ok, has_links_payload = remote_templates_dir_has_symlinks(ip, pw)
-            if not has_links_ok:
-                errors.append(f"templates_stock_check_failed: {has_links_payload}")
-                return {"ok": False, "errors": errors, "details": details}
-            assert isinstance(has_links_payload, bool)
-            if not has_links_payload:
-                ok_backup, msg_backup = refresh_templates_backup_from_tablet(ip, pw, device_name)
-                if not ok_backup:
-                    errors.append(f"templates_backup_refresh_failed: {msg_backup}")
-                    return {"ok": False, "errors": errors, "details": details}
-                _log(f"templates.backup.json refresh result: {msg_backup}")
-
             _advance(_("Sync templates"))
             ok = sync_templates_to_tablet(
                 device_name,

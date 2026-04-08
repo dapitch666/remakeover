@@ -8,14 +8,14 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-03 11:22+0200\n"
+"POT-Creation-Date: 2026-04-04 01:37+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.18.0\n"
+"Generated-By: Babel 2.17.0\n"
 
 #: app.py:202
 msgid "Tablet"
@@ -39,10 +39,6 @@ msgid "Template Editor"
 msgstr ""
 
 #: app.py:279
-msgid "Icon Font"
-msgstr ""
-
-#: app.py:280
 msgid "Deployment"
 msgstr ""
 
@@ -83,7 +79,7 @@ msgstr ""
 msgid "Enable templates"
 msgstr ""
 
-#: pages/configuration.py:66 src/maintenance.py:99 src/maintenance.py:173
+#: pages/configuration.py:66 src/maintenance.py:97 src/maintenance.py:158
 msgid "Disable carousel"
 msgstr ""
 
@@ -94,8 +90,8 @@ msgid ""
 "licenses, then scroll the right column if necessary."
 msgstr ""
 
-#: pages/configuration.py:77 pages/template_editor.py:184
-#: pages/template_editor.py:262 pages/templates.py:191
+#: pages/configuration.py:77 pages/template_editor.py:179
+#: pages/template_editor.py:254 pages/templates.py:151
 #: tests/unit/test_i18n.py:61 tests/unit/test_i18n.py:69
 msgid "Save"
 msgstr ""
@@ -127,7 +123,7 @@ msgstr ""
 msgid "Configuration of '{name}' saved"
 msgstr ""
 
-#: pages/configuration.py:123 pages/templates.py:248
+#: pages/configuration.py:123 pages/templates.py:208
 msgid "Delete"
 msgstr ""
 
@@ -135,8 +131,8 @@ msgstr ""
 msgid "Delete this device and its local images"
 msgstr ""
 
-#: pages/configuration.py:135 pages/templates.py:90 pages/templates.py:149
-#: pages/templates.py:217 pages/templates.py:239 src/dialog.py:25
+#: pages/configuration.py:135 pages/templates.py:80 pages/templates.py:129
+#: pages/templates.py:177 pages/templates.py:199 src/dialog.py:25
 #: tests/unit/test_i18n.py:79
 msgid "Cancel"
 msgstr ""
@@ -152,7 +148,7 @@ msgid ""
 "images and templates."
 msgstr ""
 
-#: pages/configuration.py:160 pages/templates.py:276
+#: pages/configuration.py:160 pages/templates.py:242
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr ""
@@ -166,176 +162,107 @@ msgid "Failed to upload suspended image"
 msgstr ""
 
 #: pages/deploiement.py:22
-msgid "Failed to verify template symlinks on tablet"
+msgid "Failed to sync templates to tablet"
 msgstr ""
 
-#: pages/deploiement.py:24
-msgid "Failed to refresh stock templates backup from tablet"
-msgstr ""
-
-#: pages/deploiement.py:26
-msgid "Failed to prepare template directories on tablet"
-msgstr ""
-
-#: pages/deploiement.py:27
-msgid "Failed to create template links on tablet"
-msgstr ""
-
-#: pages/deploiement.py:28 pages/deploiement.py:29
-msgid "Error while syncing templates.json"
-msgstr ""
-
-#: pages/deploiement.py:30
+#: pages/deploiement.py:23
 msgid "Failed to disable carousel"
 msgstr ""
 
-#: pages/deploiement.py:31
+#: pages/deploiement.py:24
 msgid "Failed to restart xochitl"
 msgstr ""
 
-#: pages/deploiement.py:37
+#: pages/deploiement.py:30
 #, python-brace-format
 msgid "{label}: {detail}"
 msgstr ""
 
-#: pages/deploiement.py:41
+#: pages/deploiement.py:34
 msgid ":material/rocket_launch: Deployment"
 msgstr ""
 
-#: pages/deploiement.py:57
+#: pages/deploiement.py:50
 msgid ""
 "After each firmware update, the tablet's customisations (suspended image,"
 " templates, carousel) are reset by the system. This page lets you "
 "**redeploy your local configuration** to the device in one operation."
 msgstr ""
 
-#: pages/deploiement.py:80
+#: pages/deploiement.py:73
 msgid "**The deployment will perform the following operations:**"
 msgstr ""
 
-#: pages/deploiement.py:84
+#: pages/deploiement.py:77
 #, python-brace-format
 msgid ""
 "- Send the preferred image (`{image}`) as the suspended image "
 "(`suspended.png`) to the tablet"
 msgstr ""
 
-#: pages/deploiement.py:90
+#: pages/deploiement.py:83
 #, python-brace-format
 msgid ""
 "- Send `{image}` (random choice, no preferred image) as the suspended "
 "image (`suspended.png`) to the tablet"
 msgstr ""
 
-#: pages/deploiement.py:94
+#: pages/deploiement.py:87
 msgid "- *(No local image — suspended image upload skipped)*"
 msgstr ""
 
-#: pages/deploiement.py:98
-msgid ""
-"- Create symbolic links to the custom templates and update "
-"`templates.json` on the tablet"
+#: pages/deploiement.py:89
+msgid "- Sync local `.template` files to rmMethods storage on the tablet"
 msgstr ""
 
-#: pages/deploiement.py:102
+#: pages/deploiement.py:91
 msgid "- Disable the carousel by moving illustrations to a backup folder"
 msgstr ""
 
-#: pages/deploiement.py:103
+#: pages/deploiement.py:92
 msgid "- Restart `xochitl` to apply changes"
 msgstr ""
 
-#: pages/deploiement.py:113
+#: pages/deploiement.py:102
 msgid ""
 "No deployment actions configured for this tablet (no local image, "
 "templates disabled or empty, carousel disabled). Deployment would only "
 "restart `xochitl`."
 msgstr ""
 
-#: pages/deploiement.py:126 src/maintenance.py:204
+#: pages/deploiement.py:115 src/maintenance.py:189
 msgid "Deployment completed successfully."
 msgstr ""
 
-#: pages/deploiement.py:128
+#: pages/deploiement.py:117
 msgid "Deployment completed with errors:"
 msgstr ""
 
-#: pages/deploiement.py:136
+#: pages/deploiement.py:125
 msgid "Reset"
 msgstr ""
 
-#: pages/deploiement.py:147
+#: pages/deploiement.py:136
 msgid "Deploy configuration"
 msgstr ""
 
-#: pages/deploiement.py:150
+#: pages/deploiement.py:139
 msgid "Redeploy your local configuration to the tablet after a firmware update"
 msgstr ""
 
-#: pages/deploiement.py:155
+#: pages/deploiement.py:144
 msgid "Deploying…"
-msgstr ""
-
-#: pages/icon_font.py:27
-#, python-brace-format
-msgid "Code `\\u{hex}` — copy this code to use it in a template."
-msgstr ""
-
-#: pages/icon_font.py:32
-msgid ":material/style: Icon Font"
-msgstr ""
-
-#: pages/icon_font.py:53
-#, python-brace-format
-msgid "Icomoon font · {size_kb} KB · {count} glyph(s)"
-msgstr ""
-
-#: pages/icon_font.py:59
-msgid "Re-extract"
-msgstr ""
-
-#: pages/icon_font.py:63
-msgid "Download xochitl from the tablet and re-extract the font"
-msgstr ""
-
-#: pages/icon_font.py:65
-msgid "Downloading xochitl and extracting the font…"
-msgstr ""
-
-#: pages/icon_font.py:69
-msgid "Font extracted successfully"
-msgstr ""
-
-#: pages/icon_font.py:72 pages/templates.py:773
-#, python-brace-format
-msgid "Error: {msg}"
-msgstr ""
-
-#: pages/icon_font.py:84
-msgid "All"
-msgstr ""
-
-#: pages/icon_font.py:85
-msgid "Used by the tablet"
-msgstr ""
-
-#: pages/icon_font.py:86
-msgid "Unused"
-msgstr ""
-
-#: pages/icon_font.py:89
-msgid "Show"
 msgstr ""
 
 #: pages/images.py:56
 msgid "Rename image"
 msgstr ""
 
-#: pages/images.py:74 pages/templates.py:360
+#: pages/images.py:74 pages/templates.py:300
 msgid "Click to rename"
 msgstr ""
 
-#: pages/images.py:89 pages/templates.py:386
+#: pages/images.py:89 pages/templates.py:323
 msgid "Confirm replacement"
 msgstr ""
 
@@ -354,7 +281,7 @@ msgstr ""
 msgid "{name} sent to {device}"
 msgstr ""
 
-#: pages/images.py:159 pages/templates.py:212
+#: pages/images.py:159 pages/templates.py:172
 #, python-brace-format
 msgid "Error sending {name}"
 msgstr ""
@@ -476,428 +403,379 @@ msgstr ""
 msgid "Logs cleared."
 msgstr ""
 
-#: pages/template_editor.py:46
+#: pages/template_editor.py:41
 msgid ":material/edit_document: Template Editor"
 msgstr ""
 
-#: pages/template_editor.py:80
+#: pages/template_editor.py:75
 msgid "— New —"
 msgstr ""
 
-#: pages/template_editor.py:99
+#: pages/template_editor.py:94
 msgid "Load an existing JSON template"
 msgstr ""
 
-#: pages/template_editor.py:124
+#: pages/template_editor.py:119
 msgid "New"
 msgstr ""
 
-#: pages/template_editor.py:141
+#: pages/template_editor.py:136
 msgid "JSON"
 msgstr ""
 
-#: pages/template_editor.py:154
+#: pages/template_editor.py:149
 msgid "Template JSON"
 msgstr ""
 
-#: pages/template_editor.py:158
+#: pages/template_editor.py:153
 msgid ""
 "Enter your reMarkable template JSON here. The preview updates "
 "automatically."
 msgstr ""
 
-#: pages/template_editor.py:162
+#: pages/template_editor.py:157
 msgid "Preview"
 msgstr ""
 
-#: pages/template_editor.py:175
+#: pages/template_editor.py:170
 msgid ":material/help: reMarkable JSON format documentation"
 msgstr ""
 
-#: pages/template_editor.py:188
+#: pages/template_editor.py:183
 msgid "Select a tablet in the sidebar to save the template."
 msgstr ""
 
-#: pages/template_editor.py:220
+#: pages/template_editor.py:209
 msgid "Filename (without extension)"
 msgstr ""
 
-#: pages/template_editor.py:222
+#: pages/template_editor.py:211
 msgid "Name of the template file"
 msgstr ""
 
-#: pages/template_editor.py:228 pages/templates.py:632
-msgid "Icon code (hex)"
+#: pages/template_editor.py:220
+msgid "Labels (optional)"
 msgstr ""
 
-#: pages/template_editor.py:232
-msgid "Hexadecimal icomoon icon code (e.g. E9FE)."
+#: pages/template_editor.py:224 pages/templates.py:103
+msgid "Add custom labels to organize your template"
 msgstr ""
 
-#: pages/template_editor.py:247 pages/templates.py:652
-msgid "Browse icons"
+#: pages/template_editor.py:227 pages/templates.py:106
+msgid "New labels (comma-separated)"
 msgstr ""
 
-#: pages/template_editor.py:268
+#: pages/template_editor.py:234
+msgid "Icon data (base64 SVG, optional)"
+msgstr ""
+
+#: pages/template_editor.py:238
+msgid "Paste base64-encoded SVG for custom icon"
+msgstr ""
+
+#: pages/template_editor.py:239
+msgid "Leave blank for default icon"
+msgstr ""
+
+#: pages/template_editor.py:260
 msgid "Save the .template file to the selected device's library."
 msgstr ""
 
-#: pages/template_editor.py:277 pages/template_editor.py:304
-#: pages/templates.py:309 pages/templates.py:396
-msgid "This filename matches a stock template. Choose another name."
-msgstr ""
-
-#: pages/template_editor.py:308 pages/templates.py:691
+#: pages/template_editor.py:292 pages/templates.py:546
 #, python-brace-format
 msgid "Template {name} saved"
 msgstr ""
 
-#: pages/template_editor.py:320
+#: pages/template_editor.py:304
 msgid "Download .template"
 msgstr ""
 
-#: pages/templates.py:53 pages/templates.py:456
+#: pages/templates.py:43 pages/templates.py:353
 msgid "Edit categories"
 msgstr ""
 
-#: pages/templates.py:61 pages/templates.py:620
+#: pages/templates.py:51 pages/templates.py:512
 msgid "Existing categories"
 msgstr ""
 
-#: pages/templates.py:67 pages/templates.py:626
+#: pages/templates.py:57 pages/templates.py:518
 msgid "New categories (comma-separated)"
 msgstr ""
 
-#: pages/templates.py:75 pages/templates.py:129
+#: pages/templates.py:65 pages/templates.py:114
 msgid "Apply"
 msgstr ""
 
-#: pages/templates.py:78
+#: pages/templates.py:68
 msgid "Apply category changes"
 msgstr ""
 
-#: pages/templates.py:86
+#: pages/templates.py:76
 msgid "Categories updated"
 msgstr ""
 
-#: pages/templates.py:92
+#: pages/templates.py:82
 msgid "Close without saving category changes"
 msgstr ""
 
-#: pages/templates.py:101 pages/templates.py:352
-msgid "Edit icon"
+#: pages/templates.py:91 pages/templates.py:365
+msgid "Edit labels"
 msgstr ""
 
-#: pages/templates.py:118
-msgid "Enter a hexadecimal code directly or click an icon below:"
+#: pages/templates.py:99 pages/templates.py:360
+msgid "Labels"
 msgstr ""
 
-#: pages/templates.py:121
-msgid "Hex code (e.g. E9FE)"
+#: pages/templates.py:117
+msgid "Apply label changes"
 msgstr ""
 
-#: pages/templates.py:132
-msgid "Apply icon change"
+#: pages/templates.py:125
+msgid "Labels updated"
 msgstr ""
 
-#: pages/templates.py:139
-msgid "Invalid hexadecimal code."
+#: pages/templates.py:131
+msgid "Close without saving label changes"
 msgstr ""
 
-#: pages/templates.py:145 pages/templates.py:733
-msgid "Icon updated"
-msgstr ""
-
-#: pages/templates.py:151
-msgid "Close without saving icon changes"
-msgstr ""
-
-#: pages/templates.py:157
-msgid "Click an icon to apply it directly :"
-msgstr ""
-
-#: pages/templates.py:167
-msgid ""
-"The icomoon font has not been extracted yet. Use the « Icon Font » page "
-"to extract it."
-msgstr ""
-
-#: pages/templates.py:177
+#: pages/templates.py:140
 msgid "Reload template"
 msgstr ""
 
-#: pages/templates.py:182
+#: pages/templates.py:144
 msgid "New .template file"
 msgstr ""
 
-#: pages/templates.py:182
-msgid "New SVG file"
-msgstr ""
-
-#: pages/templates.py:195
+#: pages/templates.py:155
 msgid "Replace this template with the selected file"
 msgstr ""
 
-#: pages/templates.py:207
+#: pages/templates.py:167
 #, python-brace-format
 msgid "{name} updated on the tablet"
 msgstr ""
 
-#: pages/templates.py:219
+#: pages/templates.py:179
 msgid "Close without reloading this template"
 msgstr ""
 
-#: pages/templates.py:226
+#: pages/templates.py:186
 msgid "Delete template"
 msgstr ""
 
-#: pages/templates.py:229
+#: pages/templates.py:189
 #, python-brace-format
 msgid "Delete {name} locally?"
 msgstr ""
 
-#: pages/templates.py:231
+#: pages/templates.py:191
 msgid "Also delete it from the tablet"
 msgstr ""
 
-#: pages/templates.py:241
+#: pages/templates.py:201
 msgid "Close without deleting this template"
 msgstr ""
 
-#: pages/templates.py:252
+#: pages/templates.py:212
 msgid "Delete this template"
 msgstr ""
 
-#: pages/templates.py:266
+#: pages/templates.py:233
 #, python-brace-format
 msgid "'{name}' deleted locally and on tablet"
 msgstr ""
 
-#: pages/templates.py:272
+#: pages/templates.py:238
 #, python-brace-format
 msgid "'{name}' deleted locally, tablet delete failed"
 msgstr ""
 
-#: pages/templates.py:318 pages/templates.py:406
+#: pages/templates.py:273 pages/templates.py:333
 #, python-brace-format
 msgid "Template renamed to '{name}'"
 msgstr ""
 
-#: pages/templates.py:327
+#: pages/templates.py:282
 msgid "Rename template"
 msgstr ""
 
-#: pages/templates.py:387
+#: pages/templates.py:324
 #, python-brace-format
 msgid "'{new}' already exists. Replace this template?"
 msgstr ""
 
-#: pages/templates.py:425
-msgid "Add orphan"
-msgstr ""
-
-#: pages/templates.py:428
-msgid "Add this orphan template to the next sync"
-msgstr ""
-
-#: pages/templates.py:433
-#, python-brace-format
-msgid "'{name}' marked for sync"
-msgstr ""
-
-#: pages/templates.py:439
-msgid "Delete orphan"
-msgstr ""
-
-#: pages/templates.py:442
-msgid "Mark this orphan template for deletion on next sync"
-msgstr ""
-
-#: pages/templates.py:447
-#, python-brace-format
-msgid "'{name}' marked for deletion"
-msgstr ""
-
-#: pages/templates.py:511
-msgid "Status:"
-msgstr ""
-
-#: pages/templates.py:514
-msgid "Synced"
-msgstr ""
-
-#: pages/templates.py:515
-msgid "Pending"
-msgstr ""
-
-#: pages/templates.py:516
-msgid "Invalid"
-msgstr ""
-
-#: pages/templates.py:517
-msgid "Orphan"
-msgstr ""
-
-#: pages/templates.py:518
-msgid "Deleted"
-msgstr ""
-
-#: pages/templates.py:519
-msgid "Unknown"
-msgstr ""
-
-#: pages/templates.py:525
+#: pages/templates.py:420
 msgid "Add a template"
 msgstr ""
 
-#: pages/templates.py:529
+#: pages/templates.py:424
 msgid ":material/upload_file: Import a file"
 msgstr ""
 
-#: pages/templates.py:530
+#: pages/templates.py:425
 msgid ":material/edit_document: Create from scratch"
 msgstr ""
 
-#: pages/templates.py:537
+#: pages/templates.py:432
 msgid ""
 "Open the template editor to create a new `.template` file in the "
 "reMarkable JSON format, with live SVG preview."
 msgstr ""
 
-#: pages/templates.py:542
+#: pages/templates.py:437
 msgid "Open template editor"
 msgstr ""
 
-#: pages/templates.py:545
+#: pages/templates.py:440
 msgid "Create a new .template file in the editor"
 msgstr ""
 
-#: pages/templates.py:560
-msgid "Drag one or more SVG or `.template` files here"
+#: pages/templates.py:455
+msgid "Drag one or more `.template` files here"
 msgstr ""
 
-#: pages/templates.py:636
-msgid "Hexadecimal icomoon icon code (e.g. E9FE). Browse icons below."
-msgstr ""
-
-#: pages/templates.py:642
-msgid "Icon preview"
-msgstr ""
-
-#: pages/templates.py:656
+#: pages/templates.py:524
 #, python-brace-format
 msgid "Save ({count} file(s))"
 msgstr ""
 
-#: pages/templates.py:659
+#: pages/templates.py:527
 msgid "Save templates locally"
 msgstr ""
 
-#: pages/templates.py:695
+#: pages/templates.py:550
 #, python-brace-format
 msgid "{count} templates saved"
 msgstr ""
 
-#: pages/templates.py:700
-#, python-brace-format
-msgid "{count} file(s) skipped because their name matches a stock template."
-msgstr ""
-
-#: pages/templates.py:710
+#: pages/templates.py:558
 msgid ":material/description: Templates"
 msgstr ""
 
-#: pages/templates.py:748
+#: pages/templates.py:576
 msgid ""
 "The template list for this tablet has not been imported yet. Turn on the "
 "tablet and click the button below to start."
 msgstr ""
 
-#: pages/templates.py:754
+#: pages/templates.py:582
 msgid "Initialize templates from this tablet"
 msgstr ""
 
-#: pages/templates.py:758
+#: pages/templates.py:586
 msgid "Import templates from this tablet and initialize local metadata"
 msgstr ""
 
-#: pages/templates.py:760
+#: pages/templates.py:588
 msgid "Importing…"
 msgstr ""
 
-#: pages/templates.py:770
+#: pages/templates.py:597
 msgid "Templates imported successfully"
 msgstr ""
 
-#: pages/templates.py:778
+#: pages/templates.py:600
 #, python-brace-format
-msgid ""
-"Sync overview: {pending} pending, {orphan} orphan, {deleted} deleted, "
-"{synced} synced"
+msgid "Error: {msg}"
 msgstr ""
 
-#: pages/templates.py:791
+#: pages/templates.py:606
+#, python-brace-format
+msgid "Local manifest last modified: {date}"
+msgstr ""
+
+#: pages/templates.py:614
+msgid "Check sync status"
+msgstr ""
+
+#: pages/templates.py:617
+msgid "Compare local and remote manifests"
+msgstr ""
+
+#: pages/templates.py:620
+msgid "Checking…"
+msgstr ""
+
+#: pages/templates.py:625
+msgid "Sync status checked"
+msgstr ""
+
+#: pages/templates.py:629
+msgid "Sync check error"
+msgstr ""
+
+#: pages/templates.py:633
 msgid "Sync now"
 msgstr ""
 
-#: pages/templates.py:794
-msgid "Upload pending template changes to the tablet"
+#: pages/templates.py:636
+msgid "Apply local manifest to the tablet"
 msgstr ""
 
-#: pages/templates.py:797 pages/templates.py:812
+#: pages/templates.py:639 pages/templates.py:654
 msgid "Syncing…"
 msgstr ""
 
-#: pages/templates.py:800 pages/templates.py:820
+#: pages/templates.py:642 pages/templates.py:662
 msgid "Templates synced"
 msgstr ""
 
-#: pages/templates.py:802 pages/templates.py:823
+#: pages/templates.py:644 pages/templates.py:665
 msgid "Sync error"
 msgstr ""
 
-#: pages/templates.py:805
+#: pages/templates.py:647
 msgid "Reset and reinitialize"
 msgstr ""
 
-#: pages/templates.py:809
+#: pages/templates.py:651
 msgid "Reset local template data and re-import from the tablet"
 msgstr ""
 
-#: pages/templates.py:830
-msgid "Manifest contains unsynced changes."
+#: pages/templates.py:672
+#, python-brace-format
+msgid ""
+"Sync check: {local} local, {remote} remote, {matched} matching, {upload} "
+"to upload, {delete} to delete remotely"
 msgstr ""
 
-#: pages/templates.py:837
+#: pages/templates.py:684
+msgid "Templates to upload or refresh:"
+msgstr ""
+
+#: pages/templates.py:689
+msgid "Templates to delete on tablet:"
+msgstr ""
+
+#: pages/templates.py:698
 msgid "Saved templates"
 msgstr ""
 
-#: pages/templates.py:840
+#: pages/templates.py:701
 msgid "Sort by"
 msgstr ""
 
-#: pages/templates.py:841 pages/templates.py:842
+#: pages/templates.py:702 pages/templates.py:703
 msgid "Date"
 msgstr ""
 
-#: pages/templates.py:841 pages/templates.py:846
+#: pages/templates.py:702 pages/templates.py:707
 msgid "A → Z"
 msgstr ""
 
-#: pages/templates.py:841 pages/templates.py:848
+#: pages/templates.py:702 pages/templates.py:709
 msgid "Categories"
 msgstr ""
 
-#: pages/templates.py:860
+#: pages/templates.py:721
 msgid ""
 "Below you will find all templates saved for this tablet. Click a **name**"
-" to rename, click the **categories** to add or remove categories, click "
-"the icon to customize it, and use the action buttons to "
-"(:material/upload_file:) reload (upload a new file), (:material/edit:) "
-"edit, or (:material/delete:) delete templates."
+" to rename, click the **categories** to add or remove categories, and use"
+" the action buttons to (:material/upload_file:) reload (upload a new "
+"file), (:material/edit:) edit, or (:material/delete:) delete templates."
 msgstr ""
 
-#: pages/templates.py:880
+#: pages/templates.py:741
 msgid ""
 "No templates found for this device. Import templates from your computer "
 "or create new ones using the buttons below."
@@ -907,23 +785,23 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/maintenance.py:95 src/maintenance.py:131
+#: src/maintenance.py:93 src/maintenance.py:129
 msgid "Upload suspended image"
 msgstr ""
 
-#: src/maintenance.py:97 src/maintenance.py:159
+#: src/maintenance.py:95 src/maintenance.py:144
 msgid "Sync templates"
 msgstr ""
 
-#: src/maintenance.py:100 src/maintenance.py:184
+#: src/maintenance.py:98 src/maintenance.py:169
 msgid "Restart xochitl"
 msgstr ""
 
-#: src/maintenance.py:126
+#: src/maintenance.py:124
 msgid "Starting deployment…"
 msgstr ""
 
-#: src/maintenance.py:206
+#: src/maintenance.py:191
 msgid "Deployment completed with errors."
 msgstr ""
 
