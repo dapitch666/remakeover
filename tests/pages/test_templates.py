@@ -127,6 +127,14 @@ def _save_btn(at):
     return next((b for b in at.button if b.label == "Save"), None)
 
 
+def _categories_multiselect(at):
+    return next((ms for ms in at.multiselect if ms.label == "Categories"), None)
+
+
+def _labels_multiselect(at):
+    return next((ms for ms in at.multiselect if ms.label == "Labels"), None)
+
+
 # ---------------------------------------------------------------------------
 # Init / config guard
 # ---------------------------------------------------------------------------
@@ -489,6 +497,15 @@ class TestEditorPanelNew:
         assert not at.exception
         assert _json_area(at) is not None
 
+    def test_metadata_fields_use_multiselects(self, tmp_path):
+        """Categories and labels are rendered as multiselect widgets."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
+        assert not at.exception
+        assert _categories_multiselect(at) is not None
+        assert _labels_multiselect(at) is not None
+
     def test_preview_subheader_present(self, tmp_path):
         """The 'Preview' subheader is rendered in the editor panel."""
         cfg_path = with_device(tmp_path, "D1")
@@ -496,6 +513,14 @@ class TestEditorPanelNew:
         at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
         assert not at.exception
         assert any("Preview" in s.value for s in at.subheader)
+
+    def test_new_template_shows_new_caption(self, tmp_path):
+        """A brand-new template shows a New caption instead of a header."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
+        assert not at.exception
+        assert any(c.value == "UUID: New" for c in at.caption)
 
     def test_save_button_present_for_new_template(self, tmp_path):
         """The Save button is rendered in the actions area."""
@@ -764,6 +789,21 @@ class TestEditorPanelExisting:
         assert name is not None
         assert name.value == "my-tpl"
 
+    def test_existing_template_shows_uuid_caption(self, tmp_path):
+        """An existing template shows its UUID in the caption area."""
+        cfg_path = with_device(tmp_path, "D1")
+        template_name = _make_template(tmp_path, "D1", "loaded.template", _FULL_JSON)
+        at = _at_templates(
+            tmp_path,
+            cfg_path,
+            {
+                "tpl_unified_selected": template_name,
+                "tpl_editor_textarea": _FULL_JSON,
+            },
+        )
+        assert not at.exception
+        assert any("UUID: 00000000-0000-4000-8000-000000000001" in c.value for c in at.caption)
+
     def test_existing_template_shows_delete_button(self, tmp_path):
         """The Delete button is rendered for an existing (saved) template."""
         cfg_path = with_device(tmp_path, "D1")
@@ -911,6 +951,35 @@ class TestEditorSave:
         assert len(saved) >= 1
         data = json.loads(saved[0].read_text(encoding="utf-8"))
         assert data.get("author") == "rm-manager"
+
+    def test_save_accepts_custom_categories_and_labels(self, tmp_path):
+        """Saving preserves newly entered categories and labels from the multiselects."""
+        cfg_path = with_device(tmp_path, "D1")
+        tdir = backup_dir(tmp_path, "D1") / "templates"
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.templates.get_all_categories", return_value=["Lines", "Grids"]),
+            patch("src.templates.get_all_labels", return_value=["alpha", "beta"]),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected"] = "__new__"
+            at.session_state["tpl_meta_name"] = "multiselect-test"
+            at.session_state["tpl_meta_categories"] = ["Lines", "Custom category"]
+            at.session_state["tpl_meta_labels"] = ["alpha", "Custom label"]
+            at.session_state["tpl_editor_textarea"] = _BODY_JSON
+            at.switch_page("pages/templates.py").run()
+            save = _save_btn(at)
+            assert save is not None
+            save.click().run()
+        assert not at.exception
+        saved = list(tdir.glob("*.template"))
+        assert len(saved) >= 1
+        data = json.loads(saved[0].read_text(encoding="utf-8"))
+        assert data.get("categories") == ["Lines", "Custom category"]
+        assert data.get("labels") == ["alpha", "Custom label"]
 
     def test_save_updates_selected_state(self, tmp_path):
         """After saving, tpl_unified_selected reflects the saved filename."""

@@ -1,14 +1,19 @@
 """Unified template library and editor page."""
 
-import base64
 import json
 import os
-import re
 from contextlib import suppress
+from typing import cast
 
 import streamlit as st
 
-from src.constants import DEFAULT_ICON_DATA, DEFAULT_TEMPLATE_JSON, DEVICE_SIZES
+from src.constants import (
+    DEFAULT_ICON_DATA,
+    DEFAULT_TEMPLATE_JSON,
+    DEVICE_SIZES,
+    META_DEFAULTS,
+    META_FIELDS,
+)
 from src.i18n import _
 from src.manifest_templates import load_manifest
 from src.models import Device
@@ -16,19 +21,26 @@ from src.template_renderer import render_template_json_str, svg_as_img_tag
 from src.template_sync import check_sync_status, fetch_and_init_templates, sync_templates_to_tablet
 from src.templates import (
     add_template_entry,
+    decode_icon_data,
     delete_device_template,
+    encode_svg_to_icon_data,
+    expected_icon_dimensions,
     extract_categories_from_template_content,
+    extract_template_meta_and_body,
     get_all_categories,
     get_all_labels,
     get_device_manifest_json_path,
     get_template_entry,
     list_device_templates,
     load_json_template,
+    merge_multiselect_options,
+    normalise_string_list,
     refresh_local_manifest,
     remove_template_entry,
     save_device_template,
     save_json_template,
     upload_template_to_tablet,
+    validate_svg_size,
 )
 from src.ui_common import (
     deferred_toast,
@@ -37,88 +49,7 @@ from src.ui_common import (
     rainbow_divider,
 )
 
-# ── Editor meta field constants ───────────────────────────────────────────────
-
-_META_FIELDS = frozenset(
-    [
-        "name",
-        "author",
-        "templateVersion",
-        "formatVersion",
-        "categories",
-        "orientation",
-        "orientations",
-        "iconData",
-        "labels",
-    ]
-)
-
-_META_FIELD_ORDER = [
-    "name",
-    "author",
-    "templateVersion",
-    "formatVersion",
-    "categories",
-    "orientation",
-    "labels",
-    "iconData",
-]
-
-_META_DEFAULTS: dict[str, str | int] = {
-    "tpl_meta_name": "",
-    "tpl_meta_author": "",
-    "tpl_meta_template_version": "1.0.0",
-    "tpl_meta_format_version": "1",
-    "tpl_meta_categories": "Perso",
-    "tpl_meta_orientation": "portrait",
-    "tpl_meta_icon_data": DEFAULT_ICON_DATA,
-    "tpl_meta_labels": "",
-}
-
-_DEFAULT_JSON: str = DEFAULT_TEMPLATE_JSON
 _SENTINEL_NEW = "__new__"
-
-# ── Icon data helpers ─────────────────────────────────────────────────────────
-
-
-def _decode_icon_data(b64: str) -> str:
-    try:
-        return base64.b64decode(b64).decode("utf-8")
-    except Exception:
-        return ""
-
-
-def _encode_svg_to_icon_data(svg: str) -> str:
-    return base64.b64encode(svg.encode("utf-8")).decode("ascii")
-
-
-def _expected_icon_dimensions(orientation: str = "portrait") -> tuple[int, int]:
-    if orientation == "landscape":
-        return 200, 150
-    return 150, 200
-
-
-def _validate_svg_size(svg: str, orientation: str = "portrait") -> tuple[bool, str]:
-    svg_tag_m = re.search(r"<svg\b[^>]*>", svg, re.DOTALL)
-    if not svg_tag_m:
-        return False, _("No <svg> root element found.")
-    tag = svg_tag_m.group(0)
-    w_m = re.search(r'\bwidth=["\'](\d+(?:\.\d+)?)["\']', tag)
-    h_m = re.search(r'\bheight=["\'](\d+(?:\.\d+)?)["\']', tag)
-    if not w_m:
-        return False, _("SVG must have an explicit width attribute.")
-    if not h_m:
-        return False, _("SVG must have an explicit height attribute.")
-    w, h = int(float(w_m.group(1))), int(float(h_m.group(1)))
-    expected_w, expected_h = _expected_icon_dimensions(orientation)
-    if w != expected_w or h != expected_h:
-        return False, _("SVG must be {ew}×{eh} px (got {w}×{h}).").format(
-            ew=expected_w,
-            eh=expected_h,
-            w=w,
-            h=h,
-        )
-    return True, ""
 
 
 def _on_icon_svg_change() -> None:
@@ -126,26 +57,14 @@ def _on_icon_svg_change() -> None:
     if not svg.strip():
         return
     orientation = str(st.session_state.get("tpl_meta_orientation", "portrait"))
-    ok, _err = _validate_svg_size(svg, orientation=orientation)
+    ok, _err = validate_svg_size(svg, orientation=orientation, translate=_)
     if ok:
-        new_b64 = _encode_svg_to_icon_data(svg)
+        new_b64 = encode_svg_to_icon_data(svg)
         st.session_state["tpl_meta_icon_data"] = new_b64
         st.session_state["_icon_b64_prev"] = new_b64
 
 
 # ── Meta helpers ──────────────────────────────────────────────────────────────
-
-
-def _extract_meta_and_body(json_str: str) -> tuple[dict, str]:
-    try:
-        data = json.loads(json_str)
-    except Exception:
-        return {}, json_str
-    if not isinstance(data, dict):
-        return {}, json_str
-    meta = {k: v for k, v in data.items() if k in _META_FIELDS}
-    body = {k: v for k, v in data.items() if k not in _META_FIELDS}
-    return meta, json.dumps(body, indent=4, ensure_ascii=True)
 
 
 def _meta_to_session(meta: dict) -> None:
@@ -156,19 +75,16 @@ def _meta_to_session(meta: dict) -> None:
     if "templateVersion" in meta:
         version = str(meta["templateVersion"]).strip()
         st.session_state["tpl_meta_template_version"] = version or str(
-            _META_DEFAULTS["tpl_meta_template_version"]
+            META_DEFAULTS["tpl_meta_template_version"]
         )
     if "formatVersion" in meta:
         with suppress(Exception):
             parsed = str(int(meta["formatVersion"])).strip()
             st.session_state["tpl_meta_format_version"] = parsed or str(
-                _META_DEFAULTS["tpl_meta_format_version"]
+                META_DEFAULTS["tpl_meta_format_version"]
             )
     if "categories" in meta:
-        cats = meta["categories"]
-        st.session_state["tpl_meta_categories"] = (
-            ", ".join(str(c) for c in cats) if isinstance(cats, list) else str(cats)
-        )
+        st.session_state["tpl_meta_categories"] = normalise_string_list(meta["categories"])
     orientation = meta.get("orientation") or meta.get("orientations")
     if orientation is not None:
         val = str(orientation).lower()
@@ -178,43 +94,42 @@ def _meta_to_session(meta: dict) -> None:
     if "iconData" in meta:
         st.session_state["tpl_meta_icon_data"] = str(meta["iconData"])
     if "labels" in meta:
-        lbls = meta["labels"]
-        st.session_state["tpl_meta_labels"] = (
-            ", ".join(str(lbl) for lbl in lbls) if isinstance(lbls, list) else str(lbls)
-        )
+        st.session_state["tpl_meta_labels"] = normalise_string_list(meta["labels"])
 
 
 def _meta_from_session() -> dict:
-    cats_raw = str(
-        st.session_state.get("tpl_meta_categories", _META_DEFAULTS["tpl_meta_categories"])
+    cats = normalise_string_list(
+        st.session_state.get("tpl_meta_categories", META_DEFAULTS["tpl_meta_categories"])
     )
-    cats = [c.strip() for c in cats_raw.split(",") if c.strip()]
-    lbls_raw = str(st.session_state.get("tpl_meta_labels", _META_DEFAULTS["tpl_meta_labels"]))
-    lbls = [lbl.strip() for lbl in lbls_raw.split(",") if lbl.strip()]
+    if not cats:
+        cats = ["Perso"]
+    lbls = normalise_string_list(
+        st.session_state.get("tpl_meta_labels", META_DEFAULTS["tpl_meta_labels"])
+    )
     try:
         fmt_ver = int(
             st.session_state.get(
-                "tpl_meta_format_version", _META_DEFAULTS["tpl_meta_format_version"]
+                "tpl_meta_format_version", META_DEFAULTS["tpl_meta_format_version"]
             )
         )
     except (TypeError, ValueError):
         fmt_ver = 1
     return {
-        "name": str(st.session_state.get("tpl_meta_name", _META_DEFAULTS["tpl_meta_name"])),
-        "author": str(st.session_state.get("tpl_meta_author", _META_DEFAULTS["tpl_meta_author"])),
+        "name": str(st.session_state.get("tpl_meta_name", META_DEFAULTS["tpl_meta_name"])),
+        "author": str(st.session_state.get("tpl_meta_author", META_DEFAULTS["tpl_meta_author"])),
         "templateVersion": str(
             st.session_state.get(
-                "tpl_meta_template_version", _META_DEFAULTS["tpl_meta_template_version"]
+                "tpl_meta_template_version", META_DEFAULTS["tpl_meta_template_version"]
             )
         ),
         "formatVersion": fmt_ver,
         "categories": cats if cats else ["Perso"],
         "orientation": str(
-            st.session_state.get("tpl_meta_orientation", _META_DEFAULTS["tpl_meta_orientation"])
+            st.session_state.get("tpl_meta_orientation", META_DEFAULTS["tpl_meta_orientation"])
         ),
         "labels": lbls,
         "iconData": str(
-            st.session_state.get("tpl_meta_icon_data", _META_DEFAULTS["tpl_meta_icon_data"])
+            st.session_state.get("tpl_meta_icon_data", META_DEFAULTS["tpl_meta_icon_data"])
         ),
     }
 
@@ -230,7 +145,7 @@ def _build_full_json(body_str: str) -> str:
     if not isinstance(body, dict):
         raise ValueError("json_body_must_be_object")
     full: dict = {}
-    for key in _META_FIELD_ORDER:
+    for key in META_FIELDS:
         val = meta.get(key)
         if key == "iconData" and not val:
             continue
@@ -250,15 +165,24 @@ def _get_template_icon_svg(selected_name: str, tpl_name: str) -> str:
     icon_data = entry.get("iconData", "")
     if not icon_data:
         return ""
-    try:
-        return base64.b64decode(str(icon_data)).decode("utf-8")
-    except Exception:
-        return ""
+    return decode_icon_data(str(icon_data))
+
+
+def _get_template_uuid_caption(selected_name: str, tpl_name: str) -> str:
+    """Return the current template UUID caption text for the editor header area."""
+    if tpl_name == _SENTINEL_NEW:
+        return _("New")
+
+    entry = get_template_entry(selected_name, tpl_name)
+    template_uuid = str(entry.get("uuid") or "").strip() if entry else ""
+    if template_uuid:
+        return template_uuid
+    return _("New")
 
 
 def _load_template_into_editor(selected_name: str, tpl_name: str) -> None:
     """Clear meta state and load the given template file into the editor."""
-    for key in _META_DEFAULTS:
+    for key in META_DEFAULTS:
         st.session_state.pop(key, None)
     st.session_state.pop("tpl_meta_icon_svg_code", None)
     st.session_state.pop("_icon_b64_prev", None)
@@ -268,11 +192,11 @@ def _load_template_into_editor(selected_name: str, tpl_name: str) -> None:
 
 def _reset_editor_for_new() -> None:
     """Reset editor to blank template state."""
-    for key in _META_DEFAULTS:
+    for key in META_DEFAULTS:
         st.session_state.pop(key, None)
     st.session_state.pop("tpl_meta_icon_svg_code", None)
     st.session_state.pop("_icon_b64_prev", None)
-    st.session_state["tpl_editor_textarea"] = _DEFAULT_JSON
+    st.session_state["tpl_editor_textarea"] = DEFAULT_TEMPLATE_JSON
     st.session_state["tpl_unified_loaded"] = _SENTINEL_NEW
 
 
@@ -676,16 +600,22 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
     _portrait_w, _portrait_h = DEVICE_SIZES[device.resolve_type()]
 
     # ── Initialize meta field defaults ────────────────────────────────────
-    for _key, _default in _META_DEFAULTS.items():
+    for _key, _default in META_DEFAULTS.items():
         if _key not in st.session_state:
-            st.session_state[_key] = _default
+            st.session_state[_key] = list(_default) if isinstance(_default, list) else _default
     for _key in ("tpl_meta_template_version", "tpl_meta_format_version"):
         if not str(st.session_state.get(_key, "")).strip():
-            st.session_state[_key] = _META_DEFAULTS[_key]
+            st.session_state[_key] = META_DEFAULTS[_key]
+    st.session_state["tpl_meta_categories"] = normalise_string_list(
+        st.session_state.get("tpl_meta_categories")
+    ) or list(cast(list[str], META_DEFAULTS["tpl_meta_categories"]))
+    st.session_state["tpl_meta_labels"] = normalise_string_list(
+        st.session_state.get("tpl_meta_labels")
+    )
 
     # ── Sync meta from textarea (handles fresh loads) ─────────────────────
-    _textarea_current = st.session_state.get("tpl_editor_textarea", _DEFAULT_JSON)
-    _meta_detected, _body_detected = _extract_meta_and_body(_textarea_current)
+    _textarea_current = st.session_state.get("tpl_editor_textarea", DEFAULT_TEMPLATE_JSON)
+    _meta_detected, _body_detected = extract_template_meta_and_body(_textarea_current)
     if _meta_detected:
         _meta_to_session(_meta_detected)
         st.session_state["tpl_editor_textarea"] = _body_detected
@@ -696,7 +626,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
         st.session_state.get("_icon_b64_prev") != _icon_b64_now
         or "tpl_meta_icon_svg_code" not in st.session_state
     ):
-        st.session_state["tpl_meta_icon_svg_code"] = _decode_icon_data(_icon_b64_now)
+        st.session_state["tpl_meta_icon_svg_code"] = decode_icon_data(_icon_b64_now)
         st.session_state["_icon_b64_prev"] = _icon_b64_now
 
     # ── Compute editor height from orientation ────────────────────────────
@@ -709,47 +639,64 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
         _canvas_w, _canvas_h = _portrait_w, _portrait_h
     _editor_height = int(round(_base_editor_width * (_canvas_h / _canvas_w)))
     _editor_height = max(300, min(1000, _editor_height))
-    _icon_expected_w, _icon_expected_h = _expected_icon_dimensions(_orientation)
-
-    # ── Header ─────────────────────────────────────────────────────────────
-    _header_name = str(st.session_state.get("tpl_meta_name") or "").strip()
-    st.subheader(
-        _header_name if _header_name else (_("New template") if is_new else selected),
-        divider="rainbow",
-    )
+    _icon_expected_w, _icon_expected_h = expected_icon_dimensions(_orientation)
 
     # ── Metadata form ──────────────────────────────────────────────────────
-    _mf1, _mf2, _mf3, _mf4, _mf5 = st.columns([3, 3, 2, 2, 1])
+    st.caption("UUID: " + _get_template_uuid_caption(selected_name, str(selected)))
+    _mf1, _mf2, _mf3 = st.columns(3)
+    _mf4, _mf5, _mf6, _mf7 = st.columns([2, 2, 1, 1])
     with _mf1:
         st.text_input(_("Name"), key="tpl_meta_name", placeholder="mytemplate")
     with _mf2:
         st.text_input(_("Author"), key="tpl_meta_author", placeholder="rm-manager")
     with _mf3:
-        st.selectbox(
-            _("Orientation"), options=["portrait", "landscape"], key="tpl_meta_orientation"
+        st.radio(
+            _("Orientation"),
+            options=["portrait", "landscape"],
+            key="tpl_meta_orientation",
+            horizontal=True,
         )
     with _mf4:
-        st.text_input(
+        _current_categories = normalise_string_list(st.session_state.get("tpl_meta_categories"))
+        st.multiselect(
             _("Categories"),
+            options=merge_multiselect_options(
+                get_all_categories(selected_name), _current_categories
+            ),
             key="tpl_meta_categories",
-            placeholder="Lines, Grids, …",
-            help=_("Comma-separated. Known values: Lines, Grids, Planners, Creative"),
+            accept_new_options=True,
+            placeholder=_("Select or add categories"),
+            help=_("Existing categories are suggested, but new ones are allowed."),
         )
     with _mf5:
-        st.text_input(
+        _current_labels = normalise_string_list(st.session_state.get("tpl_meta_labels"))
+        st.multiselect(
             _("Labels"),
+            options=merge_multiselect_options(get_all_labels(selected_name), _current_labels),
             key="tpl_meta_labels",
-            help=_("Comma-separated list of labels"),
+            accept_new_options=True,
+            placeholder=_("Select or add labels"),
+            help=_("Existing labels are suggested, but new ones are allowed."),
         )
+    with _mf6:
+        st.text_input(
+            _("Format version"),
+            key="tpl_meta_format_version",
+            placeholder="1",
+            help=_("Integer format version (usually 1)"),
+        )
+    with _mf7:
+        st.text_input(_("Template version"), key="tpl_meta_template_version", placeholder="1.0.0")
 
     with st.expander(_(":material/grid_on: Icon"), expanded=False):
         _ico1, _ico2 = st.columns([1, 3])
         with _ico1:
             _icon_svg_now = st.session_state.get("tpl_meta_icon_svg_code", "")
             if _icon_svg_now.strip():
-                _icon_valid_preview, _icon_err_msg = _validate_svg_size(
+                _icon_valid_preview, _icon_err_msg = validate_svg_size(
                     _icon_svg_now,
                     orientation=_orientation,
+                    translate=_,
                 )
             else:
                 _icon_valid_preview, _icon_err_msg = False, ""
@@ -775,11 +722,15 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             )
             if _svg_upload is not None:
                 _upl_svg = _svg_upload.read().decode("utf-8")
-                _upl_ok, _upl_err = _validate_svg_size(_upl_svg, orientation=_orientation)
+                _upl_ok, _upl_err = validate_svg_size(
+                    _upl_svg,
+                    orientation=_orientation,
+                    translate=_,
+                )
                 if not _upl_ok:
                     st.error(_upl_err, icon=":material/error:")
                 else:
-                    _new_b64 = _encode_svg_to_icon_data(_upl_svg)
+                    _new_b64 = encode_svg_to_icon_data(_upl_svg)
                     st.session_state["tpl_meta_icon_data"] = _new_b64
                     st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
                     st.session_state["_icon_b64_prev"] = _new_b64
@@ -806,28 +757,13 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             if _icon_err_msg:
                 st.warning(_icon_err_msg, icon=":material/warning:")
 
-    with st.expander(_("Advanced"), expanded=False):
-        _adv1, _adv2 = st.columns([2, 1])
-        with _adv1:
-            pass
-        with _adv2:
-            st.text_input(
-                _("Template version"), key="tpl_meta_template_version", placeholder="1.0.0"
-            )
-            st.text_input(
-                _("Format version"),
-                key="tpl_meta_format_version",
-                placeholder="1",
-                help=_("Integer format version (usually 1)"),
-            )
-
     # ── JSON editor + preview ──────────────────────────────────────────────
     col_edit, col_preview = st.columns(2, gap="medium")
 
     with col_edit:
         st.subheader(_("JSON"), divider="rainbow")
         if "tpl_editor_textarea" not in st.session_state:
-            st.session_state["tpl_editor_textarea"] = _DEFAULT_JSON
+            st.session_state["tpl_editor_textarea"] = DEFAULT_TEMPLATE_JSON
         st.html(
             "<style>"
             ".st-key-tpl_editor_textarea textarea {"
@@ -896,11 +832,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
                 os.path.splitext(str(selected))[0] if not is_new else "My Template"
             )
             filename_tpl = normalise_filename(_base, ext=".template")
-            cats = [
-                c.strip()
-                for c in st.session_state.get("tpl_meta_categories", "Perso").split(",")
-                if c.strip()
-            ] or ["Perso"]
+            cats = normalise_string_list(st.session_state.get("tpl_meta_categories")) or ["Perso"]
             save_json_template(selected_name, filename_tpl, _full_json_str)
             add_template_entry(
                 selected_name,

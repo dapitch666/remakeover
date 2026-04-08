@@ -5,12 +5,15 @@ with rmMethods template triplets in xochitl (`UUID.template`,
 `UUID.metadata`, `UUID.content`).
 """
 
+import base64
 import json
 import logging
 import os
+import re
 import shlex
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
@@ -18,6 +21,7 @@ from src.config import get_device_data_dir
 from src.constants import (
     CMD_RESTART_XOCHITL,
     DEFAULT_ICON_DATA,
+    META_FIELDS,
     REMOTE_MANIFEST_FILENAME,
     REMOTE_XOCHITL_DATA_DIR,
 )
@@ -36,6 +40,105 @@ from src.manifest_templates import (
 from src.ssh import run_ssh_cmd, upload_file_ssh
 
 logger = logging.getLogger(__name__)
+
+
+def decode_icon_data(b64: str) -> str:
+    """Decode base64-encoded SVG icon data into UTF-8 text."""
+    try:
+        return base64.b64decode(b64).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def encode_svg_to_icon_data(svg: str) -> str:
+    """Encode SVG text to the base64 iconData representation."""
+    return base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def expected_icon_dimensions(orientation: str = "portrait") -> tuple[int, int]:
+    """Return expected icon dimensions for template orientation."""
+    if orientation == "landscape":
+        return 200, 150
+    return 150, 200
+
+
+def validate_svg_size(
+    svg: str,
+    orientation: str = "portrait",
+    translate: Callable[[str], str] | None = None,
+) -> tuple[bool, str]:
+    """Validate SVG root width/height according to template orientation."""
+    _ = translate if callable(translate) else (lambda msg: msg)
+
+    svg_tag_m = re.search(r"<svg\b[^>]*>", svg, re.DOTALL)
+    if not svg_tag_m:
+        return False, _("No <svg> root element found.")
+    tag = svg_tag_m.group(0)
+    w_m = re.search(r'\bwidth=["\'](\d+(?:\.\d+)?)["\']', tag)
+    h_m = re.search(r'\bheight=["\'](\d+(?:\.\d+)?)["\']', tag)
+    if not w_m:
+        return False, _("SVG must have an explicit width attribute.")
+    if not h_m:
+        return False, _("SVG must have an explicit height attribute.")
+
+    w, h = int(float(w_m.group(1))), int(float(h_m.group(1)))
+    expected_w, expected_h = expected_icon_dimensions(orientation)
+    if w != expected_w or h != expected_h:
+        return False, _("SVG must be {ew}×{eh} px (got {w}×{h}).").format(
+            ew=expected_w,
+            eh=expected_h,
+            w=w,
+            h=h,
+        )
+    return True, ""
+
+
+def normalise_string_list(value: str | list | tuple | set | None) -> list[str]:
+    """Normalize arbitrary string/list-like values into unique non-empty strings."""
+    if isinstance(value, str):
+        raw_values = value.split(",")
+    elif isinstance(value, list | tuple | set):
+        raw_values = list(value)
+    elif value is None:
+        raw_values = []
+    else:
+        raw_values = [value]
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw_value in raw_values:
+        text = str(raw_value).strip()
+        if text and text not in seen:
+            seen.add(text)
+            result.append(text)
+    return result
+
+
+def merge_multiselect_options(*option_groups: list[str]) -> list[str]:
+    """Merge option groups while preserving order and uniqueness."""
+    merged: list[str] = []
+    seen: set[str] = set()
+    for group in option_groups:
+        for option in group:
+            text = str(option).strip()
+            if text and text not in seen:
+                seen.add(text)
+                merged.append(text)
+    return merged
+
+
+def extract_template_meta_and_body(json_str: str) -> tuple[dict[str, Any], str]:
+    """Split template JSON into metadata fields and drawable body payload."""
+    try:
+        data = json.loads(json_str)
+    except Exception:
+        return {}, json_str
+    if not isinstance(data, dict):
+        return {}, json_str
+
+    meta = {k: v for k, v in data.items() if k in META_FIELDS}
+    body = {k: v for k, v in data.items() if k not in META_FIELDS}
+    return meta, json.dumps(body, indent=4, ensure_ascii=True)
 
 
 def _epoch_ms() -> str:
