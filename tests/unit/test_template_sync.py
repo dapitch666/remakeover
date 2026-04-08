@@ -5,7 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.manifest_templates import get_manifest_entry, load_manifest
-from src.template_sync import sync_templates_to_tablet
+from src.template_sync import (
+    build_assumed_sync_status,
+    compute_sync_status_from_cached_remote,
+    refresh_cached_sync_status,
+    sync_templates_to_tablet,
+)
 from src.templates import add_template_entry, save_json_template
 
 
@@ -172,6 +177,103 @@ def test_sync_check_reports_manifest_diff(tmp_path):
     assert payload["remote_count"] == 2
     assert len(payload["to_upload"]) == 1
     assert len(payload["to_delete_remote"]) == 1
+    assert payload["to_upload_modified_names"] == ["Check"]
+    assert payload["to_upload_added_names"] == []
+    assert payload["to_delete_remote_names"] == ["remote_only"]
+    assert isinstance(payload.get("remote_manifest_snapshot"), dict)
+
+
+def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(tmp_path):
+    _set_data_dir(tmp_path)
+
+    save_json_template(
+        "D1",
+        "alpha.template",
+        json.dumps({"name": "Alpha", "categories": ["Perso"]}),
+    )
+    add_template_entry("D1", "alpha.template", ["Perso"], "\ue9fe")
+
+    remote_manifest = {
+        "last_modified": "2026-04-08T12:00:00Z",
+        "templates": {
+            "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff": {
+                "name": "Remote Ghost",
+                "created_at": "2026-04-08T11:00:00Z",
+                "sha256": "beef",
+            }
+        },
+    }
+
+    payload = compute_sync_status_from_cached_remote("D1", remote_manifest)
+
+    assert payload["local_count"] == 1
+    assert payload["remote_count"] == 1
+    assert payload["to_upload_added_names"] == ["Alpha"]
+    assert payload["to_upload_modified_names"] == []
+    assert payload["to_delete_remote_names"] == ["Remote Ghost"]
+    assert payload["remote_manifest_state"] == "cached_snapshot"
+
+
+def test_build_assumed_sync_status_uses_local_manifest_as_cached_snapshot(tmp_path):
+    _set_data_dir(tmp_path)
+
+    save_json_template(
+        "D1",
+        "local_only.template",
+        json.dumps({"name": "Local Only", "categories": ["Perso"]}),
+    )
+    add_template_entry("D1", "local_only.template", ["Perso"], "\ue9fe")
+
+    payload = build_assumed_sync_status("D1", "assumed_after_sync")
+
+    assert payload["local_count"] == 1
+    assert payload["remote_count"] == 1
+    assert payload["to_upload"] == []
+    assert payload["to_delete_remote"] == []
+    assert payload["remote_manifest_state"] == "assumed_after_sync"
+    assert isinstance(payload.get("remote_manifest_snapshot"), dict)
+
+
+def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
+    _set_data_dir(tmp_path)
+
+    save_json_template(
+        "D1",
+        "one.template",
+        json.dumps({"name": "One", "categories": ["Perso"]}),
+    )
+    add_template_entry("D1", "one.template", ["Perso"], "\ue9fe")
+
+    snapshot = {
+        "last_modified": "2026-04-08T12:00:00Z",
+        "templates": {
+            "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee": {
+                "name": "Remote Only",
+                "created_at": "2026-04-08T11:00:00Z",
+                "sha256": "beef",
+            }
+        },
+    }
+    cached = {
+        "local_count": 0,
+        "remote_count": 1,
+        "in_sync_count": 0,
+        "to_upload": [],
+        "to_delete_remote": [],
+        "remote_manifest_snapshot": snapshot,
+        "remote_manifest_state": "checked",
+        "checked_at": "2026-04-08T12:00:00Z",
+        "last_remote_check_at": "2026-04-08T12:00:00Z",
+    }
+
+    refreshed = refresh_cached_sync_status("D1", cached)
+
+    assert refreshed is not None
+    assert refreshed["local_count"] == 1
+    assert refreshed["remote_count"] == 1
+    assert refreshed["to_upload_added_names"] == ["One"]
+    assert refreshed["to_delete_remote_names"] == ["Remote Only"]
+    assert refreshed["last_remote_manifest_state"] == "checked"
 
 
 def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):

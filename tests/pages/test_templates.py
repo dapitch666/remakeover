@@ -127,6 +127,14 @@ def _save_btn(at):
     return next((b for b in at.button if b.label == "Save"), None)
 
 
+def _delete_btn(at):
+    return next((b for b in at.button if b.label == "Delete"), None)
+
+
+def _replace_file_btn(at):
+    return next((b for b in at.button if "Replace file" in b.label), None)
+
+
 def _categories_multiselect(at):
     return next((ms for ms in at.multiselect if ms.label == "Categories"), None)
 
@@ -171,6 +179,19 @@ class TestTemplatesPageInit:
         with (
             patch.dict(os.environ, env),
             patch("src.template_sync.fetch_and_init_templates", return_value=(True, "3 templates")),
+            patch(
+                "src.template_sync.check_sync_status",
+                return_value=(
+                    True,
+                    {
+                        "local_count": 0,
+                        "remote_count": 0,
+                        "in_sync_count": 0,
+                        "to_upload": [],
+                        "to_delete_remote": [],
+                    },
+                ),
+            ),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -275,6 +296,19 @@ class TestTemplatesSync:
             patch(
                 "src.template_sync.fetch_and_init_templates",
                 return_value=(True, "reset ok"),
+            ),
+            patch(
+                "src.template_sync.check_sync_status",
+                return_value=(
+                    True,
+                    {
+                        "local_count": 0,
+                        "remote_count": 0,
+                        "in_sync_count": 0,
+                        "to_upload": [],
+                        "to_delete_remote": [],
+                    },
+                ),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -558,21 +592,25 @@ class TestEditorPanelNew:
         assert save is not None
         assert not save.disabled
 
-    def test_delete_button_absent_for_new_template(self, tmp_path):
-        """Delete button is not shown for a new (unsaved) template."""
+    def test_delete_button_disabled_for_new_template(self, tmp_path):
+        """Delete button is disabled for a new (unsaved) template."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
         assert not at.exception
-        assert not any(b.label == "Delete" for b in at.button)
+        delete = _delete_btn(at)
+        assert delete is not None
+        assert delete.disabled
 
-    def test_replace_file_button_absent_for_new_template(self, tmp_path):
-        """'Replace file' button is not shown for a new template."""
+    def test_replace_file_button_disabled_for_new_template(self, tmp_path):
+        """'Replace file' button is disabled for a new template."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected": "__new__"})
         assert not at.exception
-        assert not any(b.label == "Replace file" for b in at.button)
+        replace_file = _replace_file_btn(at)
+        assert replace_file is not None
+        assert replace_file.disabled
 
     def test_invalid_json_shows_error_in_preview(self, tmp_path):
         """Invalid JSON in the editor body shows an error in the preview column."""
@@ -833,6 +871,34 @@ class TestEditorPanelExisting:
         )
         assert not at.exception
         assert any(b.label == "Replace file" for b in at.button)
+
+    def test_duplicate_button_opens_unsaved_copy_in_editor(self, tmp_path):
+        """Clicking Duplicate opens an unsaved copy and does not write a new file."""
+        cfg_path = with_device(tmp_path, "D1")
+        tdir = backup_dir(tmp_path, "D1") / "templates"
+        _make_template(tmp_path, "D1", "dup_me.template", _FULL_JSON)
+
+        before_count = len(list(tdir.glob("*.template")))
+
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected"] = "dup_me.template"
+            at.session_state["tpl_editor_textarea"] = _FULL_JSON
+            at.switch_page("pages/templates.py").run()
+
+            dup_btn = next((b for b in at.button if b.label == "Duplicate"), None)
+            assert dup_btn is not None
+            dup_btn.click().run()
+
+        assert not at.exception
+        assert at.session_state["tpl_unified_selected"] == "__new__"
+        assert len(list(tdir.glob("*.template"))) == before_count
+        name = _name_input(at)
+        assert name is not None
+        assert name.value == ""
 
     def test_template_with_icondata_decodes_into_svg_textarea(self, tmp_path):
         """A template whose iconData carries a custom SVG shows it decoded in the textarea."""

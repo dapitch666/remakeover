@@ -11,7 +11,12 @@ from typing import Any
 import src.ssh as _ssh
 import src.templates as _tpl
 from src.constants import CMD_RESTART_XOCHITL, REMOTE_MANIFEST_FILENAME, REMOTE_XOCHITL_DATA_DIR
-from src.manifest_templates import _default_manifest, _normalize_manifest, load_manifest
+from src.manifest_templates import (
+    _default_manifest,
+    _normalize_manifest,
+    load_manifest,
+    utc_now_iso,
+)
 
 
 def _remote_manifest_path() -> str:
@@ -73,6 +78,95 @@ def _compare_manifests(
     }
 
 
+def _manifest_entry_name(entry: Any, fallback: str) -> str:
+    if isinstance(entry, dict):
+        name = str(entry.get("name") or "").strip()
+        if name:
+            return name
+    return fallback
+
+
+def _enrich_diff_with_names(
+    diff: dict[str, Any],
+    local_manifest: dict[str, Any],
+    remote_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    local_templates = local_manifest.get("templates", {})
+    remote_templates = remote_manifest.get("templates", {})
+
+    to_upload_added_names: list[str] = []
+    to_upload_modified_names: list[str] = []
+    to_delete_remote_names: list[str] = []
+
+    for job in diff.get("to_upload", []):
+        template_uuid = str(job.get("uuid") or "").strip()
+        reason = str(job.get("reason") or "").strip()
+        if not template_uuid:
+            continue
+
+        name = _manifest_entry_name(local_templates.get(template_uuid), template_uuid)
+        if reason == "missing_remote":
+            to_upload_added_names.append(name)
+        else:
+            to_upload_modified_names.append(name)
+
+    for template_uuid in diff.get("to_delete_remote", []):
+        template_id = str(template_uuid).strip()
+        if not template_id:
+            continue
+        to_delete_remote_names.append(
+            _manifest_entry_name(remote_templates.get(template_id), template_id)
+        )
+
+    enriched = dict(diff)
+    enriched["to_upload_added_names"] = sorted(set(to_upload_added_names), key=str.casefold)
+    enriched["to_upload_modified_names"] = sorted(set(to_upload_modified_names), key=str.casefold)
+    enriched["to_delete_remote_names"] = sorted(set(to_delete_remote_names), key=str.casefold)
+    return enriched
+
+
+def compute_sync_status_from_cached_remote(
+    selected_name: str,
+    cached_remote_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Compute sync status locally from current manifest and a cached remote snapshot."""
+    local_manifest = load_manifest(selected_name)
+    remote_manifest = _normalize_manifest(cached_remote_manifest)
+
+    result = _compare_manifests(local_manifest, remote_manifest)
+    enriched = _enrich_diff_with_names(result, local_manifest, remote_manifest)
+    enriched["remote_manifest_state"] = "cached_snapshot"
+    enriched["remote_manifest_snapshot"] = remote_manifest
+    enriched["checked_at"] = utc_now_iso()
+    return enriched
+
+
+def build_assumed_sync_status(selected_name: str, remote_state: str) -> dict[str, Any]:
+    """Build a sync status payload assuming local state is the current remote snapshot."""
+    local_manifest = load_manifest(selected_name)
+    payload = compute_sync_status_from_cached_remote(selected_name, local_manifest)
+    payload["remote_manifest_state"] = remote_state
+    payload["last_remote_check_at"] = payload.get("checked_at")
+    return payload
+
+
+def refresh_cached_sync_status(
+    selected_name: str,
+    cached_sync_status: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Recompute a cached sync status from its stored remote snapshot."""
+    snapshot = cached_sync_status.get("remote_manifest_snapshot")
+    if not isinstance(snapshot, dict):
+        return None
+
+    refreshed = compute_sync_status_from_cached_remote(selected_name, snapshot)
+    refreshed["last_remote_check_at"] = cached_sync_status.get(
+        "last_remote_check_at"
+    ) or cached_sync_status.get("checked_at")
+    refreshed["last_remote_manifest_state"] = cached_sync_status.get("remote_manifest_state")
+    return refreshed
+
+
 def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[str, Any] | str]:
     """Compare local and remote manifests without mutating local state."""
     ip = device.ip
@@ -85,7 +179,10 @@ def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[s
         return False, status_msg
 
     result = _compare_manifests(local_manifest, remote_manifest)
+    result = _enrich_diff_with_names(result, local_manifest, remote_manifest)
     result["remote_manifest_state"] = status_msg
+    result["remote_manifest_snapshot"] = remote_manifest
+    result["checked_at"] = utc_now_iso()
 
     add_log(
         f"Sync check on '{selected_name}' "

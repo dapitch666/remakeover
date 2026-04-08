@@ -1,12 +1,15 @@
 """Shared rendering helpers used by multiple UI modules."""
 
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import streamlit as st
+from babel.dates import format_date, format_time
 
 import src.ssh as _ssh
 from src.constants import CMD_RESTART_XOCHITL, SUSPENDED_PNG_PATH
-from src.i18n import _
+from src.i18n import _, get_language
 
 _DEFERRED_TOAST_KEY = "_deferred_toast"
 
@@ -135,3 +138,23 @@ def send_suspended_png(device, img_data: bytes, img_name: str, selected_name: st
         return True
     add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
     return False
+
+
+def format_datetime_for_ui(
+    iso_string: str | None,
+) -> tuple[str, str]:
+    """Format an ISO timestamp for UI display using locale-aware date and time."""
+    if not iso_string:
+        return "Unknown", ""
+
+    try:
+        dt_utc = datetime.fromisoformat(iso_string.replace("Z", "+00:00"))
+        dt_local = dt_utc.astimezone(ZoneInfo(st.context.timezone or "UTC"))
+        ui_locale = (get_language() or st.context.locale or "en").replace("-", "_")
+
+        return format_date(dt_local.date(), format="medium", locale=ui_locale), format_time(
+            dt_local.time(), format="HH:mm", locale=ui_locale
+        )
+
+    except Exception:
+        return iso_string, ""

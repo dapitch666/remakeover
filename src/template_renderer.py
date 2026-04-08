@@ -26,8 +26,6 @@ from typing import Any
 
 _PORTRAIT_W: int = 1404
 _PORTRAIT_H: int = 1872
-_LANDSCAPE_W: int = 1872
-_LANDSCAPE_H: int = 1404
 
 # Maximum instances per repeat direction (safety cap for "infinite")
 _MAX_REPEAT: int = 60
