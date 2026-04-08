@@ -154,7 +154,7 @@ def fetch_and_init_templates(
         if metadata.get("type") != "TemplateType":
             continue
 
-        normalized_payload = _tpl.ensure_template_payload_for_rmethods(payload_json)
+        normalized_payload = _tpl.ensure_template_payload(payload_json)
         visible_name = str(
             metadata.get("visibleName") or normalized_payload.get("name") or remote_uuid
         )
@@ -230,8 +230,8 @@ def sync_templates_to_tablet(
             add_log(f"Sync templates — invalid template JSON '{local_filename}': {exc}")
             return False
 
-        payload = _tpl.ensure_template_payload_for_rmethods(payload)
-        for ext, blob in _tpl.build_rmethods_triplet_payloads(payload, visible_name).items():
+        payload = _tpl.ensure_template_payload(payload)
+        for ext, blob in _tpl.build_triplet_payloads(payload, visible_name).items():
             ok_upload, upload_msg = _ssh.upload_file_ssh(
                 ip,
                 pw,

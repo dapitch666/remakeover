@@ -30,9 +30,9 @@ def _uuid_for_filename(device_name: str, filename: str) -> str | None:
     return None
 
 
-def test_ensure_template_payload_for_rmethods_adds_required_fields():
+def test_ensure_template_payload_adds_required_fields():
     payload = {"name": "My template", "categories": ["Work"]}
-    normalized = tpl.ensure_template_payload_for_rmethods(payload)
+    normalized = tpl.ensure_template_payload(payload)
 
     assert normalized["name"] == "My template"
     assert normalized["categories"] == ["Work"]
@@ -61,7 +61,7 @@ def test_ensure_remote_template_dirs_creates_xochitl_dir(tmp_path):
     assert "mkdir -p" in cmd
 
 
-def test_fetch_and_init_templates_imports_remote_rmethods_templates(tmp_path):
+def test_fetch_and_init_templates_imports_remote_templates(tmp_path):
     _set_data_dir(tmp_path)
 
     remote_uuid = "11111111-2222-4333-8444-555555555555"

@@ -145,7 +145,7 @@ def _epoch_ms() -> str:
     return str(int(time.time() * 1000))
 
 
-def ensure_template_payload_for_rmethods(payload: dict[str, Any]) -> dict[str, Any]:
+def ensure_template_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a normalized payload with required rmMethods keys.
 
     - `labels` is always present (empty list by default)
@@ -164,7 +164,7 @@ def ensure_template_payload_for_rmethods(payload: dict[str, Any]) -> dict[str, A
     return normalized
 
 
-def build_rmethods_metadata_payload(visible_name: str) -> dict[str, Any]:
+def build_metadata_payload(visible_name: str) -> dict[str, Any]:
     now = _epoch_ms()
     return {
         "createdTime": now,
@@ -178,16 +178,16 @@ def build_rmethods_metadata_payload(visible_name: str) -> dict[str, Any]:
     }
 
 
-def build_rmethods_triplet_payloads(payload: dict[str, Any], visible_name: str) -> dict[str, bytes]:
+def build_triplet_payloads(payload: dict[str, Any], visible_name: str) -> dict[str, bytes]:
     """Return encoded rmMethods triplet payloads for one template.
 
     Returned keys are: `template`, `metadata`, `content`.
     """
-    normalized = ensure_template_payload_for_rmethods(payload)
+    normalized = ensure_template_payload(payload)
     return {
         "template": json.dumps(normalized, indent=2, ensure_ascii=True).encode("utf-8"),
         "metadata": json.dumps(
-            build_rmethods_metadata_payload(visible_name),
+            build_metadata_payload(visible_name),
             indent=2,
             ensure_ascii=True,
         ).encode("utf-8"),
@@ -279,7 +279,7 @@ def rename_device_template(
     if not isinstance(payload, dict):
         return False
 
-    normalized_payload = ensure_template_payload_for_rmethods(payload)
+    normalized_payload = ensure_template_payload(payload)
     normalized_payload["name"] = display_name
     _write_json_file(paths["template"], normalized_payload)
     sha256 = compute_template_sha256(normalized_payload)
@@ -363,7 +363,7 @@ def _ensure_local_sidecars(
     metadata_existing = _read_json_file(paths["metadata"]) or {}
     created_time = str(metadata_existing.get("createdTime") or _epoch_ms())
     metadata_payload = dict(metadata_existing)
-    metadata_payload.update(build_rmethods_metadata_payload(visible_name))
+    metadata_payload.update(build_metadata_payload(visible_name))
     metadata_payload["createdTime"] = created_time
     _write_json_file(paths["metadata"], metadata_payload)
 
@@ -441,7 +441,7 @@ def refresh_local_manifest(device_name: str) -> None:
         if not isinstance(payload, dict):
             continue
 
-        normalized_payload = ensure_template_payload_for_rmethods(payload)
+        normalized_payload = ensure_template_payload(payload)
 
         metadata = _read_json_file(paths["metadata"]) or {}
         existing_entry = existing_templates.get(template_uuid)
@@ -579,7 +579,7 @@ def add_template_entry(
     if not isinstance(payload, dict):
         return
 
-    normalized_payload = ensure_template_payload_for_rmethods(payload)
+    normalized_payload = ensure_template_payload(payload)
     payload_name = str(normalized_payload.get("name") or "").strip()
     desired_name = payload_name if (previous_filename and payload_name) else stem
     if _is_uuid_stem(desired_name):
@@ -773,7 +773,7 @@ def upload_template_to_tablet(
         payload = json.loads(content)
     except Exception as e:
         return False, f"invalid_template_json: {e}"
-    payload = ensure_template_payload_for_rmethods(payload)
+    payload = ensure_template_payload(payload)
 
     add_template_entry(device_name, filename, [])
     template_uuid = _resolve_template_uuid(device_name, filename)
@@ -787,7 +787,7 @@ def upload_template_to_tablet(
 
     manifest_name = str(entry.get("name") or "") if entry else ""
     visible_name = str(manifest_name or payload.get("name") or _stem(filename))
-    triplet_payloads = build_rmethods_triplet_payloads(payload, visible_name)
+    triplet_payloads = build_triplet_payloads(payload, visible_name)
 
     for ext, blob in triplet_payloads.items():
         ok, msg = upload_file_ssh(
