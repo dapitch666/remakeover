@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 from contextlib import suppress
 from typing import Any
 
@@ -243,7 +244,10 @@ def sync_templates_to_tablet(
                 )
                 return False
         thumbnails_dir = f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.thumbnails"
-        _ssh.run_ssh_cmd(ip, pw, ["rm", "-rf", thumbnails_dir])
+        cleanup_cmd = f"rm -rf {shlex.quote(thumbnails_dir)}"
+        _, cleanup_err = _ssh.run_ssh_cmd(ip, pw, [cleanup_cmd])
+        if cleanup_err.strip():
+            add_log(f"Sync templates — cleanup thumbnails '{template_uuid}': {cleanup_err.strip()}")
         uploaded += 1
 
     deleted = 0

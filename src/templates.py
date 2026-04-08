@@ -650,7 +650,9 @@ def ensure_remote_template_dirs(ip: str, password: str) -> tuple[bool, str]:
     try:
         cmd = f"mkdir -p {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}"
         out, err = run_ssh_cmd(ip, password, [cmd])
-        return True, out or err
+        if err.strip():
+            return False, err.strip()
+        return True, out
     except Exception as e:
         logger.error("ensure_remote_template_dirs failed: %s", e)
         return False, str(e)

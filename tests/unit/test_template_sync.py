@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -241,3 +242,86 @@ def test_sync_does_not_refresh_local_manifest(tmp_path):
 
     assert ok is True
     assert any("Templates synced" in msg for msg in logs)
+
+
+def test_sync_thumbnail_cleanup_uses_single_quoted_rm_command(tmp_path):
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "quote test.template"
+    save_json_template("D1", filename, json.dumps({"name": "Quote Test", "categories": ["Perso"]}))
+    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+
+    run_calls = []
+
+    def _download(_ip, _pw, remote_path):
+        if remote_path.endswith("/.manifest.json"):
+            return None, "No such file"
+        return None, "missing"
+
+    def _run_cmd(_ip, _pw, commands):
+        run_calls.append(commands)
+        return "", ""
+
+    with (
+        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+        patch("src.ssh.run_ssh_cmd", side_effect=_run_cmd),
+        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+    ):
+        ok = sync_templates_to_tablet("D1", _device(), add_log)
+
+    assert ok is True
+    cleanup_calls = [
+        call
+        for call in run_calls
+        if len(call) == 1 and call[0].startswith("rm -rf ") and ".thumbnails" in call[0]
+    ]
+    assert cleanup_calls
+    cleanup_cmd = cleanup_calls[0][0]
+    assert " && " not in cleanup_cmd
+    template_uuid = _uuid_for_filename("D1", filename)
+    assert template_uuid is not None
+    expected_dir = f"/home/root/.local/share/remarkable/xochitl/{template_uuid}.thumbnails"
+    assert cleanup_cmd == (f"rm -rf {shlex.quote(expected_dir)}")
+
+
+def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "cleanup_warn.template"
+    save_json_template(
+        "D1",
+        filename,
+        json.dumps({"name": "Cleanup Warn", "categories": ["Perso"]}),
+    )
+    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+
+    def _download(_ip, _pw, remote_path):
+        if remote_path.endswith("/.manifest.json"):
+            return None, "No such file"
+        return None, "missing"
+
+    def _run_cmd(_ip, _pw, commands):
+        if (
+            len(commands) == 1
+            and commands[0].startswith("rm -rf ")
+            and ".thumbnails" in commands[0]
+        ):
+            return "", "permission denied"
+        return "", ""
+
+    with (
+        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+        patch("src.ssh.run_ssh_cmd", side_effect=_run_cmd),
+        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+    ):
+        ok = sync_templates_to_tablet("D1", _device(), add_log)
+
+    assert ok is True
+    assert any("cleanup thumbnails" in msg for msg in logs)
+    assert any("permission denied" in msg for msg in logs)
