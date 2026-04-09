@@ -31,7 +31,6 @@ from src.templates import (
     delete_device_template,
     encode_svg_to_icon_data,
     expected_icon_dimensions,
-    extract_categories_from_template_content,
     extract_template_meta_and_body,
     get_all_categories,
     get_all_labels,
@@ -45,7 +44,6 @@ from src.templates import (
     remove_template_entry,
     save_device_template,
     save_json_template,
-    upload_template_to_tablet,
     validate_svg_size,
 )
 from src.ui_common import (
@@ -295,7 +293,7 @@ def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) 
 # ── Dialogs ───────────────────────────────────────────────────────────────────
 
 
-@st.dialog(_("Delete template"))
+@st.dialog(_("Delete template"), dismissible=False)
 def _show_delete_dialog(tpl_name: str, selected_name: str, add_log) -> None:
     entry = get_template_entry(selected_name, tpl_name)
     ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
@@ -322,8 +320,8 @@ def _show_delete_dialog(tpl_name: str, selected_name: str, add_log) -> None:
             st.rerun()
 
 
-@st.dialog(_("Replace template file"))
-def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> None:
+@st.dialog(_("Replace template file"), dismissible=False)
+def _show_reload_dialog(tpl_name: str, selected_name: str, add_log) -> None:
     entry = get_template_entry(selected_name, tpl_name)
     ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
     reload_file = st.file_uploader(
@@ -344,23 +342,9 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             content = reload_file.read()
             save_device_template(selected_name, content, tpl_name)
             add_log(f"Template '{ui_name}' reloaded locally for '{selected_name}'")
-            ok, msg = upload_template_to_tablet(
-                device.ip, device.password or "", selected_name, tpl_name
+            deferred_toast(
+                _("'{name}' updated locally").format(name=ui_name), ":material/task_alt:"
             )
-            if ok:
-                _refresh_sync_snapshot_after_remote_change(
-                    selected_name,
-                    device,
-                    add_log,
-                    "assumed_after_single_upload",
-                )
-                deferred_toast(
-                    _("{name} updated on the tablet").format(name=ui_name), ":material/task_alt:"
-                )
-                add_log(f"Template {ui_name} sent to '{selected_name}'")
-            else:
-                add_log(f"Failed to send {ui_name} to '{selected_name}': {msg}")
-                deferred_toast(_("Error sending {name}").format(name=ui_name), ":material/error:")
             _get_template_icon_svg.clear()
             _load_template_into_editor(selected_name, tpl_name)
             st.rerun()
@@ -369,12 +353,9 @@ def _show_reload_dialog(tpl_name: str, selected_name: str, device, add_log) -> N
             st.rerun()
 
 
-@st.dialog(_("Import templates"))
+@st.dialog(_("Import templates"), dismissible=False)
 def _show_import_dialog(selected_name: str, add_log) -> None:
     gen = st.session_state.get(f"tpl_upload_gen_{selected_name}", 0)
-    cats_key = f"tpl_new_cats_{selected_name}_{gen}"
-    extra_cats_key = f"tpl_new_extra_cats_{selected_name}_{gen}"
-    prefill_sig_key = f"tpl_upload_prefill_sig_{selected_name}_{gen}"
 
     uploaded_files = st.file_uploader(
         _("Drag one or more `.template` files here"),
@@ -382,74 +363,25 @@ def _show_import_dialog(selected_name: str, add_log) -> None:
         accept_multiple_files=True,
         key=f"tpl_uploader_{selected_name}_{gen}",
     )
-    if not uploaded_files:
-        return
-
     uploaded_payloads = []
-    template_categories: list[list[str]] = []
-    only_template_files = True
     for uf in uploaded_files:
         content = uf.getvalue() if hasattr(uf, "getvalue") else uf.read()
         uploaded_payloads.append((uf, content))
-        if uf.name.lower().endswith(".template"):
-            cats = extract_categories_from_template_content(content)
-            if cats is None:
-                only_template_files = False
-                break
-            template_categories.append(sorted(set(cats)))
-        else:
-            only_template_files = False
-
-    all_cats = get_all_categories(selected_name)
-    upload_signature = tuple((uf.name, len(content)) for uf, content in uploaded_payloads)
-
-    common_categories = None
-    if only_template_files and template_categories:
-        first = template_categories[0]
-        if all(c == first for c in template_categories[1:]):
-            common_categories = first
-
-    if st.session_state.get(prefill_sig_key) != upload_signature:
-        if common_categories is not None:
-            st.session_state[cats_key] = [c for c in common_categories if c in all_cats]
-            st.session_state[extra_cats_key] = ", ".join(
-                c for c in common_categories if c not in all_cats
-            )
-        else:
-            st.session_state[cats_key] = []
-            st.session_state[extra_cats_key] = ""
-        st.session_state[prefill_sig_key] = upload_signature
-
-    col_existing, col_new = st.columns(2, vertical_alignment="bottom")
-    with col_existing:
-        sel_cats = st.multiselect(_("Existing categories"), options=all_cats, key=cats_key)
-    with col_new:
-        extra_cats_input = st.text_input(
-            _("New categories (comma-separated)"),
-            key=extra_cats_key,
-            placeholder="Color, Perso, ...",
-        )
 
     col_save, col_cancel = st.columns(2)
     with col_save:
         if st.button(
-            _("Save ({count} file(s))").format(count=len(uploaded_files)),
+            _("Save"),
             key=f"ui_tpl_save_{selected_name}_{gen}",
-            icon=":material/save:",
             type="primary",
+            disabled=not uploaded_payloads,
             width="stretch",
         ):
-            extra_list = (
-                [c.strip() for c in extra_cats_input.split(",") if c.strip()]
-                if extra_cats_input
-                else []
-            )
-            categories = list(sel_cats) + extra_list
             saved = []
             for uf, content in uploaded_payloads:
                 filename = normalise_filename(uf.name, ext=".template")
                 save_device_template(selected_name, content, filename)
-                add_template_entry(selected_name, filename, categories)
+                add_template_entry(selected_name, filename, [])
                 add_log(f"{filename} template saved for '{selected_name}'")
                 saved.append(filename)
             if len(saved) == 1:
@@ -534,6 +466,9 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 _("Check sync"),
                 key=f"tpl_check_status_{selected_name}",
                 icon=":material/compare:",
+                help=_(
+                    "Connect to the tablet and check if templates are in sync (does not change anything)"
+                ),
                 width="stretch",
             ):
                 with st.spinner(_("Checking…")):
@@ -542,14 +477,17 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                     if isinstance(payload, dict):
                         payload["last_remote_check_at"] = payload.get("checked_at")
                     st.session_state[_sync_status_key(selected_name)] = payload
-                    deferred_toast(_("Sync status checked"), ":material/task_alt:")
+                    st.toast(_("Sync status checked"), icon=":material/task_alt:")
                 else:
-                    deferred_toast(_("Sync check error"), ":material/error:")
+                    st.toast(_("Sync check error"), ":material/error:")
 
             if st.button(
                 _("Sync now"),
                 key=f"tpl_check_sync_{selected_name}",
                 icon=":material/sync:",
+                help=_(
+                    "Sync templates between this manager and the tablet (uploads new/modified templates, deletes remote-only templates)"
+                ),
                 width="stretch",
             ):
                 with st.spinner(_("Syncing…")):
@@ -562,6 +500,10 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                         "assumed_after_sync",
                     )
                     deferred_toast(_("Templates synced"), ":material/task_alt:")
+                    _current = st.session_state.get("tpl_unified_selected")
+                    if _current and _current != _SENTINEL_NEW:
+                        _load_template_into_editor(selected_name, str(_current))
+                    st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
                     st.rerun()
                 deferred_toast(_("Sync error"), ":material/error:")
 
@@ -569,6 +511,9 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 _("Reset & reinitialize"),
                 key=f"tpl_reset_reinit_{selected_name}",
                 icon=":material/settings_backup_restore:",
+                help=_(
+                    "Delete all local templates and re-fetch from the tablet (use if you think the local state is corrupted)"
+                ),
                 width="stretch",
             ):
                 with st.spinner(_("Syncing…")):
@@ -583,6 +528,16 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                         "assumed_after_reinitialize",
                     )
                     deferred_toast(_("Templates synced"), ":material/task_alt:")
+                    _current = st.session_state.get("tpl_unified_selected")
+                    if (
+                        _current
+                        and _current != _SENTINEL_NEW
+                        and _current in list_device_templates(selected_name)
+                    ):
+                        _load_template_into_editor(selected_name, str(_current))
+                    else:
+                        st.session_state["tpl_unified_selected"] = None
+                        st.session_state["tpl_unified_loaded"] = None
                 else:
                     deferred_toast(_("Sync error"), ":material/error:")
                 st.rerun()
@@ -656,28 +611,25 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
 
     # Build filtered template list
     stored_templates = list_device_templates(selected_name)
+    entries: dict[str, dict] = {
+        t: (get_template_entry(selected_name, t) or {}) for t in stored_templates
+    }
 
     def _matches(tpl_name: str) -> bool:
-        entry = get_template_entry(selected_name, tpl_name)
-        name = (
-            str(entry.get("name") or os.path.splitext(tpl_name)[0])
-            if entry
-            else os.path.splitext(tpl_name)[0]
-        )
+        entry = entries[tpl_name]
+        name = str(entry.get("name") or os.path.splitext(tpl_name)[0])
         if filter_text and filter_text.lower() not in name.lower():
             return False
-        if filter_cats:
-            tpl_cats = entry.get("categories", []) if entry else []
-            if not any(c in tpl_cats for c in filter_cats):
-                return False
-        if filter_labels:
-            tpl_labels = entry.get("labels", []) if entry else []
-            if not any(lbl in tpl_labels for lbl in filter_labels):
-                return False
-        return True
+        if filter_cats and not any(c in entry.get("categories", []) for c in filter_cats):
+            return False
+        return not filter_labels or any(lbl in entry.get("labels", []) for lbl in filter_labels)
 
-    filtered = [t for t in stored_templates if _matches(t)]
+    filtered = sorted(
+        [t for t in stored_templates if _matches(t)],
+        key=lambda t: str(entries[t].get("name") or "").lower(),
+    )
     selected = st.session_state.get("tpl_unified_selected")
+    list_gen = st.session_state.get("tpl_list_gen", 0)
 
     if not stored_templates:
         st.caption(_("No templates yet. Click 'New' or 'Import'."))
@@ -713,7 +665,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
             with name_col:
                 if st.button(
                     display_name,
-                    key=f"tpl_list_btn_{tpl_name}",
+                    key=f"tpl_list_btn_{tpl_name}_{list_gen}",
                     type="primary" if is_selected else "tertiary",
                     width="stretch",
                 ):
@@ -793,6 +745,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
     _icon_expected_w, _icon_expected_h = expected_icon_dimensions(_orientation)
 
     # ── Metadata form ──────────────────────────────────────────────────────
+    st.subheader(_("Metadata"), divider="rainbow")
     st.caption("UUID: " + _get_template_uuid_caption(selected_name, str(selected)))
     _mf1, _mf2, _mf3 = st.columns(3)
     _mf4, _mf5, _mf6, _mf7 = st.columns([2, 2, 1, 1])
@@ -817,7 +770,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             key="tpl_meta_categories",
             accept_new_options=True,
             placeholder=_("Select or add categories"),
-            help=_("Existing categories are suggested, but new ones are allowed."),
+            help=_("Categories are used on the tablet to filter templates."),
         )
     with _mf5:
         _current_labels = normalise_string_list(st.session_state.get("tpl_meta_labels"))
@@ -827,7 +780,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             key="tpl_meta_labels",
             accept_new_options=True,
             placeholder=_("Select or add labels"),
-            help=_("Existing labels are suggested, but new ones are allowed."),
+            help=_("Labels are only used here to filter templates."),
         )
     with _mf6:
         st.text_input(
@@ -1002,19 +955,24 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             st.rerun()
 
     with col_dl:
-        if _json_valid and _name_is_provided:
-            _dl_name = normalise_filename(
+        enabled = _json_valid and _name_is_provided
+        _dl_name = (
+            normalise_filename(
                 str(st.session_state.get("tpl_meta_name", "")).strip(), ext=".template"
             )
-            st.download_button(
-                _("Download"),
-                data=_full_json_str.encode("utf-8"),
-                file_name=_dl_name,
-                mime="application/json",
-                icon=":material/download:",
-                width="stretch",
-                help=_("Download the .template file to your computer"),
-            )
+            if enabled
+            else "template.template"
+        )
+        st.download_button(
+            _("Export"),
+            data=_full_json_str.encode("utf-8"),
+            file_name=_dl_name,
+            mime="application/json",
+            icon=":material/download:",
+            disabled=not enabled,
+            width="stretch",
+            help=_("Download the .template file to your computer"),
+        )
 
     with col_duplicate:
         if st.button(
@@ -1035,7 +993,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             width="stretch",
             help=_("Replace this template with a new .template file"),
         ):
-            _show_reload_dialog(selected, selected_name, device, add_log)
+            _show_reload_dialog(selected, selected_name, add_log)
     with col_delete:
         if st.button(
             _("Delete"),

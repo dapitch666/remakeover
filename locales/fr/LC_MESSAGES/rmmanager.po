@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  rm-manager\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-08 18:04+0200\n"
+"POT-Creation-Date: 2026-04-09 11:20+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -87,7 +87,7 @@ msgstr ""
 " À propos > Copyrights et licences, puis faites défiler la colonne de "
 "droite si nécessaire."
 
-#: pages/configuration.py:74 pages/templates.py:337 pages/templates.py:975
+#: pages/configuration.py:74 pages/templates.py:337 pages/templates.py:985
 #: tests/unit/test_i18n.py:61 tests/unit/test_i18n.py:69
 msgid "Save"
 msgstr "Sauvegarder"
@@ -119,7 +119,7 @@ msgstr "'{ip}' n'est pas une adresse IP valide (ex. : 192.168.1.100)."
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: pages/configuration.py:120 pages/templates.py:309 pages/templates.py:1042
+#: pages/configuration.py:120 pages/templates.py:309 pages/templates.py:1057
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -480,7 +480,7 @@ msgstr "Nouvelles catégories (séparées par virgule)"
 msgid "Save ({count} file(s))"
 msgstr "Sauvegarder ({count} fichier(s))"
 
-#: pages/templates.py:457 pages/templates.py:997
+#: pages/templates.py:457 pages/templates.py:1007
 #, python-brace-format
 msgid "Template {name} saved"
 msgstr "Template {name} sauvegardé"
@@ -500,11 +500,11 @@ msgstr "Importer"
 
 #: pages/templates.py:495
 msgid "Import .template files from your computer"
-msgstr "Importer un fichier template"
+msgstr "Importer un ou plusieurs fichier template"
 
 #: pages/templates.py:500
 msgid ":material/sync: Sync"
-msgstr ":material/sync: Synchroniser"
+msgstr ":material/sync: Synchronisation"
 
 #: pages/templates.py:503
 msgid "Not initialized yet."
@@ -514,15 +514,15 @@ msgstr "Pas encore initialisé."
 msgid "Initialize from tablet"
 msgstr "Initialiser depuis la tablette"
 
-#: pages/templates.py:511 pages/templates.py:1093
+#: pages/templates.py:511 pages/templates.py:1108
 msgid "Importing…"
 msgstr "Importation en cours…"
 
-#: pages/templates.py:523 pages/templates.py:1108
+#: pages/templates.py:523 pages/templates.py:1123
 msgid "Templates imported successfully"
 msgstr "Templates importés avec succès"
 
-#: pages/templates.py:526 pages/templates.py:1111
+#: pages/templates.py:526 pages/templates.py:1126
 #, python-brace-format
 msgid "Error: {msg}"
 msgstr "Erreur : {msg}"
@@ -536,39 +536,57 @@ msgstr "Modifié le {date} à {time}"
 msgid "Check sync"
 msgstr "Vérifier la synchronisation"
 
-#: pages/templates.py:539
+#: pages/templates.py:537
+msgid ""
+"Connect to the tablet and check if templates are in sync (does not change"
+" anything)"
+msgstr "Se connecte à la tablette et vérifie si les templates sont synchronisés (ne change rien)"
+
+#: pages/templates.py:540
 msgid "Checking…"
 msgstr "Vérification en cours…"
 
-#: pages/templates.py:545
+#: pages/templates.py:546
 msgid "Sync status checked"
 msgstr "État de synchronisation vérifié"
 
-#: pages/templates.py:547
+#: pages/templates.py:548
 msgid "Sync check error"
 msgstr "Erreur lors de la synchronisation"
 
-#: pages/templates.py:550
+#: pages/templates.py:551
 msgid "Sync now"
 msgstr "Synchroniser maintenant"
 
-#: pages/templates.py:555 pages/templates.py:574
+#: pages/templates.py:554
+msgid ""
+"Sync templates between this manager and the tablet (uploads new/modified "
+"templates, deletes remote-only templates)"
+msgstr "Synchronise les templates avec la tablette (envoie les templates nouveaux ou modifiés, supprime les templates présents uniquement sur la tablette)"
+
+#: pages/templates.py:557 pages/templates.py:581
 msgid "Syncing…"
 msgstr "Synchronisation en cours..."
 
-#: pages/templates.py:564 pages/templates.py:585
+#: pages/templates.py:566 pages/templates.py:592
 msgid "Templates synced"
 msgstr "Templates synchronisés"
 
-#: pages/templates.py:566 pages/templates.py:587
+#: pages/templates.py:572 pages/templates.py:600
 msgid "Sync error"
 msgstr "Erreur lors de la synchronisation"
 
-#: pages/templates.py:569
+#: pages/templates.py:575
 msgid "Reset & reinitialize"
 msgstr "Réinitialiser"
 
-#: pages/templates.py:594
+#: pages/templates.py:578
+msgid ""
+"Delete all local templates and re-fetch from the tablet (use if you think"
+" the local state is corrupted)"
+msgstr "Supprime tous les templates locaux et récupère ceux de la tablette (à n'utiliser que si vous pensez que l'état local est corrompu)"
+
+#: pages/templates.py:606
 #, python-brace-format
 msgid ""
 "Local templates: {local_count}  \n"
@@ -584,150 +602,150 @@ msgstr ""
 "                                  À supprimer: {to_delete_count}\n"
 "                                  "
 
-#: pages/templates.py:609
+#: pages/templates.py:621
 #, python-brace-format
 msgid "Last remote check on {date} at {time}"
 msgstr "Dernière vérification le {date} à {time}"
 
-#: pages/templates.py:612
+#: pages/templates.py:624
 msgid "Added locally (upload)"
 msgstr "Ajoutés localement (à envoyer)"
 
-#: pages/templates.py:614 pages/templates.py:619 pages/templates.py:624
+#: pages/templates.py:626 pages/templates.py:631 pages/templates.py:636
 msgid "none"
 msgstr "aucun"
 
-#: pages/templates.py:617
+#: pages/templates.py:629
 msgid "Modified locally (upload)"
 msgstr "Modifiés localement (à envoyer)"
 
-#: pages/templates.py:622
+#: pages/templates.py:634
 msgid "Remote-only (delete on sync)"
 msgstr "Tablette uniquement (à supprimer)"
 
-#: pages/templates.py:630
+#: pages/templates.py:642
 msgid ":material/filter_list: Filters"
 msgstr ":material/filter_list: Filtres"
 
-#: pages/templates.py:632
+#: pages/templates.py:644
 msgid "Search"
 msgstr "Chercher"
 
-#: pages/templates.py:634
+#: pages/templates.py:646
 msgid "Filter by name…"
 msgstr "Filtrer par nom…"
 
-#: pages/templates.py:641 pages/templates.py:814
+#: pages/templates.py:653 pages/templates.py:824
 msgid "Categories"
 msgstr "Catégories"
 
-#: pages/templates.py:645
+#: pages/templates.py:657
 msgid "Filter by category…"
 msgstr "Filtrer par catégorie…"
 
-#: pages/templates.py:651 pages/templates.py:826
+#: pages/templates.py:663 pages/templates.py:836
 msgid "Labels"
 msgstr "Labels"
 
-#: pages/templates.py:655
+#: pages/templates.py:667
 msgid "Filter by label…"
 msgstr "Filtrer par étiquette…"
 
-#: pages/templates.py:684
+#: pages/templates.py:693
 msgid "No templates yet. Click 'New' or 'Import'."
 msgstr "Aucun template pour l'instant. Cliquez sur \"Nouveau\" ou \"Importer\"."
 
-#: pages/templates.py:688
+#: pages/templates.py:697
 msgid "No templates match the filter."
 msgstr "Aucun template ne correspond aux filtres."
 
-#: pages/templates.py:691
+#: pages/templates.py:700
 #, python-brace-format
 msgid "{n} template(s)"
 msgstr "{n} template(s)"
 
-#: pages/templates.py:735
+#: pages/templates.py:744
 msgid "Select a template from the list, or click 'New' to create one."
 msgstr ""
 "Sélectionnez un template dans la liste ou cliquez sur \"Nouveau\" pour en"
 " créer un."
 
-#: pages/templates.py:801
+#: pages/templates.py:806
+msgid "Metadata"
+msgstr "Métadonnées"
+
+#: pages/templates.py:811
 msgid "Name"
 msgstr "Nom"
 
-#: pages/templates.py:803
+#: pages/templates.py:813
 msgid "Author"
 msgstr "Auteur"
 
-#: pages/templates.py:806
+#: pages/templates.py:816
 msgid "Orientation"
 msgstr "Orientation"
 
-#: pages/templates.py:820
+#: pages/templates.py:830
 msgid "Select or add categories"
 msgstr "Modifier les catégories"
 
-#: pages/templates.py:821
-msgid "Existing categories are suggested, but new ones are allowed."
-msgstr ""
-"Les catégories existantes sont proposées, mais vous pouvez en ajouter de "
-"nouvelles."
+#: pages/templates.py:831
+msgid "Categories are used on the tablet to filter templates."
+msgstr "Les catégories sont utilisées sur la tablette pour filtrer les templates."
 
-#: pages/templates.py:830
+#: pages/templates.py:840
 msgid "Select or add labels"
 msgstr "Sélectionnez ou ajoutez des étiquettes"
 
-#: pages/templates.py:831
-msgid "Existing labels are suggested, but new ones are allowed."
-msgstr ""
-"Les étiquettes connues sont proposées, mais vous pouvez en ajouter de "
-"nouvelles."
+#: pages/templates.py:841
+msgid "Labels are only used here to filter templates."
+msgstr "Les étiquettes ne sont utilisée qu'ici pour filtrer les templates."
 
-#: pages/templates.py:835
+#: pages/templates.py:845
 msgid "Format version"
 msgstr "Version du format"
 
-#: pages/templates.py:838
+#: pages/templates.py:848
 msgid "Integer format version (usually 1)"
 msgstr "Un entier représentant la version du format (généralement 1)"
 
-#: pages/templates.py:841
+#: pages/templates.py:851
 msgid "Template version"
 msgstr "Version du template"
 
-#: pages/templates.py:843
+#: pages/templates.py:853
 msgid ":material/grid_on: Icon"
 msgstr ":material/grid_on: Icône"
 
-#: pages/templates.py:861
+#: pages/templates.py:871
 msgid "Icon preview"
 msgstr "Aperçu"
 
-#: pages/templates.py:871
+#: pages/templates.py:881
 msgid "Upload SVG file"
 msgstr "Envoyez un fichier SVG"
 
-#: pages/templates.py:903
+#: pages/templates.py:913
 #, python-brace-format
 msgid "Icon SVG code ({w}×{h} px)"
 msgstr "Code de l'icône SVG ({w}×{h} px)"
 
-#: pages/templates.py:907
+#: pages/templates.py:917
 msgid "Raw SVG source — not base64. Must match the selected orientation."
 msgstr ""
 "Source brute du SVG — pas en base64. Doit correspondre à l'orientation "
 "sélectionnée."
 
-#: pages/templates.py:916
+#: pages/templates.py:926
 msgid "JSON"
 msgstr "JSON"
 
-#: pages/templates.py:931
+#: pages/templates.py:941
 msgid "Template JSON"
 msgstr "Template JSON"
 
-#: pages/templates.py:935
+#: pages/templates.py:945
 msgid ""
 "Enter your reMarkable template JSON here. The preview updates "
 "automatically."
@@ -735,61 +753,61 @@ msgstr ""
 "Entrez ici le JSON de votre template reMarkable. L'aperçu se met à jour "
 "automatiquement."
 
-#: pages/templates.py:939
+#: pages/templates.py:949
 msgid "Preview"
 msgstr "Aperçu"
 
-#: pages/templates.py:945
+#: pages/templates.py:955
 msgid "Invalid JSON body"
 msgstr "Corps du JSON invalide"
 
-#: pages/templates.py:959
+#: pages/templates.py:969
 msgid "Actions"
 msgstr "Actions"
 
-#: pages/templates.py:981
+#: pages/templates.py:991
 msgid "Save the .template file to the selected device's library."
 msgstr ""
 "Enregistre le fichier .template dans la bibliothèque de l'appareil "
 "sélectionné."
 
-#: pages/templates.py:1011
-msgid "Download"
-msgstr "Télécharger"
+#: pages/templates.py:1025
+msgid "Export"
+msgstr "Exporter"
 
-#: pages/templates.py:1017
+#: pages/templates.py:1032
 msgid "Download the .template file to your computer"
 msgstr "Téléchargez le fichier .template"
 
-#: pages/templates.py:1022
+#: pages/templates.py:1037
 msgid "Duplicate"
 msgstr "Dupliquer"
 
-#: pages/templates.py:1026
+#: pages/templates.py:1041
 msgid "Create an unsaved copy in the editor"
 msgstr "Crée une copie non sauvegardée dans l'éditeur"
 
-#: pages/templates.py:1032
+#: pages/templates.py:1047
 msgid "Replace file"
-msgstr "Remplacer le fichier"
+msgstr "Remplacer"
 
-#: pages/templates.py:1037
+#: pages/templates.py:1052
 msgid "Replace this template with a new .template file"
 msgstr "Remplacer ce template par un nouveau fichier .template"
 
-#: pages/templates.py:1047
+#: pages/templates.py:1062
 msgid "Delete this template"
 msgstr "Supprimer ce template"
 
-#: pages/templates.py:1051
+#: pages/templates.py:1066
 msgid ":material/help: reMarkable JSON format documentation"
 msgstr ":material/help: Documentation du format JSON reMarkable"
 
-#: pages/templates.py:1061
+#: pages/templates.py:1076
 msgid ":material/description: Templates"
 msgstr ":material/description: Templates"
 
-#: pages/templates.py:1081
+#: pages/templates.py:1096
 msgid ""
 "The template list for this tablet has not been imported yet. Turn on the "
 "tablet and click the button below to start."
@@ -797,11 +815,11 @@ msgstr ""
 "La liste des templates de cette tablette n'a pas encore été importée. "
 "Allumez la tablette et cliquez sur le bouton ci-dessous pour démarrer."
 
-#: pages/templates.py:1087
+#: pages/templates.py:1102
 msgid "Initialize templates from this tablet"
 msgstr "Initialiser les templates depuis la tablette"
 
-#: pages/templates.py:1091
+#: pages/templates.py:1106
 msgid "Import templates from this tablet and initialize local metadata"
 msgstr ""
 "Importer les templates depuis la tablette et initialiser la bibliothèque "
@@ -871,4 +889,3 @@ msgstr "Garder en local uniquement"
 #: tests/unit/test_i18n.py:88
 msgid "Send to tablet"
 msgstr "Envoyer sur la tablette"
-

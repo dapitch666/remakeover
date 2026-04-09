@@ -213,15 +213,14 @@ def get_device_manifest_json_path(device_name: str) -> str:
 
 
 def list_device_templates(device_name: str) -> list[str]:
-    """Return sorted list of local UUID ``.template`` filenames for *device_name*."""
+    """Return the list of local UUID ``.template`` filenames for *device_name*."""
     refresh_local_manifest(device_name)
     device_dir = get_device_templates_dir(device_name)
-    files = [
+    return [
         f
         for f in os.listdir(device_dir)
         if f.lower().endswith(".template") and _is_uuid_stem(_stem(f))
     ]
-    return sorted(files, key=lambda f: os.path.getmtime(os.path.join(device_dir, f)), reverse=True)
 
 
 def save_device_template(device_name: str, content: bytes, filename: str) -> str:
