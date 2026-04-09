@@ -21,3 +21,6 @@ known-first-party = ["src", "pages"]
 [tool.mypy]
 python_version = "3.11"
 warn_unused_ignores = true
+
+[tool.vulture]
+paths = ["app.py", "pages", "src"]

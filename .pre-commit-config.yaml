@@ -11,3 +11,7 @@ repos:
       - id: mypy
         additional_dependencies: [types-paramiko]
         args: [--ignore-missing-imports]
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.16
+    hooks:
+      - id: vulture
