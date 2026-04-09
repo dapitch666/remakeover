@@ -44,10 +44,6 @@ def get_device_manifest_path(device_name: str) -> str:
     return os.path.join(get_device_data_dir(device_name), "manifest.json")
 
 
-def manifest_exists(device_name: str) -> bool:
-    return os.path.exists(get_device_manifest_path(device_name))
-
-
 def canonical_template_json(payload: dict[str, Any]) -> str:
     """Return a stable JSON representation used for SHA-256 hashing."""
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -55,17 +51,6 @@ def canonical_template_json(payload: dict[str, Any]) -> str:
 
 def compute_template_sha256(payload: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_template_json(payload).encode("utf-8")).hexdigest()
-
-
-def compute_template_sha256_from_template_content(content: str | bytes) -> str | None:
-    raw = content.decode("utf-8") if isinstance(content, bytes) else content
-    try:
-        payload = json.loads(raw)
-    except Exception:
-        return None
-    if not isinstance(payload, dict):
-        return None
-    return compute_template_sha256(payload)
 
 
 def iso_from_epoch_ms(value: Any) -> str | None:
@@ -146,16 +131,6 @@ def get_manifest_entry(device_name: str, template_uuid: str) -> dict[str, Any] |
     return None
 
 
-def list_manifest_entries(device_name: str) -> list[dict[str, Any]]:
-    data = load_manifest(device_name)
-    rows = [
-        {"uuid": template_uuid, **entry}
-        for template_uuid, entry in data.get("templates", {}).items()
-        if isinstance(entry, dict)
-    ]
-    return sorted(rows, key=lambda row: str(row.get("name", "")).lower())
-
-
 def upsert_manifest_template(
     device_name: str,
     template_uuid: str,
@@ -189,29 +164,3 @@ def delete_manifest_template(device_name: str, template_uuid: str) -> bool:
     data["last_modified"] = utc_now_iso()
     save_manifest(device_name, data)
     return True
-
-
-def rename_manifest_template(device_name: str, template_uuid: str, new_name: str) -> bool:
-    data = load_manifest(device_name)
-    entry = data.get("templates", {}).get(template_uuid)
-    if not isinstance(entry, dict):
-        return False
-    entry["name"] = _stem(new_name)
-    data["last_modified"] = utc_now_iso()
-    save_manifest(device_name, data)
-    return True
-
-
-def ensure_manifest_from_imported_templates(
-    device_name: str, imported_templates: dict[str, Any]
-) -> None:
-    """Create an empty manifest file when missing.
-
-    The previous metadata bootstrap flow is no longer used. The manifest is now
-    populated directly by template import/sync operations.
-    """
-    if manifest_exists(device_name):
-        return
-    manifest = _default_manifest()
-    manifest["last_modified"] = utc_now_iso()
-    save_manifest(device_name, manifest)

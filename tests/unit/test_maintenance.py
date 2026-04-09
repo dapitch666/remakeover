@@ -17,7 +17,7 @@ def _callbacks():
     """Return keyword callables for step_fn, progress_fn, toast_fn, log_fn."""
     return dict(
         step_fn=lambda msg: None,
-        progress_fn=lambda pct: None,
+        progress_fn=lambda _pct: None,
         toast_fn=lambda msg: None,
         log_fn=lambda msg: None,
     )
@@ -139,7 +139,7 @@ class TestImageResolution:
         patches[1] = patch("src.maintenance.list_device_images", return_value=[])
         patches[2] = patch(
             "src.maintenance.upload_file_ssh",
-            side_effect=lambda ip, pw, blob, path: upload_calls.append(path) or (True, "ok"),
+            side_effect=lambda ip, _pw, _blob, path: upload_calls.append(path) or (True, "ok"),
         )
         with ExitStack() as stack:
             for p in patches:
@@ -189,7 +189,7 @@ class TestRunMaintenanceHappyPath:
         patches = _base_patches()
         patches[3] = patch(
             "src.maintenance.run_ssh_cmd",
-            side_effect=lambda ip, pw, cmds: cmd_calls.append(cmds) or ("", ""),
+            side_effect=lambda ip, _pw, cmds: cmd_calls.append(cmds) or ("", ""),
         )
         with ExitStack() as stack:
             for p in patches:

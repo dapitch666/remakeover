@@ -73,33 +73,5 @@ def test_delete_manifest_template(tmp_path, monkeypatch):
     assert mf.get_manifest_entry(DEVICE, template_uuid) is None
 
 
-def test_rename_manifest_template_by_uuid(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    template_uuid = "44444444-4444-4444-8444-444444444444"
-    mf.upsert_manifest_template(
-        DEVICE,
-        template_uuid,
-        name="OldName",
-        created_at="2026-04-04T10:00:00Z",
-        sha256="hash",
-    )
-
-    assert mf.rename_manifest_template(DEVICE, template_uuid, "NewName.template") is True
-    renamed = mf.get_manifest_entry(DEVICE, template_uuid)
-    assert renamed is not None
-    assert renamed["name"] == "NewName"
-
-
 def test_iso_from_epoch_ms_returns_utc_iso():
     assert mf.iso_from_epoch_ms("1712150515000") == "2024-04-03T13:21:55Z"
-
-
-def test_ensure_manifest_creates_empty_minimal_schema(tmp_path, monkeypatch):
-    monkeypatch.setattr(mf, "get_device_data_dir", lambda name: str(tmp_path / name))
-
-    mf.ensure_manifest_from_imported_templates(DEVICE, {"templates": []})
-    manifest = mf.load_manifest(DEVICE)
-
-    assert set(manifest.keys()) == {"last_modified", "templates"}
-    assert isinstance(manifest["templates"], dict)

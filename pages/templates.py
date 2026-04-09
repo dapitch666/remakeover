@@ -479,7 +479,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                     st.session_state[_sync_status_key(selected_name)] = payload
                     st.toast(_("Sync status checked"), icon=":material/task_alt:")
                 else:
-                    st.toast(_("Sync check error"), ":material/error:")
+                    st.toast(_("Sync check error"), icon=":material/error:")
 
             if st.button(
                 _("Sync now"),

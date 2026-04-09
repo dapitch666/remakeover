@@ -19,10 +19,8 @@ from typing import Any
 
 from src.config import get_device_data_dir
 from src.constants import (
-    CMD_RESTART_XOCHITL,
     DEFAULT_ICON_DATA,
     META_FIELDS,
-    REMOTE_MANIFEST_FILENAME,
     REMOTE_XOCHITL_DATA_DIR,
 )
 from src.manifest_templates import (
@@ -37,7 +35,7 @@ from src.manifest_templates import (
     upsert_manifest_template,
     utc_now_iso,
 )
-from src.ssh import run_ssh_cmd, upload_file_ssh
+from src.ssh import run_ssh_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -232,17 +230,6 @@ def save_device_template(device_name: str, content: bytes, filename: str) -> str
     return filepath
 
 
-def load_device_template(device_name: str, filename: str) -> bytes:
-    """Read and return bytes for a local template reference."""
-    template_uuid = _resolve_template_uuid(device_name, filename)
-    if template_uuid:
-        filepath = _triplet_paths(device_name, template_uuid)["template"]
-    else:
-        filepath = os.path.join(get_device_templates_dir(device_name), filename)
-    with open(filepath, "rb") as f:
-        return f.read()
-
-
 def delete_device_template(device_name: str, filename: str) -> None:
     """Delete local UUID triplet files for a template reference."""
     template_uuid = _resolve_template_uuid(device_name, filename) or (
@@ -259,44 +246,6 @@ def delete_device_template(device_name: str, filename: str) -> None:
     path = os.path.join(get_device_templates_dir(device_name), filename)
     with suppress(FileNotFoundError):
         os.remove(path)
-
-
-def rename_device_template(
-    device_name: str, old_filename: str, new_filename: str
-) -> bool:  # TODO: Rename old/new_filename to old/new_name
-    """Rename logical template display name while keeping UUID filenames unchanged."""
-    template_uuid = _resolve_template_uuid(device_name, old_filename)
-    if not template_uuid:
-        return False
-
-    display_name = _stem(new_filename).strip()
-    if not display_name:
-        return False
-
-    paths = _triplet_paths(device_name, template_uuid)
-    payload = _read_json_file(paths["template"])
-    if not isinstance(payload, dict):
-        return False
-
-    normalized_payload = ensure_template_payload(payload)
-    normalized_payload["name"] = display_name
-    _write_json_file(paths["template"], normalized_payload)
-    sha256 = compute_template_sha256(normalized_payload)
-
-    metadata = _ensure_local_sidecars(device_name, template_uuid, display_name)
-    existing = get_manifest_entry(device_name, template_uuid)
-    created_at = str(existing.get("created_at") or "").strip() if existing else ""
-    if not created_at:
-        created_at = iso_from_epoch_ms(metadata.get("createdTime")) or utc_now_iso()
-
-    upsert_manifest_template(
-        device_name,
-        template_uuid,
-        name=display_name,
-        created_at=created_at,
-        sha256=sha256,
-    )
-    return True
 
 
 # ---------------------------------------------------------------------------
@@ -371,23 +320,6 @@ def _ensure_local_sidecars(
             f.write(b"{}")
 
     return metadata_payload
-
-
-def extract_categories_from_template_content(content: bytes) -> list[str] | None:
-    """Return categories from a `.template` JSON payload, or None when parsing fails.
-
-    Only string values are kept. Empty or missing category arrays are treated as
-    valid and therefore return an empty list.
-    """
-    try:
-        data = json.loads(content.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
-        return None
-
-    categories = data.get("categories", [])
-    if not isinstance(categories, list):
-        return None
-    return [category for category in categories if isinstance(category, str)]
 
 
 def _sorted_string_categories(raw_categories: Any) -> list[str]:
@@ -612,33 +544,6 @@ def remove_template_entry(device_name: str, filename: str) -> None:
         delete_manifest_template(device_name, template_uuid)
 
 
-def rename_template_entry(device_name: str, old_filename: str, new_filename: str) -> None:
-    """Compatibility wrapper for logical template rename."""
-    rename_device_template(device_name, old_filename, new_filename)
-
-
-def update_template_categories(device_name: str, filename: str, categories: list[str]) -> None:
-    """Update categories directly in the local template JSON file."""
-    try:
-        payload = json.loads(load_json_template(device_name, filename))
-    except Exception:
-        return
-    payload["categories"] = sorted(set(categories))
-    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
-    add_template_entry(device_name, filename, categories)
-
-
-def update_template_labels(device_name: str, filename: str, labels: list[str]) -> None:
-    """Update labels directly in the local template JSON file."""
-    try:
-        payload = json.loads(load_json_template(device_name, filename))
-    except Exception:
-        return
-    payload["labels"] = sorted(set(lbl for lbl in labels if isinstance(lbl, str)))
-    save_json_template(device_name, filename, json.dumps(payload, indent=2, ensure_ascii=True))
-    add_template_entry(device_name, filename, [])
-
-
 # ---------------------------------------------------------------------------
 # Remote helpers
 # ---------------------------------------------------------------------------
@@ -658,7 +563,7 @@ def ensure_remote_template_dirs(ip: str, password: str) -> tuple[bool, str]:
 
 
 def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
-    """Return remote UUID stems for rmMethods template files."""
+    """Return remote templates UUID values currently present."""
     cmd = (
         f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.template; do "
         '[ -f "$file" ] || continue; '
@@ -673,16 +578,6 @@ def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[st
         return False, err.strip()
     uuids = sorted({line.strip() for line in out.splitlines() if line.strip()})
     return True, uuids
-
-
-def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, set[str] | str]:
-    """Return remote rmMethods UUID values currently present."""
-    ok, payload = _list_remote_custom_templates(ip, password)
-    if not ok:
-        return False, str(payload)
-    if not isinstance(payload, list):
-        raise TypeError(f"Expected list from _list_remote_custom_templates, got {type(payload)}")
-    return True, set(payload)
 
 
 def remove_remote_custom_templates(
@@ -715,123 +610,9 @@ def remove_remote_custom_templates(
     return True, "ok"
 
 
-def upload_remote_manifest(ip: str, password: str, device_name: str) -> tuple[bool, str]:
-    """Upload local manifest.json to rmMethods remote manifest path."""
-    manifest_blob = json.dumps(load_manifest(device_name), indent=2, ensure_ascii=True).encode(
-        "utf-8"
-    )
-    return upload_file_ssh(
-        ip,
-        password,
-        manifest_blob,
-        f"{REMOTE_XOCHITL_DATA_DIR}/{REMOTE_MANIFEST_FILENAME}",
-    )
-
-
-def delete_template_from_tablet(
-    ip: str, password: str, device_name: str, filename: str
-) -> tuple[bool, str]:
-    """Delete one rmMethods template triplet on tablet and restart xochitl."""
-    template_uuid = _resolve_template_uuid(device_name, filename)
-    if not template_uuid:
-        return False, "delete_remote_failed: missing remote UUID"
-
-    entry = get_manifest_entry(device_name, template_uuid)
-    template_uuid = str(entry.get("uuid") or "") if entry else ""
-    if not template_uuid:
-        return False, "delete_remote_failed: missing remote UUID"
-
-    q_template = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.template")
-    q_meta = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.metadata")
-    q_content = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.content")
-    try:
-        _, err = run_ssh_cmd(ip, password, [f"rm -f {q_template} {q_meta} {q_content}"])
-    except Exception as e:
-        return False, f"delete_remote_failed: {e}"
-    if err.strip():
-        return False, f"delete_remote_failed: {err.strip()}"
-
-    try:
-        run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
-    except Exception as e:
-        return False, f"restart_failed: {e}"
-
-    return True, "ok"
-
-
-def upload_template_to_tablet(
-    ip: str, password: str, device_name: str, filename: str
-) -> tuple[bool, str]:
-    """Upload one local template as an rmMethods UUID triplet and restart xochitl."""
-    try:
-        content = load_json_template(device_name, filename)
-    except Exception as e:
-        return False, f"read_local_failed: {e}"
-
-    try:
-        payload = json.loads(content)
-    except Exception as e:
-        return False, f"invalid_template_json: {e}"
-    payload = ensure_template_payload(payload)
-
-    add_template_entry(device_name, filename, [])
-    template_uuid = _resolve_template_uuid(device_name, filename)
-    if not template_uuid:
-        return False, "missing_manifest_uuid"
-
-    entry = get_manifest_entry(device_name, template_uuid)
-    template_uuid = str(entry.get("uuid") or "") if entry else ""
-    if not template_uuid:
-        return False, "missing_manifest_uuid"
-
-    manifest_name = str(entry.get("name") or "") if entry else ""
-    visible_name = str(manifest_name or payload.get("name") or _stem(filename))
-    triplet_payloads = build_triplet_payloads(payload, visible_name)
-
-    for ext, blob in triplet_payloads.items():
-        ok, msg = upload_file_ssh(
-            ip,
-            password,
-            blob,
-            f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.{ext}",
-        )
-        if not ok:
-            return False, f"upload_{ext}_failed: {msg}"
-
-    ok_manifest, msg_manifest = upload_remote_manifest(ip, password, device_name)
-    if not ok_manifest:
-        return False, f"upload_manifest_failed: {msg_manifest}"
-
-    try:
-        run_ssh_cmd(ip, password, [CMD_RESTART_XOCHITL])
-    except Exception as e:
-        return False, f"restart_failed: {e}"
-
-    logger.info("Template %s uploaded and xochitl restarted", filename)
-    return True, "ok"
-
-
 # ---------------------------------------------------------------------------
 # JSON template source storage (editor)
 # ---------------------------------------------------------------------------
-
-
-def list_json_templates(device_name: str) -> list[str]:
-    """Return display names (``.template``) for templates available locally."""
-    refresh_local_manifest(device_name)
-    templates = load_manifest(device_name).get("templates", {})
-    if not isinstance(templates, dict):
-        return []
-
-    names: list[str] = []
-    for template_uuid, entry in templates.items():
-        if not isinstance(template_uuid, str) or not isinstance(entry, dict):
-            continue
-        if not os.path.exists(_triplet_paths(device_name, template_uuid)["template"]):
-            continue
-        display_name = str(entry.get("name") or template_uuid).strip() or template_uuid
-        names.append(f"{display_name}.template")
-    return sorted(names, key=lambda value: value.lower())
 
 
 def load_json_template(device_name: str, filename: str) -> str:

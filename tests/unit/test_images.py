@@ -32,15 +32,6 @@ def _make_png_bytes(width: int, height: int, color=(200, 100, 50)) -> bytes:
     return buf.read()
 
 
-def _make_png_file(width: int, height: int, color=(200, 100, 50)):
-    """Return a seekable BytesIO PNG file object."""
-    img = Image.new("RGB", (width, height), color=color)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
-
 # ---------------------------------------------------------------------------
 # list_device_images
 # ---------------------------------------------------------------------------

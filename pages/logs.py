@@ -18,7 +18,6 @@ else:
         icon=":material/delete:",
         help=_("Clear logs stored in the current session"),
     ):
-        st.session_state.clear_logs = None
         _dialog.confirm(_("Clear logs"), _("Clear logs for this session?"), key="clear_logs")
     if st.session_state.get("clear_logs") is True:
         st.session_state["logs"] = []

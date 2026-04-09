@@ -172,7 +172,7 @@ class TestImagesPage:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.delete_device_image",
-                side_effect=lambda n, f: deleted.append(f),
+                side_effect=lambda _n, f: deleted.append(f),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -212,7 +212,7 @@ class TestImagesPage:
             patch("src.ssh.download_file_ssh", return_value=(PNG_BYTES, "")),
             patch(
                 "src.images.save_device_image",
-                side_effect=lambda n, d, f: saved.append(f),
+                side_effect=lambda _n, _d, f: saved.append(f),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -282,7 +282,7 @@ class TestImagesPage:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.rename_device_image",
-                side_effect=lambda n, o, f: renamed.append((o, f)),
+                side_effect=lambda _n, o, f: renamed.append((o, f)),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -306,7 +306,7 @@ class TestImagesPage:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.rename_device_image",
-                side_effect=lambda n, o, f: renamed.append((o, f)),
+                side_effect=lambda _n, o, f: renamed.append((o, f)),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -358,7 +358,7 @@ class TestPreferredImageActions:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.delete_device_image",
-                side_effect=lambda n, f: deleted.append(f),
+                side_effect=lambda _n, f: deleted.append(f),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -383,7 +383,7 @@ class TestPreferredImageActions:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.rename_device_image",
-                side_effect=lambda n, o, f: renamed.append((o, f)),
+                side_effect=lambda _n, o, f: renamed.append((o, f)),
             ),
         ):
             at = AppTest.from_file("app.py")
@@ -428,7 +428,7 @@ class TestImageSegmentedActions:
         """Action 0 (cloud_upload) calls send_suspended_png with the image data."""
         sent: list = []
 
-        def _mock_send(device, img_data, img_name, selected_name, add_log):
+        def _mock_send(_device, _img_data, img_name, _selected_name, _add_log):
             sent.append(img_name)
             return True
 
