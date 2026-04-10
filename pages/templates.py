@@ -287,7 +287,7 @@ def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) 
     st.session_state["tpl_unified_loaded"] = _SENTINEL_NEW
 
     add_log(f"Template '{ui_name}' duplicated in editor for '{selected_name}' (not saved)")
-    deferred_toast(_("Template duplicated (not saved)"), ":material/content_copy:")
+    deferred_toast(_("Template duplicated (not saved)"), ":material/task_alt:")
 
 
 # ── Dialogs ───────────────────────────────────────────────────────────────────
@@ -477,9 +477,9 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                     if isinstance(payload, dict):
                         payload["last_remote_check_at"] = payload.get("checked_at")
                     st.session_state[_sync_status_key(selected_name)] = payload
-                    st.toast(_("Sync status checked"), icon=":material/task_alt:")
+                    st.toast(_(":green[Sync status checked]"), icon=":material/task_alt:")
                 else:
-                    st.toast(_("Sync check error"), icon=":material/error:")
+                    st.toast(_(":red[Sync check error]"), icon=":material/error:")
 
             if st.button(
                 _("Sync now"),
@@ -980,6 +980,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             key=f"tpl_duplicate_btn_{selected}",
             icon=":material/content_copy:",
             width="stretch",
+            disabled=is_new,
             help=_("Create an unsaved copy in the editor"),
         ):
             _duplicate_template_into_editor(selected_name, str(selected), add_log)
