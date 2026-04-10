@@ -387,11 +387,11 @@ def render_template_json_str(
     try:
         data = json.loads(json_str)
     except json.JSONDecodeError as e:
-        return "", f"JSON invalide : {e}"
+        return "", f"Invalid JSON: {e}"
     try:
         return render_template_to_svg(data, canvas_portrait=canvas_portrait), None
     except Exception as e:
-        return "", f"Erreur de rendu : {e}"
+        return "", f"Rendering error: {e}"
 
 
 def svg_as_img_tag(

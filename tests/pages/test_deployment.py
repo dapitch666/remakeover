@@ -85,7 +85,7 @@ def test_deployment_page_shows_info_when_actions_available(tmp_path):
     deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
     assert not deploy_btn.disabled
-    assert not any("aucune action" in w.value.lower() for w in at.warning)
+    assert not any("no action" in w.value.lower() for w in at.warning)
 
 
 def test_deployment_page_shows_warning_and_disables_button_when_no_actions(tmp_path):
@@ -109,7 +109,7 @@ def test_deployment_page_shows_warning_and_disables_button_when_no_actions(tmp_p
 
     assert not at.exception
     assert any(
-        "aucune action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
+        "no action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
     )
     deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
@@ -137,7 +137,7 @@ def test_deployment_page_shows_warning_when_templates_enabled_but_no_local_files
 
     assert not at.exception
     assert any(
-        "aucune action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
+        "no action" in w.value.lower() or "no deployment" in w.value.lower() for w in at.warning
     )
     deploy_btn = next((b for b in at.button if "deploy" in b.label.lower()), None)
     assert deploy_btn is not None
@@ -184,6 +184,7 @@ def test_run_maintenance_flow(tmp_path):
         log_fn=None: maintenance_calls.append((name, dev)) or {"ok": True},
     )
 
+    # noinspection PyAbstractClass
     with ExitStack() as stack:
         stack.enter_context(
             patch.dict(
@@ -199,12 +200,12 @@ def test_run_maintenance_flow(tmp_path):
         at.sidebar.selectbox[0].set_value("D1").run()
         at.switch_page("pages/deployment.py").run()
 
-        mbtn = next(
+        btn = next(
             (b for b in at.button if getattr(b, "label", None) == "Deploy configuration"),
             None,
         )
-        assert mbtn is not None, "Maintenance button not found"
-        mbtn.click().run()
+        assert btn is not None, "Maintenance button not found"
+        btn.click().run()
 
     assert maintenance_calls, "run_maintenance was not called"
 

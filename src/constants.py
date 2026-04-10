@@ -80,7 +80,7 @@ META_FIELDS = (
 )
 
 
-META_DEFAULTS: dict[str, str | int | list[str]] = {
+META_DEFAULTS: dict[str, str | list[str]] = {
     "tpl_meta_name": "",
     "tpl_meta_author": "",
     "tpl_meta_icon_data": DEFAULT_ICON_DATA,

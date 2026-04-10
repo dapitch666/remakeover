@@ -110,7 +110,7 @@ def load_manifest(device_name: str) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8") as f:
             return _normalize_manifest(json.load(f))
-    except Exception:
+    except json.JSONDecodeError:
         return _default_manifest()
 
 

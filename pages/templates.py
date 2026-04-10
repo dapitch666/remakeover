@@ -166,7 +166,7 @@ def _meta_from_session() -> dict:
     )
     if not cats:
         cats = ["Perso"]
-    lbls = normalise_string_list(
+    labels = normalise_string_list(
         st.session_state.get("tpl_meta_labels", META_DEFAULTS["tpl_meta_labels"])
     )
     try:
@@ -190,7 +190,7 @@ def _meta_from_session() -> dict:
         "orientation": str(
             st.session_state.get("tpl_meta_orientation", META_DEFAULTS["tpl_meta_orientation"])
         ),
-        "labels": lbls,
+        "labels": labels,
         "iconData": str(
             st.session_state.get("tpl_meta_icon_data", META_DEFAULTS["tpl_meta_icon_data"])
         ),
@@ -271,7 +271,7 @@ def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) 
     duplicated_raw = load_json_template(selected_name, tpl_name)
     try:
         duplicated_payload = json.loads(duplicated_raw)
-    except Exception:
+    except json.JSONDecodeError:
         duplicated_payload = {}
     if isinstance(duplicated_payload, dict):
         duplicated_payload.pop("name", None)
@@ -381,7 +381,7 @@ def _show_import_dialog(selected_name: str, add_log) -> None:
             for uf, content in uploaded_payloads:
                 filename = normalise_filename(uf.name, ext=".template")
                 save_device_template(selected_name, content, filename)
-                add_template_entry(selected_name, filename, [])
+                add_template_entry(selected_name, filename)
                 add_log(f"{filename} template saved for '{selected_name}'")
                 saved.append(filename)
             if len(saved) == 1:
@@ -440,10 +440,9 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 icon=":material/download:",
                 width="stretch",
             ):
-                with st.spinner(_("Importing…")):
-                    ok, msg = fetch_and_init_templates(
-                        device.ip, device.password or "", selected_name, overwrite_backup=False
-                    )
+                ok, msg = fetch_and_init_templates(
+                    device.ip, device.password or "", selected_name, overwrite_backup=False
+                )
                 if ok:
                     add_log(f"Templates initialized for '{selected_name}' : {msg}")
                     _refresh_sync_snapshot_after_remote_change(
@@ -471,8 +470,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 ),
                 width="stretch",
             ):
-                with st.spinner(_("Checking…")):
-                    ok_check, payload = check_sync_status(selected_name, device, add_log)
+                ok_check, payload = check_sync_status(selected_name, device, add_log)
                 if ok_check:
                     if isinstance(payload, dict):
                         payload["last_remote_check_at"] = payload.get("checked_at")
@@ -490,8 +488,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 ),
                 width="stretch",
             ):
-                with st.spinner(_("Syncing…")):
-                    ok = sync_templates_to_tablet(selected_name, device, add_log)
+                ok = sync_templates_to_tablet(selected_name, device, add_log)
                 if ok:
                     _refresh_sync_snapshot_after_remote_change(
                         selected_name,
@@ -516,10 +513,9 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                 ),
                 width="stretch",
             ):
-                with st.spinner(_("Syncing…")):
-                    ok, msg = fetch_and_init_templates(
-                        device.ip, device.password or "", selected_name, overwrite_backup=True
-                    )
+                ok, msg = fetch_and_init_templates(
+                    device.ip, device.password or "", selected_name, overwrite_backup=True
+                )
                 if ok:
                     _refresh_sync_snapshot_after_remote_change(
                         selected_name,
@@ -750,7 +746,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
     _mf1, _mf2, _mf3 = st.columns(3)
     _mf4, _mf5, _mf6, _mf7 = st.columns([2, 2, 1, 1])
     with _mf1:
-        st.text_input(_("Name"), key="tpl_meta_name", placeholder="mytemplate")
+        st.text_input(_("Name"), key="tpl_meta_name", placeholder="my template")
     with _mf2:
         st.text_input(_("Author"), key="tpl_meta_author", placeholder="rm-manager")
     with _mf3:
@@ -936,12 +932,10 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
                 os.path.splitext(str(selected))[0] if not is_new else "My Template"
             )
             filename_tpl = normalise_filename(_base, ext=".template")
-            cats = normalise_string_list(st.session_state.get("tpl_meta_categories")) or ["Perso"]
             save_json_template(selected_name, filename_tpl, _full_json_str)
             add_template_entry(
                 selected_name,
                 filename_tpl,
-                cats,
                 previous_filename=None if is_new else str(selected),
             )
             add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
@@ -1048,13 +1042,12 @@ if not os.path.exists(manifest_path):
         icon=":material/download:",
         help=_("Import templates from this tablet and initialize local metadata"),
     ):
-        with st.spinner(_("Importing…")):
-            ok, msg = fetch_and_init_templates(
-                device.ip,
-                device.password or "",
-                selected_name,
-                overwrite_backup=False,
-            )
+        ok, msg = fetch_and_init_templates(
+            device.ip,
+            device.password or "",
+            selected_name,
+            overwrite_backup=False,
+        )
         if ok:
             add_log(f"Templates initialized for '{selected_name}' : {msg}")
             _refresh_sync_snapshot_after_remote_change(

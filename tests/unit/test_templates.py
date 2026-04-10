@@ -59,14 +59,14 @@ def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_pa
         filename,
         json.dumps({"name": "Initial Name", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"])
+    tpl.add_template_entry("D1", filename)
 
     tpl.save_json_template(
         "D1",
         filename,
         json.dumps({"name": "Edited Name", "categories": ["Perso"]}),
     )
-    tpl.add_template_entry("D1", filename, ["Perso"], previous_filename=filename)
+    tpl.add_template_entry("D1", filename, previous_filename=filename)
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None

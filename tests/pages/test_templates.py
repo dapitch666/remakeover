@@ -265,7 +265,7 @@ class TestTemplatesSync:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
 
-        def _download(_ip, _pw, remote_path):
+        def _download(_ip, _pw, _remote_path):
             return None, "missing"
 
         with (
@@ -811,7 +811,7 @@ class TestEditorPanelNew:
 
 class TestEditorPanelExisting:
     def test_existing_template_meta_loaded_from_json(self, tmp_path):
-        """Pre-loading tpl_editor_textarea extracts name and orientation into meta form."""
+        """Preloading tpl_editor_textarea extracts name and orientation into meta form."""
         cfg_path = with_device(tmp_path, "D1")
         _make_template(tmp_path, "D1", "loaded.template", _FULL_JSON)
         at = _at_templates(
@@ -845,12 +845,12 @@ class TestEditorPanelExisting:
     def test_existing_template_shows_delete_button(self, tmp_path):
         """The Delete button is rendered for an existing (saved) template."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_template(tmp_path, "D1", "myfile.template")
+        _make_template(tmp_path, "D1", "my-file.template")
         at = _at_templates(
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected": "myfile.template",
+                "tpl_unified_selected": "my-file.template",
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -860,12 +860,12 @@ class TestEditorPanelExisting:
     def test_existing_template_shows_replace_file_button(self, tmp_path):
         """The 'Replace file' button is rendered for an existing template."""
         cfg_path = with_device(tmp_path, "D1")
-        _make_template(tmp_path, "D1", "myfile.template")
+        _make_template(tmp_path, "D1", "my-file.template")
         at = _at_templates(
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected": "myfile.template",
+                "tpl_unified_selected": "my-file.template",
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -900,7 +900,7 @@ class TestEditorPanelExisting:
         assert name is not None
         assert name.value == ""
 
-    def test_template_with_icondata_decodes_into_svg_textarea(self, tmp_path):
+    def test_template_with_icon_data_decodes_into_svg_textarea(self, tmp_path):
         """A template whose iconData carries a custom SVG shows it decoded in the textarea."""
         b64 = base64.b64encode(_SVG_150x200.encode()).decode()
         tpl_content = json.dumps(

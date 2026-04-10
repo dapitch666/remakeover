@@ -13,7 +13,7 @@ def confirm(
 ) -> None:
     """
     Displays a confirmation dialog with the given title.
-    Updates st.session_state[key] with True (confirmed) or False (cancelled).
+    Updates st.session_state[key] with True (confirmed) or False (canceled).
     """
 
     @st.dialog(title)

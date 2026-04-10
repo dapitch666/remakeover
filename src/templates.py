@@ -6,6 +6,7 @@ with rmMethods template triplets in xochitl (`UUID.template`,
 """
 
 import base64
+import binascii
 import json
 import logging
 import os
@@ -16,6 +17,8 @@ import uuid
 from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
+
+import paramiko
 
 from src.config import get_device_data_dir
 from src.constants import (
@@ -44,7 +47,7 @@ def decode_icon_data(b64: str) -> str:
     """Decode base64-encoded SVG icon data into UTF-8 text."""
     try:
         return base64.b64decode(b64).decode("utf-8")
-    except Exception:
+    except (binascii.Error, UnicodeDecodeError):
         return ""
 
 
@@ -129,7 +132,7 @@ def extract_template_meta_and_body(json_str: str) -> tuple[dict[str, Any], str]:
     """Split template JSON into metadata fields and drawable body payload."""
     try:
         data = json.loads(json_str)
-    except Exception:
+    except json.JSONDecodeError:
         return {}, json_str
     if not isinstance(data, dict):
         return {}, json_str
@@ -236,7 +239,7 @@ def delete_device_template(device_name: str, filename: str) -> None:
         _stem(filename) if _is_uuid_stem(_stem(filename)) else None
     )
     if template_uuid:
-        paths = _triplet_paths(device_name, template_uuid)
+        paths = triplet_paths(device_name, template_uuid)
         for path in paths.values():
             with suppress(FileNotFoundError):
                 os.remove(path)
@@ -280,7 +283,7 @@ def _resolve_template_uuid(device_name: str, template_ref: str) -> str | None:
     return _find_template_uuid_by_name(device_name, stem)
 
 
-def _triplet_paths(device_name: str, template_uuid: str) -> dict[str, str]:
+def triplet_paths(device_name: str, template_uuid: str) -> dict[str, str]:
     base = get_device_templates_dir(device_name)
     return {
         "template": os.path.join(base, f"{template_uuid}.template"),
@@ -293,27 +296,27 @@ def _read_json_file(path: str) -> dict[str, Any] | None:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
 
-def _write_json_file(path: str, payload: dict[str, Any]) -> None:
+def write_json_file(path: str, payload: dict[str, Any]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=True)
 
 
-def _ensure_local_sidecars(
+def ensure_local_sidecars(
     device_name: str, template_uuid: str, visible_name: str
 ) -> dict[str, Any]:
-    paths = _triplet_paths(device_name, template_uuid)
+    paths = triplet_paths(device_name, template_uuid)
 
     metadata_existing = _read_json_file(paths["metadata"]) or {}
     created_time = str(metadata_existing.get("createdTime") or _epoch_ms())
     metadata_payload = dict(metadata_existing)
     metadata_payload.update(build_metadata_payload(visible_name))
     metadata_payload["createdTime"] = created_time
-    _write_json_file(paths["metadata"], metadata_payload)
+    write_json_file(paths["metadata"], metadata_payload)
 
     if not os.path.exists(paths["content"]):
         with open(paths["content"], "wb") as f:
@@ -351,7 +354,7 @@ def refresh_local_manifest(device_name: str) -> None:
                 uuid.uuid4()
             )
 
-        paths = _triplet_paths(device_name, template_uuid)
+        paths = triplet_paths(device_name, template_uuid)
         source_template_path = os.path.join(templates_dir, filename)
         if source_template_path != paths["template"]:
             os.replace(source_template_path, paths["template"])
@@ -367,7 +370,7 @@ def refresh_local_manifest(device_name: str) -> None:
 
         try:
             payload = json.loads(load_json_template(device_name, f"{template_uuid}.template"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         if not isinstance(payload, dict):
             continue
@@ -396,10 +399,10 @@ def refresh_local_manifest(device_name: str) -> None:
             canonical_payload_name = display_name
 
         normalized_payload["name"] = canonical_payload_name
-        _write_json_file(paths["template"], normalized_payload)
+        write_json_file(paths["template"], normalized_payload)
         sha256 = compute_template_sha256(normalized_payload)
 
-        metadata = _ensure_local_sidecars(device_name, template_uuid, display_name)
+        metadata = ensure_local_sidecars(device_name, template_uuid, display_name)
         created_at = (
             str(existing_entry.get("created_at") or "").strip()
             if isinstance(existing_entry, dict)
@@ -426,7 +429,7 @@ def get_all_categories(device_name: str) -> list[str]:
     for filename in list_device_templates(device_name):
         try:
             payload = json.loads(load_json_template(device_name, filename))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         cats.update(_sorted_string_categories(payload.get("categories", [])))
     return sorted(cats)
@@ -438,7 +441,7 @@ def get_all_labels(device_name: str) -> list[str]:
     for filename in list_device_templates(device_name):
         try:
             payload = json.loads(load_json_template(device_name, filename))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         raw_labels = payload.get("labels", [])
         if isinstance(raw_labels, list):
@@ -460,7 +463,7 @@ def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None
     result = dict(entry)
     try:
         payload = json.loads(load_json_template(device_name, filename))
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         payload = {}
 
     result["categories"] = _sorted_string_categories(payload.get("categories", []))
@@ -475,12 +478,9 @@ def get_template_entry(device_name: str, filename: str) -> dict[str, Any] | None
 def add_template_entry(
     device_name: str,
     filename: str,
-    categories: list[str] | None = None,
     previous_filename: str | None = None,
 ) -> None:
     """Add or update one local template manifest entry using UUID-keyed schema."""
-    del categories
-
     template_uuid = None
     if previous_filename:
         template_uuid = _resolve_template_uuid(device_name, previous_filename)
@@ -492,7 +492,7 @@ def add_template_entry(
     if not template_uuid:
         template_uuid = str(uuid.uuid4())
 
-    paths = _triplet_paths(device_name, template_uuid)
+    paths = triplet_paths(device_name, template_uuid)
     source_path = os.path.join(get_device_templates_dir(device_name), filename)
     if os.path.exists(source_path) and source_path != paths["template"]:
         os.replace(source_path, paths["template"])
@@ -505,7 +505,7 @@ def add_template_entry(
     try:
         payload_raw = load_json_template(device_name, f"{template_uuid}.template")
         payload = json.loads(payload_raw)
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return
     if not isinstance(payload, dict):
         return
@@ -521,10 +521,10 @@ def add_template_entry(
         desired_name = template_uuid
 
     normalized_payload["name"] = desired_name
-    _write_json_file(paths["template"], normalized_payload)
+    write_json_file(paths["template"], normalized_payload)
     sha256 = compute_template_sha256(normalized_payload)
 
-    metadata = _ensure_local_sidecars(device_name, template_uuid, desired_name)
+    metadata = ensure_local_sidecars(device_name, template_uuid, desired_name)
     if not created_at:
         created_at = iso_from_epoch_ms(metadata.get("createdTime")) or utc_now_iso()
 
@@ -557,12 +557,12 @@ def ensure_remote_template_dirs(ip: str, password: str) -> tuple[bool, str]:
         if err.strip():
             return False, err.strip()
         return True, out
-    except Exception as e:
+    except (OSError, paramiko.SSHException) as e:
         logger.error("ensure_remote_template_dirs failed: %s", e)
         return False, str(e)
 
 
-def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
+def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
     """Return remote templates UUID values currently present."""
     cmd = (
         f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.template; do "
@@ -572,7 +572,7 @@ def _list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[st
     )
     try:
         out, err = run_ssh_cmd(ip, password, [cmd])
-    except Exception as e:
+    except (OSError, paramiko.SSHException) as e:
         return False, str(e)
     if err.strip():
         return False, err.strip()
@@ -603,7 +603,7 @@ def remove_remote_custom_templates(
     cmd = f"rm -f {' '.join(rm_args)}"
     try:
         _, err = run_ssh_cmd(ip, password, [cmd])
-    except Exception as e:
+    except (OSError, paramiko.SSHException) as e:
         return False, str(e)
     if err.strip():
         return False, err.strip()
@@ -619,7 +619,7 @@ def load_json_template(device_name: str, filename: str) -> str:
     """Read and return a JSON template source file by UUID/name reference."""
     template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
-        path = _triplet_paths(device_name, template_uuid)["template"]
+        path = triplet_paths(device_name, template_uuid)["template"]
     else:
         path = os.path.join(get_device_templates_dir(device_name), filename)
     with open(path, encoding="utf-8") as f:
@@ -630,7 +630,7 @@ def save_json_template(device_name: str, filename: str, content: str) -> None:
     """Write *content* to local storage, resolving UUID references when available."""
     template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
-        path = _triplet_paths(device_name, template_uuid)["template"]
+        path = triplet_paths(device_name, template_uuid)["template"]
     else:
         path = os.path.join(get_device_templates_dir(device_name), filename)
     with open(path, "w", encoding="utf-8") as f:

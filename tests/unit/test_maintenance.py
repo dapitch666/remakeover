@@ -96,6 +96,7 @@ class TestRunMaintenanceValidation:
 # ---------------------------------------------------------------------------
 
 
+# noinspection PyAbstractClass
 class TestImageResolution:
     def test_uses_preferred_image_when_set(self):
         dev = _device(preferred_image="my.png")
@@ -155,6 +156,7 @@ class TestImageResolution:
 # ---------------------------------------------------------------------------
 
 
+# noinspection PyAbstractClass
 class TestRunMaintenanceHappyPath:
     def test_image_upload_only(self):
         dev = _device()
@@ -216,6 +218,7 @@ class TestRunMaintenanceHappyPath:
 # ---------------------------------------------------------------------------
 
 
+# noinspection PyAbstractClass
 class TestRunMaintenanceErrors:
     def test_image_load_failure_returns_error(self):
         dev = _device()
@@ -305,7 +308,7 @@ class TestRunMaintenanceErrors:
                 dev,
                 image="bg.png",
                 step_fn=lambda m: None,
-                progress_fn=lambda p: None,
+                progress_fn=lambda _progress: None,
                 toast_fn=toasts.append,
                 log_fn=lambda m: None,
             )
@@ -328,7 +331,7 @@ class TestRunMaintenanceErrors:
                 dev,
                 image="bg.png",
                 step_fn=_raise,
-                progress_fn=lambda p: None,
+                progress_fn=lambda _progress: None,
                 toast_fn=toasts.append,
                 log_fn=lambda m: None,
             )

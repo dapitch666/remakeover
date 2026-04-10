@@ -55,7 +55,7 @@ def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_
 
     filename = "sync_me.template"
     save_json_template("D1", filename, json.dumps({"name": "Sync Me", "categories": ["Perso"]}))
-    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    add_template_entry("D1", filename)
 
     uploaded_paths = []
 
@@ -139,7 +139,7 @@ def test_sync_check_reports_manifest_diff(tmp_path):
 
     filename = "check.template"
     save_json_template("D1", filename, json.dumps({"name": "Check", "categories": ["Perso"]}))
-    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    add_template_entry("D1", filename)
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None
@@ -177,7 +177,7 @@ def test_sync_check_reports_manifest_diff(tmp_path):
     assert payload["remote_count"] == 2
     assert len(payload["to_upload"]) == 1
     assert len(payload["to_delete_remote"]) == 1
-    assert payload["to_upload_modified_names"] == ["Check"]
+    assert payload["to_upload_modified_names"] == ["check"]
     assert payload["to_upload_added_names"] == []
     assert payload["to_delete_remote_names"] == ["remote_only"]
     assert isinstance(payload.get("remote_manifest_snapshot"), dict)
@@ -191,7 +191,7 @@ def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(
         "alpha.template",
         json.dumps({"name": "Alpha", "categories": ["Perso"]}),
     )
-    add_template_entry("D1", "alpha.template", ["Perso"], "\ue9fe")
+    add_template_entry("D1", "alpha.template")
 
     remote_manifest = {
         "last_modified": "2026-04-08T12:00:00Z",
@@ -208,7 +208,7 @@ def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(
 
     assert payload["local_count"] == 1
     assert payload["remote_count"] == 1
-    assert payload["to_upload_added_names"] == ["Alpha"]
+    assert payload["to_upload_added_names"] == ["alpha"]
     assert payload["to_upload_modified_names"] == []
     assert payload["to_delete_remote_names"] == ["Remote Ghost"]
     assert payload["remote_manifest_state"] == "cached_snapshot"
@@ -222,7 +222,7 @@ def test_build_assumed_sync_status_uses_local_manifest_as_cached_snapshot(tmp_pa
         "local_only.template",
         json.dumps({"name": "Local Only", "categories": ["Perso"]}),
     )
-    add_template_entry("D1", "local_only.template", ["Perso"], "\ue9fe")
+    add_template_entry("D1", "local_only.template")
 
     payload = build_assumed_sync_status("D1", "assumed_after_sync")
 
@@ -242,7 +242,7 @@ def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
         "one.template",
         json.dumps({"name": "One", "categories": ["Perso"]}),
     )
-    add_template_entry("D1", "one.template", ["Perso"], "\ue9fe")
+    add_template_entry("D1", "one.template")
 
     snapshot = {
         "last_modified": "2026-04-08T12:00:00Z",
@@ -271,7 +271,7 @@ def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
     assert refreshed is not None
     assert refreshed["local_count"] == 1
     assert refreshed["remote_count"] == 1
-    assert refreshed["to_upload_added_names"] == ["One"]
+    assert refreshed["to_upload_added_names"] == ["one"]
     assert refreshed["to_delete_remote_names"] == ["Remote Only"]
     assert refreshed["last_remote_manifest_state"] == "checked"
 
@@ -325,7 +325,7 @@ def test_sync_does_not_refresh_local_manifest(tmp_path):
 
     filename = "no_refresh_needed.template"
     save_json_template("D1", filename, json.dumps({"name": "No Refresh", "categories": []}))
-    add_template_entry("D1", filename, [], "\ue9fe")
+    add_template_entry("D1", filename)
 
     def _download(_ip, _pw, remote_path):
         if remote_path.endswith("/.manifest.json"):
@@ -352,7 +352,7 @@ def test_sync_thumbnail_cleanup_uses_single_quoted_rm_command(tmp_path):
 
     filename = "quote test.template"
     save_json_template("D1", filename, json.dumps({"name": "Quote Test", "categories": ["Perso"]}))
-    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    add_template_entry("D1", filename)
 
     run_calls = []
 
@@ -386,7 +386,7 @@ def test_sync_thumbnail_cleanup_uses_single_quoted_rm_command(tmp_path):
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None
     expected_dir = f"/home/root/.local/share/remarkable/xochitl/{template_uuid}.thumbnails"
-    assert cleanup_cmd == (f"rm -rf {shlex.quote(expected_dir)}")
+    assert cleanup_cmd == f"rm -rf {shlex.quote(expected_dir)}"
 
 
 def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
@@ -399,7 +399,7 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
         filename,
         json.dumps({"name": "Cleanup Warn", "categories": ["Perso"]}),
     )
-    add_template_entry("D1", filename, ["Perso"], "\ue9fe")
+    add_template_entry("D1", filename)
 
     def _download(_ip, _pw, remote_path):
         if remote_path.endswith("/.manifest.json"):

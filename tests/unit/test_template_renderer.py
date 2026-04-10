@@ -9,6 +9,7 @@ import json
 
 import pytest
 
+# noinspection PyProtectedMember
 from src.template_renderer import (
     _build_ctx,
     _build_path_d,
@@ -372,7 +373,8 @@ class TestCalcOffsets:
 
 
 class TestRenderTemplateToSvg:
-    def _minimal(self, orientation="portrait") -> dict:
+    @staticmethod
+    def _minimal(orientation="portrait") -> dict:
         return {"orientation": orientation, "constants": [], "items": []}
 
     def test_portrait_dimensions(self):
@@ -514,7 +516,8 @@ class TestRenderTemplateJsonStr:
 
 
 class TestSvgAsImgTag:
-    def _simple_svg(self):
+    @staticmethod
+    def _simple_svg():
         return '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"></svg>'
 
     def test_output_contains_img_tag(self):

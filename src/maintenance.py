@@ -146,7 +146,6 @@ def run_maintenance(
                 device_name,
                 device,
                 _log,
-                force=True,
                 restart_xochitl=False,
             )
             if not ok:

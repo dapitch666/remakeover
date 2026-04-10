@@ -119,9 +119,15 @@ def _enrich_diff_with_names(
         )
 
     enriched = dict(diff)
-    enriched["to_upload_added_names"] = sorted(set(to_upload_added_names), key=str.casefold)
-    enriched["to_upload_modified_names"] = sorted(set(to_upload_modified_names), key=str.casefold)
-    enriched["to_delete_remote_names"] = sorted(set(to_delete_remote_names), key=str.casefold)
+    enriched["to_upload_added_names"] = sorted(
+        set(to_upload_added_names), key=lambda s: s.casefold()
+    )
+    enriched["to_upload_modified_names"] = sorted(
+        set(to_upload_modified_names), key=lambda s: s.casefold()
+    )
+    enriched["to_delete_remote_names"] = sorted(
+        set(to_delete_remote_names), key=lambda s: s.casefold()
+    )
     return enriched
 
 
@@ -203,19 +209,19 @@ def fetch_and_init_templates(
 
     if overwrite_backup:
         templates_dir = _tpl.get_device_templates_dir(device_name)
-        for fname in os.listdir(templates_dir):
-            if fname.lower().endswith((".template", ".metadata", ".content")):
+        for filename in os.listdir(templates_dir):
+            if filename.lower().endswith((".template", ".metadata", ".content")):
                 with suppress(OSError):
-                    os.remove(os.path.join(templates_dir, fname))
+                    os.remove(os.path.join(templates_dir, filename))
         manifest_path = _tpl.get_device_manifest_json_path(device_name)
         with suppress(FileNotFoundError):
             os.remove(manifest_path)
 
-    ok, payload = _tpl._list_remote_custom_templates(ip, pw)
+    ok, payload = _tpl.list_remote_custom_templates(ip, pw)
     if not ok:
         return False, f"list_remote_templates_failed: {payload}"
     if not isinstance(payload, list):
-        raise TypeError(f"Expected list from _list_remote_custom_templates, got {type(payload)}")
+        raise TypeError(f"Expected list from list_remote_custom_templates, got {type(payload)}")
 
     imported = 0
     for remote_uuid in payload:
@@ -245,7 +251,7 @@ def fetch_and_init_templates(
         try:
             metadata = json.loads(metadata_bytes.decode("utf-8"))
             payload_json = json.loads(template_bytes.decode("utf-8"))
-        except Exception:
+        except json.JSONDecodeError:
             continue
 
         if metadata.get("type") != "TemplateType":
@@ -255,14 +261,14 @@ def fetch_and_init_templates(
         visible_name = str(
             metadata.get("visibleName") or normalized_payload.get("name") or remote_uuid
         )
-        paths = _tpl._triplet_paths(device_name, remote_uuid)
-        _tpl._write_json_file(paths["template"], normalized_payload)
+        paths = _tpl.triplet_paths(device_name, remote_uuid)
+        (_tpl.write_json_file(paths["template"], normalized_payload))
         with open(paths["metadata"], "wb") as f:
             f.write(metadata_bytes)
         with open(paths["content"], "wb") as f:
             f.write(content_bytes)
 
-        _tpl._ensure_local_sidecars(device_name, remote_uuid, visible_name)
+        _tpl.ensure_local_sidecars(device_name, remote_uuid, visible_name)
         sha256 = _tpl.compute_template_sha256(normalized_payload)
         created_at = _tpl.iso_from_epoch_ms(metadata.get("createdTime")) or _tpl.utc_now_iso()
         _tpl.upsert_manifest_template(
@@ -287,11 +293,9 @@ def sync_templates_to_tablet(
     selected_name: str,
     device,
     add_log,
-    force: bool = False,
     restart_xochitl: bool = True,
 ) -> bool:
     """Synchronize local templates to tablet using manifest comparison."""
-    del force
     ip = device.ip
     pw = device.password or ""
 

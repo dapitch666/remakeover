@@ -56,6 +56,7 @@ def test_upload_and_send_flow(tmp_path):
     run_cmds: list = []
     saved_files: list = []
 
+    # noinspection PyAbstractClass
     with ExitStack() as stack:
         stack.enter_context(
             patch.dict(
@@ -118,17 +119,17 @@ class TestImagesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.images.list_device_images", return_value=["myphoto.png"]),
+            patch("src.images.list_device_images", return_value=["MyImage.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/images.py").run()
-            name_btn = next((b for b in at.button if "myphoto" in b.label), None)
+            name_btn = next((b for b in at.button if "MyImage" in b.label), None)
             assert name_btn is not None, "Image name button not found"
             name_btn.click().run()
         assert not at.exception
-        assert at.session_state["img_renaming"] == "myphoto.png"
+        assert at.session_state["img_renaming"] == "MyImage.png"
 
     def test_rename_mode_shows_form(self, tmp_path):
         """When img_renaming is set, the page renders a rename form."""
@@ -152,12 +153,12 @@ class TestImagesPage:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.images.list_device_images", return_value=["todel.png"]),
+            patch("src.images.list_device_images", return_value=["image2.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["img_pending_delete"] = "todel.png"
+            at.session_state["img_pending_delete"] = "image2.png"
             at.switch_page("pages/images.py").run()
         assert not at.exception
 
@@ -168,7 +169,7 @@ class TestImagesPage:
         deleted: list = []
         with (
             patch.dict(os.environ, env),
-            patch("src.images.list_device_images", return_value=["todel.png"]),
+            patch("src.images.list_device_images", return_value=["image2.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch(
                 "src.images.delete_device_image",
@@ -177,11 +178,11 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["img_pending_delete"] = "todel.png"
+            at.session_state["img_pending_delete"] = "image2.png"
             at.session_state["confirm_del_img"] = True
             at.switch_page("pages/images.py").run()
         assert not at.exception
-        assert "todel.png" in deleted
+        assert "image2.png" in deleted
 
     def test_delete_cancelled_clears_state(self, tmp_path):
         """When confirm_del_img is False, state is cleared without deleting."""
@@ -328,7 +329,8 @@ class TestImagesPage:
 class TestPreferredImageActions:
     """Tests for preferred-image branch in _render_image_card."""
 
-    def _cfg_with_preferred(self, tmp_path, device_name: str, preferred: str) -> str:
+    @staticmethod
+    def _cfg_with_preferred(tmp_path, device_name: str, preferred: str) -> str:
         cfg_file = tmp_path / "config.json"
         cfg_file.write_text(
             json.dumps(
@@ -405,10 +407,12 @@ class TestPreferredImageActions:
 class TestImageSegmentedActions:
     """Tests for all branches of the on_action on_change callback."""
 
-    def _run_action(self, tmp_path, img_name: str, action_value, extra_patches=()):
+    @staticmethod
+    def _run_action(tmp_path, img_name: str, action_value, extra_patches=()):
         """Boot images page, then set the action segmented control to *action_value*."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
+        # noinspection PyAbstractClass
         with ExitStack() as stack:
             stack.enter_context(patch.dict(os.environ, env))
             stack.enter_context(patch("src.images.list_device_images", return_value=[img_name]))

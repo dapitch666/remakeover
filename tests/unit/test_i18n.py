@@ -10,8 +10,10 @@ import src.i18n as i18n
 @pytest.fixture(autouse=True)
 def clear_catalog_cache():
     """Clear the module-level catalog cache between tests."""
+    # noinspection PyProtectedMember
     i18n._catalogs.clear()
     yield
+    # noinspection PyProtectedMember
     i18n._catalogs.clear()
 
 
