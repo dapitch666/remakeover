@@ -9,6 +9,8 @@ import streamlit as st
 import src.dialog as _dialog
 from src.config import get_device_data_dir, save_config
 from src.constants import DEFAULT_DEVICE_TYPE, DEVICE_SIZES
+
+# noinspection PyProtectedMember
 from src.i18n import _
 from src.ui_common import deferred_toast, init_page, rainbow_divider
 

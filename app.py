@@ -10,6 +10,8 @@ from src.config import (
     BASE_DIR,
     load_config,
 )
+
+# noinspection PyProtectedMember
 from src.i18n import SUPPORTED_LANGUAGES, _
 
 _LANG_FLAGS = {"en": ("🇬🇧", "English"), "fr": ("🇫🇷", "Français")}
@@ -271,7 +273,6 @@ def main():
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
-        st.Page("pages/deployment.py", title=_("Deployment"), icon=":material/rocket_launch:"),
         config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),
     ]

@@ -146,7 +146,6 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
         patch("src.images.load_device_image", side_effect=_load_device_image),
         patch("src.images.delete_device_image", return_value=True),
         patch("src.images.rename_device_image", return_value=True),
-        patch("src.maintenance.run_maintenance", return_value={"ok": True}),
         patch("src.dialog.confirm", return_value=True),
     ]
 

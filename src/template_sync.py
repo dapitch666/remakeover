@@ -12,11 +12,13 @@ import src.ssh as _ssh
 import src.templates as _tpl
 from src.constants import CMD_RESTART_XOCHITL, REMOTE_MANIFEST_FILENAME, REMOTE_XOCHITL_DATA_DIR
 from src.manifest_templates import (
-    _default_manifest,
-    _normalize_manifest,
+    default_manifest,
+    get_device_manifest_path,
     load_manifest,
+    normalize_manifest,
     utc_now_iso,
 )
+from src.models import Device
 
 
 def _remote_manifest_path() -> str:
@@ -32,18 +34,18 @@ def _fetch_remote_manifest(ip: str, pw: str) -> tuple[bool, dict[str, Any], str]
     content, err = _ssh.download_file_ssh(ip, pw, _remote_manifest_path())
     if content is None:
         if _is_missing_remote_manifest_error(err):
-            return True, _default_manifest(), "missing"
-        return False, _default_manifest(), err
+            return True, default_manifest(), "missing"
+        return False, default_manifest(), err
 
     try:
         parsed = json.loads(content.decode("utf-8"))
     except Exception as exc:
-        return False, _default_manifest(), f"invalid_remote_manifest: {exc}"
-    return True, _normalize_manifest(parsed), "ok"
+        return False, default_manifest(), f"invalid_remote_manifest: {exc}"
+    return True, normalize_manifest(parsed), "ok"
 
 
 def _push_remote_manifest(ip: str, pw: str, manifest: dict[str, Any]) -> tuple[bool, str]:
-    payload = json.dumps(_normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
+    payload = json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
     return _ssh.upload_file_ssh(ip, pw, payload, _remote_manifest_path())
 
 
@@ -137,7 +139,7 @@ def compute_sync_status_from_cached_remote(
 ) -> dict[str, Any]:
     """Compute sync status locally from current manifest and a cached remote snapshot."""
     local_manifest = load_manifest(selected_name)
-    remote_manifest = _normalize_manifest(cached_remote_manifest)
+    remote_manifest = normalize_manifest(cached_remote_manifest)
 
     result = _compare_manifests(local_manifest, remote_manifest)
     enriched = _enrich_diff_with_names(result, local_manifest, remote_manifest)
@@ -173,14 +175,11 @@ def refresh_cached_sync_status(
     return refreshed
 
 
-def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[str, Any] | str]:
+def check_sync_status(device: Device, add_log) -> tuple[bool, dict[str, Any] | str]:
     """Compare local and remote manifests without mutating local state."""
-    ip = device.ip
-    pw = device.password or ""
+    local_manifest = load_manifest(device.name)
 
-    local_manifest = load_manifest(selected_name)
-
-    ok_remote, remote_manifest, status_msg = _fetch_remote_manifest(ip, pw)
+    ok_remote, remote_manifest, status_msg = _fetch_remote_manifest(device.ip, device.password)
     if not ok_remote:
         return False, status_msg
 
@@ -191,7 +190,7 @@ def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[s
     result["checked_at"] = utc_now_iso()
 
     add_log(
-        f"Sync check on '{selected_name}' "
+        f"Sync check on '{device.name}' "
         f"(local={result['local_count']}, remote={result['remote_count']}, "
         f"upload={len(result['to_upload'])}, delete_remote={len(result['to_delete_remote'])})"
     )
@@ -199,25 +198,22 @@ def check_sync_status(selected_name: str, device, add_log) -> tuple[bool, dict[s
 
 
 def fetch_and_init_templates(
-    ip: str,
-    password: str,
-    device_name: str,
+    device: Device,
     overwrite_backup: bool = False,
 ) -> tuple[bool, str]:
     """Import rmMethods templates from xochitl, build local manifest, then push it."""
-    pw = password or ""
 
     if overwrite_backup:
-        templates_dir = _tpl.get_device_templates_dir(device_name)
+        templates_dir = _tpl.get_device_templates_dir(device.name)
         for filename in os.listdir(templates_dir):
             if filename.lower().endswith((".template", ".metadata", ".content")):
                 with suppress(OSError):
                     os.remove(os.path.join(templates_dir, filename))
-        manifest_path = _tpl.get_device_manifest_json_path(device_name)
+        manifest_path = get_device_manifest_path(device.name)
         with suppress(FileNotFoundError):
             os.remove(manifest_path)
 
-    ok, payload = _tpl.list_remote_custom_templates(ip, pw)
+    ok, payload = _tpl.list_remote_custom_templates(device.ip, device.password)
     if not ok:
         return False, f"list_remote_templates_failed: {payload}"
     if not isinstance(payload, list):
@@ -226,21 +222,21 @@ def fetch_and_init_templates(
     imported = 0
     for remote_uuid in payload:
         metadata_bytes, meta_err = _ssh.download_file_ssh(
-            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
+            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
         )
         if metadata_bytes is None:
             _tpl.logger.warning("Skipping %s: metadata download failed (%s)", remote_uuid, meta_err)
             continue
 
         template_bytes, tpl_err = _ssh.download_file_ssh(
-            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
+            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
         )
         if template_bytes is None:
             _tpl.logger.warning("Skipping %s: template download failed (%s)", remote_uuid, tpl_err)
             continue
 
         content_bytes, content_err = _ssh.download_file_ssh(
-            ip, pw, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.content"
+            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.content"
         )
         if content_bytes is None:
             _tpl.logger.info(
@@ -261,18 +257,18 @@ def fetch_and_init_templates(
         visible_name = str(
             metadata.get("visibleName") or normalized_payload.get("name") or remote_uuid
         )
-        paths = _tpl.triplet_paths(device_name, remote_uuid)
+        paths = _tpl.triplet_paths(device.name, remote_uuid)
         (_tpl.write_json_file(paths["template"], normalized_payload))
         with open(paths["metadata"], "wb") as f:
             f.write(metadata_bytes)
         with open(paths["content"], "wb") as f:
             f.write(content_bytes)
 
-        _tpl.ensure_local_sidecars(device_name, remote_uuid, visible_name)
+        _tpl.ensure_local_sidecars(device.name, remote_uuid, visible_name)
         sha256 = _tpl.compute_template_sha256(normalized_payload)
         created_at = _tpl.iso_from_epoch_ms(metadata.get("createdTime")) or _tpl.utc_now_iso()
         _tpl.upsert_manifest_template(
-            device_name,
+            device.name,
             remote_uuid,
             name=visible_name,
             created_at=created_at,
@@ -281,7 +277,7 @@ def fetch_and_init_templates(
         imported += 1
 
     ok_manifest_upload, manifest_upload_msg = _push_remote_manifest(
-        ip, pw, load_manifest(device_name)
+        device.ip, device.password, load_manifest(device.name)
     )
     if not ok_manifest_upload:
         return False, f"upload_remote_manifest_failed: {manifest_upload_msg}"

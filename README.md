@@ -101,7 +101,7 @@ Manage custom templates (`.template` JSON format):
 - **Sync** changes to the tablet (local manifest is applied to the device)
 
 ### 🚀 Deployment
-Re-deploy your configuration after a firmware update (which resets all customisations):
+Re-deploy your configuration after a firmware update (which resets all customizations):
 - Sends the preferred sleep-screen image (or a random one)
 - Syncs local `.template` files to rmMethods UUID triplets in xochitl
 - Disables the carousel (moves stock illustrations to a backup folder)
@@ -112,7 +112,7 @@ Re-deploy your configuration after a firmware update (which resets all customisa
 ### ⚙️ Configuration
 Add, edit, or delete devices.
 
-### ✏️ Éditeur de templates
+### ✏️ Templates Editor
 Create and edit `.template` JSON-format files with a live SVG preview. Save results to the local device library for deployment from the Templates page.
 
 ### 📋 Logs

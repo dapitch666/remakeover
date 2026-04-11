@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.manifest_templates import get_manifest_entry, load_manifest
+from src.models import Device
 from src.template_sync import (
     build_assumed_sync_status,
     compute_sync_status_from_cached_remote,
@@ -37,7 +38,7 @@ def _uuid_for_filename(device_name: str, filename: str) -> str | None:
 
 
 def _device():
-    return _Device(ip="10.0.0.1", password="pw")
+    return Device(name="D1", ip="10.0.0.1", password="pw")
 
 
 def _logger_bucket():
@@ -169,7 +170,7 @@ def test_sync_check_reports_manifest_diff(tmp_path):
         "src.template_sync._ssh.download_file_ssh",
         return_value=(json.dumps(remote_manifest).encode("utf-8"), ""),
     ):
-        ok, payload = check_sync_status("D1", _device(), add_log)
+        ok, payload = check_sync_status(_device(), add_log)
 
     assert ok is True
     assert isinstance(payload, dict)

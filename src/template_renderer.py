@@ -17,6 +17,7 @@ escape the sandbox.
 from __future__ import annotations
 
 import ast
+import base64
 import json
 from typing import Any
 
@@ -115,9 +116,9 @@ def _eval_expr(val: Any, ctx: dict[str, Any]) -> float:
             return 0.0
 
     try:
-        result = eval(compile(tree, "<template_expr>", "eval"), {"__builtins__": {}}, ctx)  # noqa: S307
+        result = eval(compile(tree, "<template_expr>", "eval"), {"__builtins__": {}}, ctx)
         return float(result)
-    except Exception:
+    except (ArithmeticError, NameError, TypeError, ValueError):
         return 0.0
 
 
@@ -135,7 +136,7 @@ def _build_ctx(template: dict[str, Any], canvas_w: float, canvas_h: float) -> di
         if not isinstance(entry, dict):
             continue
         for k, v in entry.items():
-            ctx[k] = _eval_expr(v, ctx) if isinstance(v, str) else float(v)
+            ctx[k] = _eval_expr(v, ctx)
     return ctx
 
 
@@ -267,7 +268,7 @@ def _eval_repeat_val(raw: Any, ctx: dict[str, Any]) -> int | str | None:
         return max(1, int(raw))
     if isinstance(raw, str):
         v = _eval_expr(raw, ctx)
-        return max(1, int(v)) if v > 0 else 1
+        return max(1, int(v))
     return None
 
 
@@ -402,8 +403,6 @@ def svg_as_img_tag(
     Using an ``<img>`` tag (rather than inline SVG) lets the browser derive
     the correct height from the viewBox aspect ratio automatically.
     """
-    import base64
-
     b64 = base64.b64encode(svg.encode()).decode()
 
     style = (

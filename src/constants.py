@@ -14,12 +14,6 @@ SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
 # rmMethods template storage directory (persists across firmware updates)
 REMOTE_XOCHITL_DATA_DIR = "/home/root/.local/share/remarkable/xochitl"
 
-# Carousel illustrations directory
-REMOTE_CAROUSEL_DIR = "/usr/share/remarkable/carousel"
-
-# Backup sub-folder for disabled carousel illustrations
-REMOTE_CAROUSEL_BACKUP_DIR = "/usr/share/remarkable/carousel/backupIllustrations"
-
 # Manifest filename stored alongside templates on the tablet
 REMOTE_MANIFEST_FILENAME = ".manifest.json"
 
@@ -35,12 +29,6 @@ CMD_CHECK_RW = 'mount | grep "on / " | grep -q "(rw," && printf "writable" || pr
 
 # Remount the root filesystem as read-write
 CMD_REMOUNT_RW = "mount -o remount,rw /"
-
-# Disable carousel: back up illustrations then clear the source folder
-CMD_CAROUSEL_BACKUP_DIR = f"mkdir -p '{REMOTE_CAROUSEL_BACKUP_DIR}'"
-CMD_CAROUSEL_DISABLE = (
-    f"mv '{REMOTE_CAROUSEL_DIR}'/*.png '{REMOTE_CAROUSEL_BACKUP_DIR}/' 2>/dev/null || true"
-)
 
 # ---------------------------------------------------------------------------
 # Device catalogue

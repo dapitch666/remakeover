@@ -5,6 +5,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import streamlit as st
+from babel.core import UnknownLocaleError
 from babel.dates import format_date, format_time
 
 import src.ssh as _ssh
@@ -89,9 +90,9 @@ _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", "
 
 
 def normalise_filename(filename: str, ext: str = ".png") -> str:
-    """Sanitise a filename and ensure it ends with the specified extension.
+    """Sanitize a filename and ensure it ends with the specified extension.
 
-    Only strips an existing suffix when it is a recognised file extension,
+    Only strips an existing suffix when it is a recognized file extension,
     so that dots inside a user-supplied base name (e.g. ``alice.et.merlin``)
     are preserved rather than being mistakenly treated as an extension.
     """
@@ -156,5 +157,5 @@ def format_datetime_for_ui(
             dt_local.time(), format="HH:mm", locale=ui_locale
         )
 
-    except Exception:
+    except (ValueError, KeyError, UnknownLocaleError):
         return iso_string, ""

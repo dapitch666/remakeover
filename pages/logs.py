@@ -3,6 +3,8 @@
 import streamlit as st
 
 import src.dialog as _dialog
+
+# noinspection PyProtectedMember
 from src.i18n import _
 from src.ui_common import rainbow_divider
 

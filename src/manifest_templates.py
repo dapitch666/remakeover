@@ -30,7 +30,7 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _default_manifest() -> dict[str, Any]:
+def default_manifest() -> dict[str, Any]:
     return {"last_modified": None, "templates": {}}
 
 
@@ -65,9 +65,9 @@ def iso_from_epoch_ms(value: Any) -> str | None:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _normalize_manifest(data: Any) -> dict[str, Any]:
+def normalize_manifest(data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
-        return _default_manifest()
+        return default_manifest()
 
     templates_raw = data.get("templates", {})
     if not isinstance(templates_raw, dict):
@@ -106,18 +106,18 @@ def _normalize_manifest(data: Any) -> dict[str, Any]:
 def load_manifest(device_name: str) -> dict[str, Any]:
     path = get_device_manifest_path(device_name)
     if not os.path.exists(path):
-        return _default_manifest()
+        return default_manifest()
     try:
         with open(path, encoding="utf-8") as f:
-            return _normalize_manifest(json.load(f))
-    except json.JSONDecodeError:
-        return _default_manifest()
+            return normalize_manifest(json.load(f))
+    except (OSError, json.JSONDecodeError):
+        return default_manifest()
 
 
 def save_manifest(device_name: str, data: dict[str, Any]) -> None:
     path = get_device_manifest_path(device_name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    normalized = _normalize_manifest(data)
+    normalized = normalize_manifest(data)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(normalized, f, indent=2, ensure_ascii=True)
 

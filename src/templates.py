@@ -1,8 +1,7 @@
 """Templates management.
 
 Local helpers store `.template` files per device and remote helpers interact
-with rmMethods template triplets in xochitl (`UUID.template`,
-`UUID.metadata`, `UUID.content`).
+with rmMethods template triplets in xochitl (`UUID.template`, `UUID.metadata`, `UUID.content`).
 """
 
 import base64
@@ -16,6 +15,7 @@ import time
 import uuid
 from collections.abc import Callable
 from contextlib import suppress
+from json import JSONDecodeError
 from typing import Any
 
 import paramiko
@@ -30,7 +30,6 @@ from src.manifest_templates import (
     _stem,
     compute_template_sha256,
     delete_manifest_template,
-    get_device_manifest_path,
     get_manifest_entry,
     iso_from_epoch_ms,
     load_manifest,
@@ -142,6 +141,32 @@ def extract_template_meta_and_body(json_str: str) -> tuple[dict[str, Any], str]:
     return meta, json.dumps(body, indent=4, ensure_ascii=True)
 
 
+def build_full_json(meta: dict[str, Any], body_str: str) -> str:
+    """Merge metadata and a JSON body string into a complete template JSON string.
+
+    Inverse of extract_template_meta_and_body.
+    Raises ValueError if body_str is not valid JSON or not a JSON object.
+    """
+    if not str(meta.get("author") or "").strip():
+        meta = {**meta, "author": "rm-manager"}
+    try:
+        body = json.loads(body_str)
+    except JSONDecodeError as exc:
+        raise ValueError(f"invalid_json_body: {exc}") from exc
+    if not isinstance(body, dict):
+        raise ValueError("json_body_must_be_object")
+    full: dict[str, Any] = {}
+    for key in META_FIELDS:
+        val = meta.get(key)
+        if key == "iconData" and not val:
+            continue
+        if key == "labels" and not val:
+            continue
+        full[key] = val
+    full.update(body)
+    return json.dumps(full, indent=4, ensure_ascii=True)
+
+
 def _epoch_ms() -> str:
     return str(int(time.time() * 1000))
 
@@ -206,11 +231,6 @@ def get_device_templates_dir(device_name: str) -> str:
     device_dir = os.path.join(get_device_data_dir(device_name), "templates")
     os.makedirs(device_dir, exist_ok=True)
     return device_dir
-
-
-def get_device_manifest_json_path(device_name: str) -> str:
-    """Return the path to data/{device}/manifest.json."""
-    return get_device_manifest_path(device_name)
 
 
 def list_device_templates(device_name: str) -> list[str]:

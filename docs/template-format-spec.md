@@ -177,9 +177,9 @@ Renders a static text label.
 | `fontSize` | number | yes | Font size in px |
 | `position` | object | yes | `{ "x": ..., "y": ... }` — coordinates relative to the parent container |
 
-`position.x` and `position.y` accept number literals or expression strings. The built-in `textWidth` variable can be used in `position.x` to centre-align text.
+`position.x` and `position.y` accept number literals or expression strings. The built-in `textWidth` variable can be used in `position.x` to center-align text.
 
-> **Fixed rendering properties:** The local SVG renderer always renders text with `fill="#000000"` (black) and `font-family="sans-serif"`. These properties cannot be customised via the template JSON.
+> **Fixed rendering properties:** The local SVG renderer always renders text with `fill="#000000"` (black) and `font-family="sans-serif"`. These properties cannot be customized via the template JSON.
 
 ---
 
