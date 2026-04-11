@@ -124,32 +124,6 @@ def test_get_all_labels_empty_when_no_templates(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# get_template_entry
-# ---------------------------------------------------------------------------
-
-
-def test_get_template_entry_returns_combined_data(tmp_path):
-    _set_data_dir(tmp_path)
-    tpl.save_json_template(
-        "D1",
-        "Entry.template",
-        json.dumps({"name": "Entry", "categories": ["Work"], "labels": ["l1"]}),
-    )
-    tpl.add_template_entry("D1", "Entry.template")
-    entry = tpl.get_template_entry("D1", "Entry.template")
-    assert entry is not None
-    assert entry["name"] == "Entry"
-    assert "Work" in entry["categories"]
-    assert "l1" in entry["labels"]
-
-
-def test_get_template_entry_returns_none_for_unknown(tmp_path):
-    _set_data_dir(tmp_path)
-    result = tpl.get_template_entry("D1", "ghost.template")
-    assert result is None
-
-
-# ---------------------------------------------------------------------------
 # list_device_templates
 # ---------------------------------------------------------------------------
 

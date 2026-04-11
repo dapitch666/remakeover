@@ -3,7 +3,6 @@
 import json
 import os
 from contextlib import suppress
-from typing import cast
 
 import streamlit as st
 
@@ -35,8 +34,8 @@ from src.templates import (
     get_all_categories,
     get_all_labels,
     get_device_manifest_json_path,
-    get_template_entry,
-    list_device_templates,
+    get_template_entry_by_uuid,
+    list_template_entries,
     load_json_template,
     merge_multiselect_options,
     normalise_string_list,
@@ -55,6 +54,8 @@ from src.ui_common import (
 )
 
 _SENTINEL_NEW = "__new__"
+_SESSION_SELECTED_UUID_KEY = "tpl_unified_selected_uuid"
+_SESSION_LOADED_UUID_KEY = "tpl_unified_loaded_uuid"
 
 
 def _sync_status_key(selected_name: str) -> str:
@@ -113,6 +114,19 @@ def _render_sync_name_line(label: str, names: list[str], empty_message: str) -> 
         label,
         pill_options,
     )
+
+
+def _selected_template_uuid() -> str | None:
+    selected = st.session_state.get(_SESSION_SELECTED_UUID_KEY)
+    return str(selected) if isinstance(selected, str) else None
+
+
+def _set_selected_template_uuid(template_uuid: str | None) -> None:
+    st.session_state[_SESSION_SELECTED_UUID_KEY] = template_uuid
+
+
+def _set_loaded_template_uuid(template_uuid: str | None) -> None:
+    st.session_state[_SESSION_LOADED_UUID_KEY] = template_uuid
 
 
 def _on_icon_svg_change() -> None:
@@ -220,9 +234,11 @@ def _build_full_json(body_str: str) -> str:
 
 
 @st.cache_data(ttl=60)
-def _get_template_icon_svg(selected_name: str, tpl_name: str) -> str:
+def _get_template_icon_svg(selected_name: str, template_uuid: str) -> str:
     """Return the decoded icon SVG for a template (cached 60 s)."""
-    entry = get_template_entry(selected_name, tpl_name)
+    if template_uuid == _SENTINEL_NEW:
+        return ""
+    entry = get_template_entry_by_uuid(selected_name, template_uuid)
     if not entry:
         return ""
     icon_data = entry.get("iconData", "")
@@ -231,26 +247,23 @@ def _get_template_icon_svg(selected_name: str, tpl_name: str) -> str:
     return decode_icon_data(str(icon_data))
 
 
-def _get_template_uuid_caption(selected_name: str, tpl_name: str) -> str:
+def _get_template_uuid_caption(selected_name: str, template_uuid: str) -> str:
     """Return the current template UUID caption text for the editor header area."""
-    if tpl_name == _SENTINEL_NEW:
+    if template_uuid == _SENTINEL_NEW:
         return _("New")
-
-    entry = get_template_entry(selected_name, tpl_name)
-    template_uuid = str(entry.get("uuid") or "").strip() if entry else ""
-    if template_uuid:
-        return template_uuid
-    return _("New")
+    return template_uuid
 
 
-def _load_template_into_editor(selected_name: str, tpl_name: str) -> None:
+def _load_template_into_editor(selected_name: str, template_uuid: str) -> None:
     """Clear meta state and load the given template file into the editor."""
     for key in META_DEFAULTS:
         st.session_state.pop(key, None)
     st.session_state.pop("tpl_meta_icon_svg_code", None)
     st.session_state.pop("_icon_b64_prev", None)
-    st.session_state["tpl_editor_textarea"] = load_json_template(selected_name, tpl_name)
-    st.session_state["tpl_unified_loaded"] = tpl_name
+    st.session_state["tpl_editor_textarea"] = load_json_template(
+        selected_name, f"{template_uuid}.template"
+    )
+    _set_loaded_template_uuid(template_uuid)
 
 
 def _reset_editor_for_new() -> None:
@@ -260,15 +273,19 @@ def _reset_editor_for_new() -> None:
     st.session_state.pop("tpl_meta_icon_svg_code", None)
     st.session_state.pop("_icon_b64_prev", None)
     st.session_state["tpl_editor_textarea"] = DEFAULT_TEMPLATE_JSON
-    st.session_state["tpl_unified_loaded"] = _SENTINEL_NEW
+    _set_loaded_template_uuid(_SENTINEL_NEW)
 
 
-def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) -> None:
+def _duplicate_template_into_editor(selected_name: str, template_uuid: str, add_log) -> None:
     """Queue a copy of an existing template into the unsaved editor state."""
-    entry = get_template_entry(selected_name, tpl_name)
-    ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
+    entry = get_template_entry_by_uuid(selected_name, template_uuid)
+    ui_name = (
+        str(entry.get("display_name") or entry.get("name") or template_uuid)
+        if entry
+        else template_uuid
+    )
 
-    duplicated_raw = load_json_template(selected_name, tpl_name)
+    duplicated_raw = load_json_template(selected_name, f"{template_uuid}.template")
     try:
         duplicated_payload = json.loads(duplicated_raw)
     except json.JSONDecodeError:
@@ -283,8 +300,8 @@ def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) 
     else:
         st.session_state["tpl_pending_editor_textarea"] = duplicated_raw
 
-    st.session_state["tpl_unified_selected"] = _SENTINEL_NEW
-    st.session_state["tpl_unified_loaded"] = _SENTINEL_NEW
+    _set_selected_template_uuid(_SENTINEL_NEW)
+    _set_loaded_template_uuid(_SENTINEL_NEW)
 
     add_log(f"Template '{ui_name}' duplicated in editor for '{selected_name}' (not saved)")
     deferred_toast(_("Template duplicated (not saved)"), ":material/task_alt:")
@@ -294,62 +311,70 @@ def _duplicate_template_into_editor(selected_name: str, tpl_name: str, add_log) 
 
 
 @st.dialog(_("Delete template"), dismissible=False)
-def _show_delete_dialog(tpl_name: str, selected_name: str, add_log) -> None:
-    entry = get_template_entry(selected_name, tpl_name)
-    ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
+def _show_delete_dialog(template_uuid: str, selected_name: str, add_log) -> None:
+    entry = get_template_entry_by_uuid(selected_name, template_uuid)
+    ui_name = (
+        str(entry.get("display_name") or entry.get("name") or template_uuid)
+        if entry
+        else template_uuid
+    )
     st.write(_("Do you really want to delete {name}?").format(name=ui_name))
     col_cancel, col_delete = st.columns(2)
     with col_cancel:
-        if st.button(_("Cancel"), key=f"tpl_del_cancel_{tpl_name}", width="stretch"):
+        if st.button(_("Cancel"), key=f"tpl_del_cancel_{template_uuid}", width="stretch"):
             st.rerun()
     with col_delete:
         if st.button(
             _("Delete"),
-            key=f"tpl_del_confirm_{tpl_name}",
+            key=f"tpl_del_confirm_{template_uuid}",
             icon=":material/delete:",
             type="primary",
             width="stretch",
         ):
-            delete_device_template(selected_name, tpl_name)
-            remove_template_entry(selected_name, tpl_name)
+            delete_device_template(selected_name, template_uuid)
+            remove_template_entry(selected_name, template_uuid)
             add_log(f"Template '{ui_name}' deleted locally from '{selected_name}'")
             deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
             _get_template_icon_svg.clear()
-            st.session_state["tpl_unified_selected"] = None
-            st.session_state["tpl_unified_loaded"] = None
+            _set_selected_template_uuid(None)
+            _set_loaded_template_uuid(None)
             st.rerun()
 
 
 @st.dialog(_("Replace template file"), dismissible=False)
-def _show_reload_dialog(tpl_name: str, selected_name: str, add_log) -> None:
-    entry = get_template_entry(selected_name, tpl_name)
-    ui_name = str(entry.get("name") or tpl_name) if entry else tpl_name
+def _show_reload_dialog(template_uuid: str, selected_name: str, add_log) -> None:
+    entry = get_template_entry_by_uuid(selected_name, template_uuid)
+    ui_name = (
+        str(entry.get("display_name") or entry.get("name") or template_uuid)
+        if entry
+        else template_uuid
+    )
     reload_file = st.file_uploader(
         _("New .template file"),
         type=["template"],
-        key=f"tpl_reload_file_{tpl_name}",
+        key=f"tpl_reload_file_{template_uuid}",
     )
     col_save, col_cancel = st.columns(2, gap="xxsmall")
     with col_save:
         if st.button(
             _("Save"),
-            key=f"tpl_reload_save_{tpl_name}",
+            key=f"tpl_reload_save_{template_uuid}",
             type="primary",
             disabled=reload_file is None,
             width="stretch",
         ):
             assert reload_file is not None
             content = reload_file.read()
-            save_device_template(selected_name, content, tpl_name)
+            save_device_template(selected_name, content, f"{template_uuid}.template")
             add_log(f"Template '{ui_name}' reloaded locally for '{selected_name}'")
             deferred_toast(
                 _("'{name}' updated locally").format(name=ui_name), ":material/task_alt:"
             )
             _get_template_icon_svg.clear()
-            _load_template_into_editor(selected_name, tpl_name)
+            _load_template_into_editor(selected_name, template_uuid)
             st.rerun()
     with col_cancel:
-        if st.button(_("Cancel"), key=f"tpl_reload_cancel_{tpl_name}", width="stretch"):
+        if st.button(_("Cancel"), key=f"tpl_reload_cancel_{template_uuid}", width="stretch"):
             st.rerun()
 
 
@@ -416,7 +441,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
             help=_("Create a new template from scratch"),
         ):
             _reset_editor_for_new()
-            st.session_state["tpl_unified_selected"] = _SENTINEL_NEW
+            _set_selected_template_uuid(_SENTINEL_NEW)
             st.rerun()
     with col_import:
         if st.button(
@@ -497,7 +522,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                         "assumed_after_sync",
                     )
                     deferred_toast(_("Templates synced"), ":material/task_alt:")
-                    _current = st.session_state.get("tpl_unified_selected")
+                    _current = _selected_template_uuid()
                     if _current and _current != _SENTINEL_NEW:
                         _load_template_into_editor(selected_name, str(_current))
                     st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
@@ -524,16 +549,19 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
                         "assumed_after_reinitialize",
                     )
                     deferred_toast(_("Templates synced"), ":material/task_alt:")
-                    _current = st.session_state.get("tpl_unified_selected")
+                    _current = _selected_template_uuid()
                     if (
                         _current
                         and _current != _SENTINEL_NEW
-                        and _current in list_device_templates(selected_name)
+                        and any(
+                            entry.get("uuid") == _current
+                            for entry in list_template_entries(selected_name)
+                        )
                     ):
                         _load_template_into_editor(selected_name, str(_current))
                     else:
-                        st.session_state["tpl_unified_selected"] = None
-                        st.session_state["tpl_unified_loaded"] = None
+                        _set_selected_template_uuid(None)
+                        _set_loaded_template_uuid(None)
                 else:
                     deferred_toast(_("Sync error"), ":material/error:")
                 st.rerun()
@@ -606,28 +634,23 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
             )
 
     # Build filtered template list
-    stored_templates = list_device_templates(selected_name)
-    entries: dict[str, dict] = {
-        t: (get_template_entry(selected_name, t) or {}) for t in stored_templates
-    }
+    template_entries = list_template_entries(selected_name)
+    entries: dict[str, dict] = {str(entry.get("uuid") or ""): entry for entry in template_entries}
 
-    def _matches(tpl_name: str) -> bool:
-        entry = entries[tpl_name]
-        name = str(entry.get("name") or os.path.splitext(tpl_name)[0])
+    def _matches(template_uuid: str) -> bool:
+        entry = entries[template_uuid]
+        name = str(entry.get("display_name") or entry.get("name") or template_uuid)
         if filter_text and filter_text.lower() not in name.lower():
             return False
         if filter_cats and not any(c in entry.get("categories", []) for c in filter_cats):
             return False
         return not filter_labels or any(lbl in entry.get("labels", []) for lbl in filter_labels)
 
-    filtered = sorted(
-        [t for t in stored_templates if _matches(t)],
-        key=lambda t: str(entries[t].get("name") or "").lower(),
-    )
-    selected = st.session_state.get("tpl_unified_selected")
+    filtered = [entry for entry in template_entries if _matches(str(entry.get("uuid") or ""))]
+    selected = _selected_template_uuid()
     list_gen = st.session_state.get("tpl_list_gen", 0)
 
-    if not stored_templates:
+    if not template_entries:
         st.caption(_("No templates yet. Click 'New' or 'Import'."))
         return
 
@@ -637,15 +660,11 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
 
     st.caption(_("{n} template(s)").format(n=len(filtered)))
 
-    for tpl_name in filtered:
-        entry = get_template_entry(selected_name, tpl_name)
-        display_name = (
-            str(entry.get("name") or os.path.splitext(tpl_name)[0])
-            if entry
-            else os.path.splitext(tpl_name)[0]
-        )
-        is_selected = selected == tpl_name
-        icon_svg = _get_template_icon_svg(selected_name, tpl_name)
+    for entry in filtered:
+        template_uuid = str(entry.get("uuid") or "")
+        display_name = str(entry.get("display_name") or entry.get("name") or template_uuid)
+        is_selected = selected == template_uuid
+        icon_svg = _get_template_icon_svg(selected_name, template_uuid)
 
         with st.container():
             icon_col, name_col = st.columns([1, 3], gap="xxsmall", vertical_alignment="center")
@@ -661,12 +680,12 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
             with name_col:
                 if st.button(
                     display_name,
-                    key=f"tpl_list_btn_{tpl_name}_{list_gen}",
+                    key=f"tpl_list_btn_{template_uuid}_{list_gen}",
                     type="primary" if is_selected else "tertiary",
                     width="stretch",
                 ):
-                    _load_template_into_editor(selected_name, tpl_name)
-                    st.session_state["tpl_unified_selected"] = tpl_name
+                    _load_template_into_editor(selected_name, template_uuid)
+                    _set_selected_template_uuid(template_uuid)
                     st.rerun()
 
 
@@ -675,7 +694,7 @@ def _render_left_panel(selected_name: str, device, add_log) -> None:
 
 def _render_editor_panel(selected_name: str, device, add_log) -> None:
     """Render the editor for the selected or new template."""
-    selected = st.session_state.get("tpl_unified_selected")
+    selected = _selected_template_uuid()
 
     if selected is None:
         st.info(
@@ -693,7 +712,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
         st.session_state.pop("tpl_meta_icon_svg_code", None)
         st.session_state.pop("_icon_b64_prev", None)
         st.session_state["tpl_editor_textarea"] = pending_textarea
-        st.session_state["tpl_unified_loaded"] = _SENTINEL_NEW
+        _set_loaded_template_uuid(_SENTINEL_NEW)
 
     # Canvas size for the selected device
     _portrait_w, _portrait_h = DEVICE_SIZES[device.resolve_type()]
@@ -707,7 +726,7 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             st.session_state[_key] = META_DEFAULTS[_key]
     st.session_state["tpl_meta_categories"] = normalise_string_list(
         st.session_state.get("tpl_meta_categories")
-    ) or list(cast(list[str], META_DEFAULTS["tpl_meta_categories"]))
+    ) or list(META_DEFAULTS["tpl_meta_categories"])
     st.session_state["tpl_meta_labels"] = normalise_string_list(
         st.session_state.get("tpl_meta_labels")
     )
@@ -929,22 +948,24 @@ def _render_editor_panel(selected_name: str, device, add_log) -> None:
             help=_("Save the .template file to the selected device's library."),
         ):
             _base = str(st.session_state.get("tpl_meta_name", "")).strip() or (
-                os.path.splitext(str(selected))[0] if not is_new else "My Template"
+                str(selected) if not is_new else "My Template"
             )
             filename_tpl = normalise_filename(_base, ext=".template")
             save_json_template(selected_name, filename_tpl, _full_json_str)
-            add_template_entry(
+            saved_uuid = add_template_entry(
                 selected_name,
                 filename_tpl,
                 previous_filename=None if is_new else str(selected),
+                preferred_name=str(st.session_state.get("tpl_meta_name", "")).strip(),
             )
             add_log(f"Template '{filename_tpl}' saved for '{selected_name}'")
             deferred_toast(
                 _("Template {name} saved").format(name=filename_tpl), ":material/task_alt:"
             )
             _get_template_icon_svg.clear()
-            st.session_state["tpl_unified_selected"] = filename_tpl
-            st.session_state["tpl_unified_loaded"] = filename_tpl
+            if saved_uuid:
+                _set_selected_template_uuid(saved_uuid)
+                _set_loaded_template_uuid(saved_uuid)
             st.session_state["tpl_editor_save_gen"] = _gen + 1
             st.rerun()
 
@@ -1022,8 +1043,8 @@ device = Device.from_dict(selected_name, DEVICES[selected_name])
 # Reset selection when device changes
 if st.session_state.get("tpl_unified_device") != selected_name:
     st.session_state["tpl_unified_device"] = selected_name
-    st.session_state["tpl_unified_selected"] = None
-    st.session_state["tpl_unified_loaded"] = None
+    _set_selected_template_uuid(None)
+    _set_loaded_template_uuid(None)
 
 # Guard: not initialized yet → show init screen, not the split layout
 manifest_path = get_device_manifest_json_path(selected_name)
