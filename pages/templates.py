@@ -719,6 +719,13 @@ def _render_left_panel(device: Device, add_log) -> None:
                 label_visibility="collapsed",
                 placeholder=_("Filter by label…"),
             )
+        filter_orientation = st.selectbox(
+            _("Orientation"),
+            options=["", "portrait", "landscape"],
+            key="tpl_filter_orientation",
+            label_visibility="collapsed",
+            format_func=lambda v: _("All orientations") if not v else _(v.capitalize()),
+        )
 
     # Build filtered template list
     template_entries = list_template_entries(device.name)
@@ -731,7 +738,9 @@ def _render_left_panel(device: Device, add_log) -> None:
             return False
         if filter_cats and not any(c in entry.get("categories", []) for c in filter_cats):
             return False
-        return not filter_labels or any(lbl in entry.get("labels", []) for lbl in filter_labels)
+        if filter_labels and not any(lbl in entry.get("labels", []) for lbl in filter_labels):
+            return False
+        return not filter_orientation or entry.get("orientation") == filter_orientation
 
     filtered = [entry for entry in template_entries if _matches(str(entry.get("uuid") or ""))]
     selected = _selected_template_uuid()

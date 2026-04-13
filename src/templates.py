@@ -20,6 +20,7 @@ from typing import Any
 
 import paramiko
 
+import src.ssh as _ssh
 from src.config import get_device_data_dir
 from src.constants import (
     DEFAULT_ICON_DATA,
@@ -352,6 +353,11 @@ def get_template_entry_by_uuid(device_name: str, template_uuid: str) -> dict[str
     result["iconData"] = (
         payload.get("iconData") if isinstance(payload.get("iconData"), str) else None
     )
+    raw_orientation = payload.get("orientation") or payload.get("orientations")
+    orientation_val = str(raw_orientation).lower() if raw_orientation else "portrait"
+    result["orientation"] = (
+        orientation_val if orientation_val in ("portrait", "landscape") else "portrait"
+    )
     return result
 
 
@@ -607,19 +613,6 @@ def remove_template_entry(device_name: str, filename: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def ensure_remote_template_dirs(ip: str, password: str) -> tuple[bool, str]:
-    """Ensure rmMethods xochitl directory exists. Return (ok, message)."""
-    try:
-        cmd = f"mkdir -p {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}"
-        out, err = run_ssh_cmd(ip, password, [cmd])
-        if err.strip():
-            return False, err.strip()
-        return True, out
-    except (OSError, paramiko.SSHException) as e:
-        logger.error("ensure_remote_template_dirs failed: %s", e)
-        return False, str(e)
-
-
 def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
     """Return remote templates UUID values currently present."""
     cmd = (
@@ -639,8 +632,7 @@ def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str
 
 
 def remove_remote_custom_templates(
-    ip: str,
-    password: str,
+    session: "_ssh.SshSession",
     uuids: set[str],
 ) -> tuple[bool, str]:
     """Remove rmMethods UUID triplets from *uuids* on the tablet."""
@@ -658,11 +650,7 @@ def remove_remote_custom_templates(
     if not rm_args:
         return True, "ok"
 
-    cmd = f"rm -f {' '.join(rm_args)}"
-    try:
-        _, err = run_ssh_cmd(ip, password, [cmd])
-    except (OSError, paramiko.SSHException) as e:
-        return False, str(e)
+    _, err = session.run([f"rm -f {' '.join(rm_args)}"])
     if err.strip():
         return False, err.strip()
     return True, "ok"

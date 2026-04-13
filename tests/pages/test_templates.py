@@ -16,8 +16,8 @@ import base64
 import json
 import os
 import uuid
-from contextlib import suppress
-from unittest.mock import patch
+from contextlib import contextmanager, suppress
+from unittest.mock import MagicMock, patch
 
 from streamlit.testing.v1 import AppTest
 
@@ -276,17 +276,31 @@ class TestTemplatesSync:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
 
-        def _download(_ip, _pw, _remote_path):
-            return None, "missing"
+        @contextmanager
+        def _fake_session(_ip, _pw):
+            s = MagicMock()
+            s.run.return_value = ("", "")
+            s.upload.return_value = (True, "ok")
+            s.download.return_value = (None, "No such file")
+            yield s
 
         with (
             patch.dict(os.environ, env),
             patch("src.templates.get_all_categories", return_value=[]),
-            patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-            patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
-            patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-            patch("src.ssh.run_ssh_cmd", return_value=("", "")),
-            patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.template_sync._ssh.ssh_session", _fake_session),
+            patch(
+                "src.template_sync.check_sync_status",
+                return_value=(
+                    True,
+                    {
+                        "local_count": 0,
+                        "remote_count": 0,
+                        "in_sync_count": 0,
+                        "to_upload": [],
+                        "to_delete_remote": [],
+                    },
+                ),
+            ),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -331,14 +345,24 @@ class TestTemplatesSync:
         assert not at.exception
 
     def test_sync_failure_no_exception(self, tmp_path):
-        """When ensure_remote_template_dirs fails, sync shows error; no exception."""
+        """When the remote manifest fetch fails, sync shows error; no exception."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
+
+        @contextmanager
+        def _fake_session(_ip, _pw):
+            s = MagicMock()
+            s.download.return_value = (
+                None,
+                "connection refused",
+            )  # non-missing error → fetch fails
+            yield s
+
         with (
             patch.dict(os.environ, env),
             patch("src.templates.get_all_categories", return_value=[]),
-            patch("src.templates.ensure_remote_template_dirs", return_value=(False, "SSH error")),
+            patch("src.template_sync._ssh.ssh_session", _fake_session),
         ):
             at = AppTest.from_file("app.py")
             at.run()
@@ -448,6 +472,67 @@ class TestTemplateList:
         at = _at_templates(tmp_path, cfg_path)
         assert not at.exception
         assert any(ti.key == "tpl_filter_text" for ti in at.text_input)
+
+    def test_orientation_filter_selectbox_is_present(self, tmp_path):
+        """An orientation filter selectbox is rendered in the filter expander."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(tmp_path, cfg_path)
+        assert not at.exception
+        assert any(sb.key == "tpl_filter_orientation" for sb in at.selectbox)
+
+    def test_filter_by_landscape_hides_portrait_templates(self, tmp_path):
+        """Setting orientation filter to 'landscape' hides portrait templates."""
+        cfg_path = with_device(tmp_path, "D1")
+        portrait_json = json.dumps(
+            {"name": "portrait-tpl", "orientation": "portrait", "constants": [], "items": []}
+        )
+        landscape_json = json.dumps(
+            {"name": "landscape-tpl", "orientation": "landscape", "constants": [], "items": []}
+        )
+        _make_template(tmp_path, "D1", "portrait.template", content=portrait_json)
+        _make_template(tmp_path, "D1", "landscape.template", content=landscape_json)
+        at = _at_templates(
+            tmp_path, cfg_path, session_state={"tpl_filter_orientation": "landscape"}
+        )
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("landscape" in lbl for lbl in labels)
+        assert not any("portrait" in lbl for lbl in labels)
+
+    def test_filter_by_portrait_hides_landscape_templates(self, tmp_path):
+        """Setting orientation filter to 'portrait' hides landscape templates."""
+        cfg_path = with_device(tmp_path, "D1")
+        portrait_json = json.dumps(
+            {"name": "portrait-tpl", "orientation": "portrait", "constants": [], "items": []}
+        )
+        landscape_json = json.dumps(
+            {"name": "landscape-tpl", "orientation": "landscape", "constants": [], "items": []}
+        )
+        _make_template(tmp_path, "D1", "portrait.template", content=portrait_json)
+        _make_template(tmp_path, "D1", "landscape.template", content=landscape_json)
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_filter_orientation": "portrait"})
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("portrait" in lbl for lbl in labels)
+        assert not any("landscape" in lbl for lbl in labels)
+
+    def test_filter_by_empty_orientation_shows_all_templates(self, tmp_path):
+        """Setting orientation filter to '' (all) shows both portrait and landscape templates."""
+        cfg_path = with_device(tmp_path, "D1")
+        portrait_json = json.dumps(
+            {"name": "portrait-tpl", "orientation": "portrait", "constants": [], "items": []}
+        )
+        landscape_json = json.dumps(
+            {"name": "landscape-tpl", "orientation": "landscape", "constants": [], "items": []}
+        )
+        _make_template(tmp_path, "D1", "portrait.template", content=portrait_json)
+        _make_template(tmp_path, "D1", "landscape.template", content=landscape_json)
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_filter_orientation": ""})
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("portrait" in lbl for lbl in labels)
+        assert any("landscape" in lbl for lbl in labels)
 
     def test_selection_resets_on_device_change(self, tmp_path):
         """When tpl_unified_device differs from the current device, selection is cleared."""

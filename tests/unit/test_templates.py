@@ -1,6 +1,5 @@
 import json
 import os
-from unittest.mock import patch
 
 import src.templates as tpl
 from src.manifest_templates import (
@@ -38,18 +37,6 @@ def test_ensure_template_payload_adds_required_fields():
     assert normalized["iconData"]
 
 
-def test_ensure_remote_template_dirs_creates_xochitl_dir(tmp_path):
-    _set_data_dir(tmp_path)
-
-    with patch("src.templates.run_ssh_cmd", return_value=("", "")) as run_cmd:
-        ok, _ = tpl.ensure_remote_template_dirs("1.2.3.4", "pw")
-
-    assert ok is True
-    run_cmd.assert_called_once()
-    cmd = run_cmd.call_args.args[2][0]
-    assert "mkdir -p" in cmd
-
-
 def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_path):
     _set_data_dir(tmp_path)
 
@@ -82,6 +69,57 @@ def test_add_template_entry_propagates_json_name_to_manifest_and_metadata(tmp_pa
     with open(metadata_path, encoding="utf-8") as f:
         metadata = json.loads(f.read())
     assert metadata["visibleName"] == "Edited Name"
+
+
+# ---------------------------------------------------------------------------
+# get_template_entry_by_uuid — orientation field
+# ---------------------------------------------------------------------------
+
+
+def test_get_template_entry_by_uuid_returns_landscape_orientation(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template(
+        "D1", "ls.template", json.dumps({"name": "Landscape", "orientation": "landscape"})
+    )
+    tpl.add_template_entry("D1", "ls.template")
+    template_uuid = next(iter(load_manifest("D1").get("templates", {})))
+    entry = tpl.get_template_entry_by_uuid("D1", template_uuid)
+    assert entry is not None
+    assert entry["orientation"] == "landscape"
+
+
+def test_get_template_entry_by_uuid_returns_portrait_orientation(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template(
+        "D1", "pt.template", json.dumps({"name": "Portrait", "orientation": "portrait"})
+    )
+    tpl.add_template_entry("D1", "pt.template")
+    template_uuid = next(iter(load_manifest("D1").get("templates", {})))
+    entry = tpl.get_template_entry_by_uuid("D1", template_uuid)
+    assert entry is not None
+    assert entry["orientation"] == "portrait"
+
+
+def test_get_template_entry_by_uuid_defaults_orientation_when_missing(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template("D1", "no_orient.template", json.dumps({"name": "No Orientation"}))
+    tpl.add_template_entry("D1", "no_orient.template")
+    template_uuid = next(iter(load_manifest("D1").get("templates", {})))
+    entry = tpl.get_template_entry_by_uuid("D1", template_uuid)
+    assert entry is not None
+    assert entry["orientation"] == "portrait"
+
+
+def test_get_template_entry_by_uuid_rejects_invalid_orientation(tmp_path):
+    _set_data_dir(tmp_path)
+    tpl.save_json_template(
+        "D1", "bad_orient.template", json.dumps({"name": "Bad", "orientation": "sideways"})
+    )
+    tpl.add_template_entry("D1", "bad_orient.template")
+    template_uuid = next(iter(load_manifest("D1").get("templates", {})))
+    entry = tpl.get_template_entry_by_uuid("D1", template_uuid)
+    assert entry is not None
+    assert entry["orientation"] == "portrait"
 
 
 # ---------------------------------------------------------------------------

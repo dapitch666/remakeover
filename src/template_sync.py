@@ -49,6 +49,24 @@ def _push_remote_manifest(ip: str, pw: str, manifest: dict[str, Any]) -> tuple[b
     return _ssh.upload_file_ssh(ip, pw, payload, _remote_manifest_path())
 
 
+def _fetch_remote_manifest_s(session: _ssh.SshSession) -> tuple[bool, dict[str, Any], str]:
+    content, err = session.download(_remote_manifest_path())
+    if content is None:
+        if _is_missing_remote_manifest_error(err):
+            return True, default_manifest(), "missing"
+        return False, default_manifest(), err
+    try:
+        parsed = json.loads(content.decode("utf-8"))
+    except Exception as exc:
+        return False, default_manifest(), f"invalid_remote_manifest: {exc}"
+    return True, normalize_manifest(parsed), "ok"
+
+
+def _push_remote_manifest_s(session: _ssh.SshSession, manifest: dict[str, Any]) -> tuple[bool, str]:
+    payload = json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
+    return session.upload(payload, _remote_manifest_path())
+
+
 def _compare_manifests(
     local_manifest: dict[str, Any], remote_manifest: dict[str, Any]
 ) -> dict[str, Any]:
@@ -127,7 +145,7 @@ def _enrich_diff_with_names(
         return [uuid for _, uuid in _sort_pairs_by_name(pairs)]
 
     def _name_by_uuid(pairs: list[tuple[str, str]]) -> dict[str, str]:
-        return {uuid: name for name, uuid in pairs}
+        return {uuid: n for n, uuid in pairs}
 
     enriched = dict(diff)
     enriched["to_upload_added_uuids"] = _uuids(to_upload_added_pairs)
@@ -369,78 +387,79 @@ def sync_templates_to_tablet(
     ip = device.ip
     pw = device.password or ""
 
-    ok_dirs, msg = _tpl.ensure_remote_template_dirs(ip, pw)
-    if not ok_dirs:
-        add_log(f"Sync templates — ensure dirs: {msg}")
-        return False
-
     local_manifest = load_manifest(selected_name)
 
-    ok_remote, remote_manifest, remote_state = _fetch_remote_manifest(ip, pw)
-    if not ok_remote:
-        add_log(f"Sync templates — fetch remote manifest: {remote_state}")
-        return False
-
-    diff = _compare_manifests(local_manifest, remote_manifest)
-    local_templates = local_manifest.get("templates", {})
-
-    uploaded = 0
-    for job in diff["to_upload"]:
-        template_uuid = job["uuid"]
-        local_entry = local_templates.get(template_uuid, {})
-        visible_name = str(local_entry.get("name") or "")
-        if not visible_name:
-            add_log(f"Sync templates — invalid local manifest entry for UUID {template_uuid}")
-            return False
-
-        local_filename = f"{template_uuid}.template"
-
-        try:
-            payload = json.loads(_tpl.load_json_template(selected_name, local_filename))
-        except Exception as exc:
-            add_log(f"Sync templates — invalid template JSON '{local_filename}': {exc}")
-            return False
-
-        payload = _tpl.ensure_template_payload(payload)
-        for ext, blob in _tpl.build_triplet_payloads(payload, visible_name).items():
-            ok_upload, upload_msg = _ssh.upload_file_ssh(
-                ip,
-                pw,
-                blob,
-                f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.{ext}",
-            )
-            if not ok_upload:
-                add_log(
-                    f"Sync templates — upload '{local_filename}' ({ext}, {template_uuid}): {upload_msg}"
-                )
+    try:
+        with _ssh.ssh_session(ip, pw) as s:
+            ok_remote, remote_manifest, remote_state = _fetch_remote_manifest_s(s)
+            if not ok_remote:
+                add_log(f"Sync templates — fetch remote manifest: {remote_state}")
                 return False
-        thumbnails_dir = f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.thumbnails"
-        cleanup_cmd = f"rm -rf {shlex.quote(thumbnails_dir)}"
-        _, cleanup_err = _ssh.run_ssh_cmd(ip, pw, [cleanup_cmd])
-        if cleanup_err.strip():
-            add_log(f"Sync templates — cleanup thumbnails '{template_uuid}': {cleanup_err.strip()}")
-        uploaded += 1
 
-    deleted = 0
-    to_delete = set(diff["to_delete_remote"])
-    if to_delete:
-        ok_delete, delete_msg = _tpl.remove_remote_custom_templates(ip, pw, to_delete)
-        if not ok_delete:
-            add_log(f"Sync templates — delete remote entries: {delete_msg}")
-            return False
-        deleted = len(to_delete)
+            diff = _compare_manifests(local_manifest, remote_manifest)
+            local_templates = local_manifest.get("templates", {})
 
-    ok_manifest_upload, manifest_upload_msg = _push_remote_manifest(ip, pw, local_manifest)
-    if not ok_manifest_upload:
-        add_log(f"Sync templates — upload remote manifest failed: {manifest_upload_msg}")
+            uploaded = 0
+            for job in diff["to_upload"]:
+                template_uuid = job["uuid"]
+                local_entry = local_templates.get(template_uuid, {})
+                visible_name = str(local_entry.get("name") or "")
+                if not visible_name:
+                    add_log(
+                        f"Sync templates — invalid local manifest entry for UUID {template_uuid}"
+                    )
+                    return False
+
+                local_filename = f"{template_uuid}.template"
+
+                try:
+                    payload = json.loads(_tpl.load_json_template(selected_name, local_filename))
+                except Exception as exc:
+                    add_log(f"Sync templates — invalid template JSON '{local_filename}': {exc}")
+                    return False
+
+                payload = _tpl.ensure_template_payload(payload)
+                for ext, blob in _tpl.build_triplet_payloads(payload, visible_name).items():
+                    ok_upload, upload_msg = s.upload(
+                        blob,
+                        f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.{ext}",
+                    )
+                    if not ok_upload:
+                        add_log(
+                            f"Sync templates — upload '{local_filename}' ({ext}, {template_uuid}): {upload_msg}"
+                        )
+                        return False
+                thumbnails_dir = f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.thumbnails"
+                _, cleanup_err = s.run([f"rm -rf {shlex.quote(thumbnails_dir)}"])
+                if cleanup_err.strip():
+                    add_log(
+                        f"Sync templates — cleanup thumbnails '{template_uuid}': {cleanup_err.strip()}"
+                    )
+                uploaded += 1
+
+            deleted = 0
+            to_delete = set(diff["to_delete_remote"])
+            if to_delete:
+                ok_delete, delete_msg = _tpl.remove_remote_custom_templates(s, to_delete)
+                if not ok_delete:
+                    add_log(f"Sync templates — delete remote entries: {delete_msg}")
+                    return False
+                deleted = len(to_delete)
+
+            ok_manifest_upload, manifest_upload_msg = _push_remote_manifest_s(s, local_manifest)
+            if not ok_manifest_upload:
+                add_log(f"Sync templates — upload remote manifest failed: {manifest_upload_msg}")
+                return False
+
+            if restart_xochitl:
+                _, err = s.run([CMD_RESTART_XOCHITL])
+                if err.strip():
+                    add_log(f"Sync templates — restart xochitl: {err.strip()}")
+                    return False
+
+    except RuntimeError as exc:
+        add_log(f"Sync templates — SSH session failed: {exc}")
         return False
-
-    if restart_xochitl:
-        out, err = _ssh.run_ssh_cmd(ip, pw, [CMD_RESTART_XOCHITL])
-        if err.strip():
-            add_log(f"Sync templates — restart xochitl: {err.strip()}")
-            return False
-        del out
 
     add_log(
         f"Templates synced on '{selected_name}' "

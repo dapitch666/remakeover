@@ -1,6 +1,7 @@
 import json
 import os
 import shlex
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ from src.models import Device
 from src.template_sync import (
     _sort_pairs_by_name,
     build_assumed_sync_status,
+    check_sync_status,
     compute_sync_status_from_cached_remote,
     fetch_single_template_from_device,
     refresh_cached_sync_status,
@@ -52,6 +54,53 @@ def _logger_bucket():
     return logs, add_log
 
 
+# ---------------------------------------------------------------------------
+# Session-level test helpers
+# ---------------------------------------------------------------------------
+
+
+class _FakeSession:
+    """Lightweight stand-in for SshSession used in sync tests."""
+
+    def __init__(self, remote_manifest_bytes=None, run_side_effect=None):
+        self.uploaded: list[str] = []  # remote paths passed to upload()
+        self.run_calls: list[list[str]] = []  # command lists passed to run()
+        self._remote_manifest_bytes = remote_manifest_bytes
+        self._run_side_effect = run_side_effect  # callable(commands) -> (out, err)
+
+    def download(self, path: str):
+        if path.endswith("/.manifest.json"):
+            if self._remote_manifest_bytes is None:
+                return None, "No such file"
+            return self._remote_manifest_bytes, ""
+        return None, "missing"
+
+    def upload(self, content: bytes, path: str):
+        self.uploaded.append(path)
+        return True, "ok"
+
+    def run(self, commands: list[str]):
+        self.run_calls.append(commands)
+        if self._run_side_effect:
+            return self._run_side_effect(commands)
+        return "", ""
+
+
+def _patch_session(fake: _FakeSession):
+    """Return a context-manager patch that injects *fake* as the SSH session."""
+
+    @contextmanager
+    def _cm(_ip, _pw):
+        yield fake
+
+    return patch("src.template_sync._ssh.ssh_session", _cm)
+
+
+# ---------------------------------------------------------------------------
+# sync_templates_to_tablet tests
+# ---------------------------------------------------------------------------
+
+
 def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_path):
     _set_data_dir(tmp_path)
     logs, add_log = _logger_bucket()
@@ -60,31 +109,16 @@ def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_
     save_json_template("D1", filename, json.dumps({"name": "Sync Me", "categories": ["Perso"]}))
     add_template_entry("D1", filename)
 
-    uploaded_paths = []
+    fake = _FakeSession(remote_manifest_bytes=None)  # missing → use default
 
-    def _upload(_ip, _pw, _content, remote_path):
-        uploaded_paths.append(remote_path)
-        return True, "ok"
-
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return None, "No such file"
-        return None, "missing"
-
-    with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", side_effect=_upload),
-        patch("src.ssh.run_ssh_cmd", return_value=("", "")),
-        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
-    ):
+    with _patch_session(fake):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
 
     assert ok is True
-    assert any(path.endswith(".template") for path in uploaded_paths)
-    assert any(path.endswith(".metadata") for path in uploaded_paths)
-    assert any(path.endswith(".content") for path in uploaded_paths)
-    assert any(path.endswith("/.manifest.json") for path in uploaded_paths)
+    assert any(p.endswith(".template") for p in fake.uploaded)
+    assert any(p.endswith(".metadata") for p in fake.uploaded)
+    assert any(p.endswith(".content") for p in fake.uploaded)
+    assert any(p.endswith("/.manifest.json") for p in fake.uploaded)
 
     template_uuid = _uuid_for_filename("D1", filename)
     assert template_uuid is not None
@@ -111,29 +145,14 @@ def test_sync_deletes_remote_entries_absent_from_local_manifest(tmp_path):
         },
     }
 
-    removed_payloads = []
+    fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
 
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return json.dumps(remote_manifest).encode("utf-8"), ""
-        return None, "missing"
-
-    def _remove(_ip, _pw, filenames):
-        removed_payloads.append(set(filenames))
-        return True, "ok"
-
-    with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-        patch("src.ssh.run_ssh_cmd", return_value=("", "")),
-        patch("src.templates.remove_remote_custom_templates", side_effect=_remove),
-    ):
+    with _patch_session(fake):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
 
     assert ok is True
-    assert removed_payloads
-    assert {remote_uuid} in removed_payloads
+    rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
+    assert any(remote_uuid in cmd for cmd in rm_calls)
 
 
 def test_sync_check_reports_manifest_diff(tmp_path):
@@ -165,8 +184,6 @@ def test_sync_check_reports_manifest_diff(tmp_path):
             },
         },
     }
-
-    from src.template_sync import check_sync_status
 
     with patch(
         "src.template_sync._ssh.download_file_ssh",
@@ -318,29 +335,14 @@ def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
         },
     }
 
-    removed_payloads = []
+    fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
 
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return json.dumps(remote_manifest).encode("utf-8"), ""
-        return None, "missing"
-
-    def _remove(_ip, _pw, filenames):
-        removed_payloads.append(set(filenames))
-        return True, "ok"
-
-    with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-        patch("src.ssh.run_ssh_cmd", return_value=("", "")),
-        patch("src.templates.remove_remote_custom_templates", side_effect=_remove),
-    ):
+    with _patch_session(fake):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
 
     assert ok is True
-    assert removed_payloads
-    assert {remote_uuid} in removed_payloads
+    rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
+    assert any(remote_uuid in cmd for cmd in rm_calls)
 
 
 def test_sync_does_not_refresh_local_manifest(tmp_path):
@@ -351,17 +353,10 @@ def test_sync_does_not_refresh_local_manifest(tmp_path):
     save_json_template("D1", filename, json.dumps({"name": "No Refresh", "categories": []}))
     add_template_entry("D1", filename)
 
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return None, "No such file"
-        return None, "missing"
+    fake = _FakeSession(remote_manifest_bytes=None)
 
     with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-        patch("src.ssh.run_ssh_cmd", return_value=("", "")),
-        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
+        _patch_session(fake),
         patch("src.templates.refresh_local_manifest", side_effect=AssertionError("unexpected")),
     ):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
@@ -378,31 +373,16 @@ def test_sync_thumbnail_cleanup_uses_single_quoted_rm_command(tmp_path):
     save_json_template("D1", filename, json.dumps({"name": "Quote Test", "categories": ["Perso"]}))
     add_template_entry("D1", filename)
 
-    run_calls = []
+    fake = _FakeSession(remote_manifest_bytes=None)
 
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return None, "No such file"
-        return None, "missing"
-
-    def _run_cmd(_ip, _pw, commands):
-        run_calls.append(commands)
-        return "", ""
-
-    with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-        patch("src.ssh.run_ssh_cmd", side_effect=_run_cmd),
-        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
-    ):
+    with _patch_session(fake):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
 
     assert ok is True
     cleanup_calls = [
-        call
-        for call in run_calls
-        if len(call) == 1 and call[0].startswith("rm -rf ") and ".thumbnails" in call[0]
+        cmds
+        for cmds in fake.run_calls
+        if len(cmds) == 1 and cmds[0].startswith("rm -rf ") and ".thumbnails" in cmds[0]
     ]
     assert cleanup_calls
     cleanup_cmd = cleanup_calls[0][0]
@@ -425,12 +405,7 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
     )
     add_template_entry("D1", filename)
 
-    def _download(_ip, _pw, remote_path):
-        if remote_path.endswith("/.manifest.json"):
-            return None, "No such file"
-        return None, "missing"
-
-    def _run_cmd(_ip, _pw, commands):
+    def _run_side_effect(commands):
         if (
             len(commands) == 1
             and commands[0].startswith("rm -rf ")
@@ -439,13 +414,9 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
             return "", "permission denied"
         return "", ""
 
-    with (
-        patch("src.templates.ensure_remote_template_dirs", return_value=(True, "ok")),
-        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
-        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
-        patch("src.ssh.run_ssh_cmd", side_effect=_run_cmd),
-        patch("src.templates.remove_remote_custom_templates", return_value=(True, "ok")),
-    ):
+    fake = _FakeSession(remote_manifest_bytes=None, run_side_effect=_run_side_effect)
+
+    with _patch_session(fake):
         ok = sync_templates_to_tablet("D1", _device(), add_log)
 
     assert ok is True
