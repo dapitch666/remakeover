@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  rm-manager\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-09 11:20+0200\n"
+"POT-Creation-Date: 2026-04-13 13:32+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -14,69 +14,65 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: app.py:202
+#: /Users/adelpla/git/rm-manager/app.py:204
 msgid "Tablet"
 msgstr "Tablette"
 
-#: app.py:210
+#: /Users/adelpla/git/rm-manager/app.py:212
 msgid "Test SSH connection"
 msgstr "Tester la connexion SSH"
 
-#: app.py:230
+#: /Users/adelpla/git/rm-manager/app.py:232
 msgid "SSH connection OK"
 msgstr "Connexion SSH OK"
 
-#: app.py:233
+#: /Users/adelpla/git/rm-manager/app.py:235
 #, python-brace-format
 msgid "SSH connection failed: {err}"
 msgstr "Connexion SSH impossible : {err}"
 
-#: app.py:274
-msgid "Deployment"
-msgstr "Déploiement"
-
-#: pages/configuration.py:15
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:17
 msgid ":material/settings: Device Configuration"
 msgstr ":material/settings: Configuration des appareils"
 
-#: pages/configuration.py:28
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:30
 #, python-brace-format
 msgid "Edit: {name}"
 msgstr "Modifier : {name}"
 
-#: pages/configuration.py:30
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:32
 msgid "New device"
 msgstr "Nouvel appareil"
 
-#: pages/configuration.py:37
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:39
 msgid "Create a new device"
 msgstr "Créer un nouvel appareil"
 
-#: pages/configuration.py:38
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:40
 msgid "Device name"
 msgstr "Nom de l'appareil"
 
-#: pages/configuration.py:50
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:52
 msgid "IP Address"
 msgstr "Adresse IP"
 
-#: pages/configuration.py:51
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:53
 msgid "SSH Password"
 msgstr "Mot de passe SSH"
 
-#: pages/configuration.py:58
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:60
 msgid "Tablet type"
 msgstr "Type de tablette"
 
-#: pages/configuration.py:62
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:64
 msgid "Enable templates"
 msgstr "Activer les templates"
 
-#: pages/configuration.py:63 src/maintenance.py:97 src/maintenance.py:158
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:65
 msgid "Disable carousel"
 msgstr "Désactiver le carousel"
 
-#: pages/configuration.py:67
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:69
 msgid ""
 "💡 To find the IP address and root password of your reMarkable, enable "
 "developer mode if needed, go to Settings > Help > About > Copyrights and "
@@ -87,56 +83,64 @@ msgstr ""
 " À propos > Copyrights et licences, puis faites défiler la colonne de "
 "droite si nécessaire."
 
-#: pages/configuration.py:74 pages/templates.py:337 pages/templates.py:985
-#: tests/unit/test_i18n.py:61 tests/unit/test_i18n.py:69
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:76
+#: /Users/adelpla/git/rm-manager/pages/templates.py:442
+#: /Users/adelpla/git/rm-manager/pages/templates.py:481
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1036
 msgid "Save"
 msgstr "Sauvegarder"
 
-#: pages/configuration.py:78
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:80
 msgid "Save device configuration"
 msgstr "Enregistrer la configuration de l'appareil"
 
-#: pages/configuration.py:81
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:83
 msgid "Please enter a name for this device."
 msgstr "Veuillez donner un nom à l'appareil."
 
-#: pages/configuration.py:84
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:86
 #, python-brace-format
 msgid "A device named '{name}' already exists. Choose a different name."
 msgstr "Un appareil nommé '{name}' existe déjà. Choisissez un autre nom."
 
-#: pages/configuration.py:90
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:92
 msgid "Please enter an IP address."
 msgstr "Veuillez saisir une adresse IP."
 
-#: pages/configuration.py:96
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:98
 #, python-brace-format
 msgid "'{ip}' is not a valid IP address (e.g. 192.168.1.100)."
 msgstr "'{ip}' n'est pas une adresse IP valide (ex. : 192.168.1.100)."
 
-#: pages/configuration.py:111
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:113
 #, python-brace-format
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: pages/configuration.py:120 pages/templates.py:309 pages/templates.py:1057
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:122
+#: /Users/adelpla/git/rm-manager/pages/templates.py:410
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1109
 msgid "Delete"
 msgstr "Supprimer"
 
-#: pages/configuration.py:125
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:127
 msgid "Delete this device and its local images"
 msgstr "Supprimer cet appareil et ses images locales"
 
-#: pages/configuration.py:132 pages/templates.py:305 pages/templates.py:368
-#: pages/templates.py:466 src/dialog.py:25 tests/unit/test_i18n.py:79
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:134
+#: /Users/adelpla/git/rm-manager/pages/templates.py:406
+#: /Users/adelpla/git/rm-manager/pages/templates.py:459
+#: /Users/adelpla/git/rm-manager/pages/templates.py:505
+#: /Users/adelpla/git/rm-manager/src/dialog.py:25
 msgid "Cancel"
 msgstr "Annuler"
 
-#: pages/configuration.py:139 pages/images.py:114
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:141
+#: /Users/adelpla/git/rm-manager/pages/images.py:116
 msgid "Confirm deletion"
 msgstr "Confirmer la suppression"
 
-#: pages/configuration.py:141
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:143
 #, python-brace-format
 msgid ""
 "Confirm deletion of device '{name}'? This will also remove its local "
@@ -145,182 +149,68 @@ msgstr ""
 "Confirmez-vous la suppression de l'appareil '{name}' ? Cette action "
 "supprimera aussi ses images et templates locaux."
 
-#: pages/configuration.py:157 pages/templates.py:318
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:159
+#: /Users/adelpla/git/rm-manager/pages/templates.py:419
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr "'{name}' supprimé"
 
-#: pages/deployment.py:20
-msgid "Failed to load local image"
-msgstr "Échec du chargement de l'image locale"
-
-#: pages/deployment.py:21
-msgid "Failed to upload suspended image"
-msgstr "Échec de l'upload de l'image de veille"
-
-#: pages/deployment.py:22
-msgid "Failed to sync templates to tablet"
-msgstr "Échec de la synchronisation des templates vers la tablette"
-
-#: pages/deployment.py:23
-msgid "Failed to disable carousel"
-msgstr "Échec de la désactivation du carroussel"
-
-#: pages/deployment.py:24
-msgid "Failed to restart xochitl"
-msgstr "Échec du redémarrage de xochitl"
-
-#: pages/deployment.py:30
-#, python-brace-format
-msgid "{label}: {detail}"
-msgstr "{label}: {detail}"
-
-#: pages/deployment.py:34
-msgid ":material/rocket_launch: Deployment"
-msgstr ":material/rocket_launch: Déploiement"
-
-#: pages/deployment.py:45
-msgid ""
-"After each firmware update, the tablet's customisations (suspended image,"
-" templates, carousel) are reset by the system. This page lets you "
-"**redeploy your local configuration** to the device in one operation."
-msgstr ""
-"Après chaque mise à jour du firmware, les personnalisations de la "
-"tablette (image de veille, templates, carrousel) sont réinitialisées par "
-"le système. Cette page vous permet de **redéployer votre configuration "
-"locale** sur l'appareil en une seule opération."
-
-#: pages/deployment.py:68
-msgid "**The deployment will perform the following operations:**"
-msgstr "**Le déploiement va effectuer les opérations suivantes :**"
-
-#: pages/deployment.py:72
-#, python-brace-format
-msgid ""
-"- Send the preferred image (`{image}`) as the suspended image "
-"(`suspended.png`) to the tablet"
-msgstr ""
-"- Envoyer l'image préférée (`{image}`)  comme image de veille "
-"(`suspended.png`) sur la tablette"
-
-#: pages/deployment.py:78
-#, python-brace-format
-msgid ""
-"- Send `{image}` (random choice, no preferred image) as the suspended "
-"image (`suspended.png`) to the tablet"
-msgstr ""
-"- Envoyer `{image}` (choix aléatoire, pas d'image préférée) comme image "
-"de veille (`suspended.png`) sur la tablette"
-
-#: pages/deployment.py:82
-msgid "- *(No local image — suspended image upload skipped)*"
-msgstr "- *(Aucune image locale — envoi de l'image de veille ignoré)*"
-
-#: pages/deployment.py:84
-msgid "- Sync local `.template` files to rmMethods storage on the tablet"
-msgstr ""
-"- Synchroniser les fichiers `.template` locaux vers le stockage rmMethods"
-" de la tablette"
-
-#: pages/deployment.py:86
-msgid "- Disable the carousel by moving illustrations to a backup folder"
-msgstr ""
-"- Désactiver le carrousel en déplaçant les illustrations dans un dossier "
-"de sauvegarde"
-
-#: pages/deployment.py:87
-msgid "- Restart `xochitl` to apply changes"
-msgstr "- Redémarrer `xochitl` pour appliquer les changements"
-
-#: pages/deployment.py:97
-msgid ""
-"No deployment actions configured for this tablet (no local image, "
-"templates disabled or empty, carousel disabled). Deployment would only "
-"restart `xochitl`."
-msgstr ""
-"Aucune action de déploiement configurée pour cette tablette (pas d'image "
-"locale, templates désactivés ou inexistants, carrousel désactivé). Le "
-"déploiement ne ferait que redémarrer `xochitl`."
-
-#: pages/deployment.py:110 src/maintenance.py:189
-msgid "Deployment completed successfully."
-msgstr "Maintenance terminée avec succès."
-
-#: pages/deployment.py:112
-msgid "Deployment completed with errors:"
-msgstr "Maintenance terminée avec des erreurs :"
-
-#: pages/deployment.py:120
-msgid "Reset"
-msgstr "Réinitialiser"
-
-#: pages/deployment.py:131
-msgid "Deploy configuration"
-msgstr "Déployer la configuration"
-
-#: pages/deployment.py:134
-msgid "Redeploy your local configuration to the tablet after a firmware update"
-msgstr "Redéployer la configuration locale sur la tablette après une mise à jour"
-
-#: pages/deployment.py:139
-msgid "Deploying…"
-msgstr "Maintenance en cours…"
-
-#: pages/images.py:57
+#: /Users/adelpla/git/rm-manager/pages/images.py:59
 msgid "Rename image"
 msgstr "Renommer l'image"
 
-#: pages/images.py:75
+#: /Users/adelpla/git/rm-manager/pages/images.py:77
 msgid "Click to rename"
 msgstr "Cliquez pour renommer"
 
-#: pages/images.py:90
+#: /Users/adelpla/git/rm-manager/pages/images.py:92
 msgid "Confirm replacement"
 msgstr "Confirmer le remplacement"
 
-#: pages/images.py:91
+#: /Users/adelpla/git/rm-manager/pages/images.py:93
 #, python-brace-format
 msgid "'{new}' already exists. Replace this file?"
 msgstr "'{new}' existe déjà. Voulez-vous remplacer ce fichier ?"
 
-#: pages/images.py:115
+#: /Users/adelpla/git/rm-manager/pages/images.py:117
 #, python-brace-format
 msgid "Confirm deletion of {name}?"
 msgstr "Confirmez-vous la suppression de {name} ?"
 
-#: pages/images.py:150 pages/images.py:235
+#: /Users/adelpla/git/rm-manager/pages/images.py:152
+#: /Users/adelpla/git/rm-manager/pages/images.py:237
 #, python-brace-format
 msgid "{name} sent to {device}"
 msgstr "{name} envoyée à {device}"
 
-#: pages/images.py:155 pages/templates.py:363
+#: /Users/adelpla/git/rm-manager/pages/images.py:157
 #, python-brace-format
 msgid "Error sending {name}"
 msgstr "Erreur lors de l'envoi de {name}"
 
-#: pages/images.py:161
+#: /Users/adelpla/git/rm-manager/pages/images.py:163
 msgid "Preferred image removed"
 msgstr "Image préférée retirée"
 
-#: pages/images.py:166
+#: /Users/adelpla/git/rm-manager/pages/images.py:168
 #, python-brace-format
 msgid "{name} set as preferred image"
 msgstr "{name} définie comme image préférée"
 
-#: pages/images.py:191
+#: /Users/adelpla/git/rm-manager/pages/images.py:193
 msgid "Add an image"
 msgstr "Ajouter une image"
 
-#: pages/images.py:195
+#: /Users/adelpla/git/rm-manager/pages/images.py:197
 #, python-brace-format
 msgid "Drag an image here (will be converted to PNG {w}x{h})"
 msgstr "Glisser une image ici (sera convertie en PNG {w}x{h})"
 
-#: pages/images.py:213
+#: /Users/adelpla/git/rm-manager/pages/images.py:215
 msgid "Send to tablet?"
 msgstr "Envoyer sur la tablette ?"
 
-#: pages/images.py:214
+#: /Users/adelpla/git/rm-manager/pages/images.py:216
 #, python-brace-format
 msgid ""
 "Image saved locally.\n"
@@ -329,27 +219,27 @@ msgstr ""
 "L'image a été sauvegardée localement.\n"
 "Voulez-vous aussi l'envoyer sur **{device}** ?"
 
-#: pages/images.py:218
+#: /Users/adelpla/git/rm-manager/pages/images.py:220
 msgid "No"
 msgstr "Non"
 
-#: pages/images.py:219
+#: /Users/adelpla/git/rm-manager/pages/images.py:221
 msgid "Yes"
 msgstr "Oui"
 
-#: pages/images.py:220 tests/unit/test_i18n.py:93
+#: /Users/adelpla/git/rm-manager/pages/images.py:222
 msgid "You can still send it later from the image actions."
 msgstr "Vous pourrez toujours l'envoyer plus tard depuis les actions de l'image."
 
-#: pages/images.py:239
+#: /Users/adelpla/git/rm-manager/pages/images.py:241
 msgid "Error sending image."
 msgstr "Erreur lors de l'envoi."
 
-#: pages/images.py:253
+#: /Users/adelpla/git/rm-manager/pages/images.py:255
 msgid ":material/image: Images"
 msgstr ":material/image: Images"
 
-#: pages/images.py:267
+#: /Users/adelpla/git/rm-manager/pages/images.py:269
 msgid ""
 "Below you will find all images saved for this tablet. Click the **name** "
 "of an image to rename it. The three buttons under each image let you "
@@ -370,7 +260,7 @@ msgstr ""
 "une nouvelle image depuis votre ordinateur** — elle sera automatiquement "
 "convertie au bon format et aux bonnes dimensions."
 
-#: pages/images.py:289
+#: /Users/adelpla/git/rm-manager/pages/images.py:291
 msgid ""
 "No images saved for this tablet. Import the image currently on the tablet"
 " or add one from your computer below."
@@ -379,373 +269,389 @@ msgstr ""
 "actuellement sur la tablette ou ajoutez-en une depuis votre ordinateur "
 "ci-dessous."
 
-#: pages/images.py:297
+#: /Users/adelpla/git/rm-manager/pages/images.py:299
 msgid "Get current image"
 msgstr "Récupérer l'image actuelle"
 
-#: pages/images.py:299
+#: /Users/adelpla/git/rm-manager/pages/images.py:301
 msgid "Import from tablet"
 msgstr "Importer depuis la tablette"
 
-#: pages/images.py:303
+#: /Users/adelpla/git/rm-manager/pages/images.py:305
 msgid "Download the current suspended image from the tablet"
 msgstr "Télécharger l'image actuelle de l'écran de veille depuis la tablette"
 
-#: pages/images.py:307
+#: /Users/adelpla/git/rm-manager/pages/images.py:309
 #, python-brace-format
 msgid "Error: {err}"
 msgstr "Erreur : {err}"
 
-#: pages/images.py:314
+#: /Users/adelpla/git/rm-manager/pages/images.py:316
 #, python-brace-format
 msgid "Image saved: {name}"
 msgstr "Image sauvegardée : {name}"
 
-#: pages/logs.py:9
+#: /Users/adelpla/git/rm-manager/pages/logs.py:11
 msgid ":material/list: Session Logs"
 msgstr ":material/list: Logs de session"
 
-#: pages/logs.py:12
+#: /Users/adelpla/git/rm-manager/pages/logs.py:14
 msgid "No logs for this session."
 msgstr "Aucun log pour cette session."
 
-#: pages/logs.py:16
+#: /Users/adelpla/git/rm-manager/pages/logs.py:18
 msgid "Clear session logs"
 msgstr "Effacer les logs de cette session"
 
-#: pages/logs.py:19
+#: /Users/adelpla/git/rm-manager/pages/logs.py:21
 msgid "Clear logs stored in the current session"
 msgstr "Efface les logs stockés dans la session en cours"
 
-#: pages/logs.py:22
+#: /Users/adelpla/git/rm-manager/pages/logs.py:23
 msgid "Clear logs"
 msgstr "Effacer les logs"
 
-#: pages/logs.py:22
+#: /Users/adelpla/git/rm-manager/pages/logs.py:23
 msgid "Clear logs for this session?"
 msgstr "Effacer les logs de cette session ?"
 
-#: pages/logs.py:25
+#: /Users/adelpla/git/rm-manager/pages/logs.py:26
 msgid "Logs cleared."
 msgstr "Logs effacés."
 
-#: pages/templates.py:239 pages/templates.py:245 pages/templates.py:480
+#: /Users/adelpla/git/rm-manager/pages/templates.py:184
+#, python-brace-format
+msgid "'{name}' recovered from device"
+msgstr "{name} récupéré depuis {device}"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:191
+#, python-brace-format
+msgid "Import failed: {msg}"
+msgstr "L'import a échoué : {msg}"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:201
+msgid "Recover template"
+msgstr "Récupérer le template"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:203
+#, python-brace-format
+msgid "'{name}' only exists on the device. Recover it to local storage?"
+msgstr "'{name}' n'est présent que sur l'appareil'. Voulez-vous le récupérer ?"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:335
+#: /Users/adelpla/git/rm-manager/pages/templates.py:519
 msgid "New"
 msgstr "Nouveau"
 
-#: pages/templates.py:292
+#: /Users/adelpla/git/rm-manager/pages/templates.py:389
 msgid "Template duplicated (not saved)"
 msgstr "Template dupliqué (non sauvegardé)"
 
-#: pages/templates.py:298
+#: /Users/adelpla/git/rm-manager/pages/templates.py:395
 msgid "Delete template"
 msgstr "Supprimer le template"
 
-#: pages/templates.py:302
+#: /Users/adelpla/git/rm-manager/pages/templates.py:403
 #, python-brace-format
 msgid "Do you really want to delete {name}?"
 msgstr "Voulez-vous vraiment supprimer {name} ?"
 
-#: pages/templates.py:325
+#: /Users/adelpla/git/rm-manager/pages/templates.py:426
 msgid "Replace template file"
 msgstr "Remplacer le fichier template"
 
-#: pages/templates.py:330
+#: /Users/adelpla/git/rm-manager/pages/templates.py:435
 msgid "New .template file"
 msgstr "Nouveau fichier .template"
 
-#: pages/templates.py:358
+#: /Users/adelpla/git/rm-manager/pages/templates.py:453
 #, python-brace-format
-msgid "{name} updated on the tablet"
-msgstr "{name} mis à jour sur la tablette"
+msgid "'{name}' updated locally"
+msgstr "{name} mis à jour localement"
 
-#: pages/templates.py:372
+#: /Users/adelpla/git/rm-manager/pages/templates.py:463
 msgid "Import templates"
 msgstr "Importer un ou des templates"
 
-#: pages/templates.py:380
+#: /Users/adelpla/git/rm-manager/pages/templates.py:468
 msgid "Drag one or more `.template` files here"
 msgstr "Glisser un ou plusieurs fichiers `.template` ici"
 
-#: pages/templates.py:425
-msgid "Existing categories"
-msgstr "Catégories existantes"
-
-#: pages/templates.py:428
-msgid "New categories (comma-separated)"
-msgstr "Nouvelles catégories (séparées par virgule)"
-
-#: pages/templates.py:436
-#, python-brace-format
-msgid "Save ({count} file(s))"
-msgstr "Sauvegarder ({count} fichier(s))"
-
-#: pages/templates.py:457 pages/templates.py:1007
+#: /Users/adelpla/git/rm-manager/pages/templates.py:496
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1057
 #, python-brace-format
 msgid "Template {name} saved"
 msgstr "Template {name} sauvegardé"
 
-#: pages/templates.py:461
+#: /Users/adelpla/git/rm-manager/pages/templates.py:500
 #, python-brace-format
 msgid "{count} templates saved"
 msgstr "{count} templates sauvegardés"
 
-#: pages/templates.py:484
+#: /Users/adelpla/git/rm-manager/pages/templates.py:523
 msgid "Create a new template from scratch"
 msgstr "Créer un nouveau template"
 
-#: pages/templates.py:491
+#: /Users/adelpla/git/rm-manager/pages/templates.py:530
 msgid "Import"
 msgstr "Importer"
 
-#: pages/templates.py:495
+#: /Users/adelpla/git/rm-manager/pages/templates.py:534
 msgid "Import .template files from your computer"
 msgstr "Importer un ou plusieurs fichier template"
 
-#: pages/templates.py:500
+#: /Users/adelpla/git/rm-manager/pages/templates.py:539
 msgid ":material/sync: Sync"
 msgstr ":material/sync: Synchronisation"
 
-#: pages/templates.py:503
+#: /Users/adelpla/git/rm-manager/pages/templates.py:542
 msgid "Not initialized yet."
 msgstr "Pas encore initialisé."
 
-#: pages/templates.py:505
+#: /Users/adelpla/git/rm-manager/pages/templates.py:544
 msgid "Initialize from tablet"
 msgstr "Initialiser depuis la tablette"
 
-#: pages/templates.py:511 pages/templates.py:1108
-msgid "Importing…"
-msgstr "Importation en cours…"
-
-#: pages/templates.py:523 pages/templates.py:1123
+#: /Users/adelpla/git/rm-manager/pages/templates.py:558
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1168
 msgid "Templates imported successfully"
 msgstr "Templates importés avec succès"
 
-#: pages/templates.py:526 pages/templates.py:1126
+#: /Users/adelpla/git/rm-manager/pages/templates.py:561
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1171
 #, python-brace-format
 msgid "Error: {msg}"
 msgstr "Erreur : {msg}"
 
-#: pages/templates.py:531
+#: /Users/adelpla/git/rm-manager/pages/templates.py:566
 #, python-brace-format
 msgid "Last modified on {date} at {time}"
 msgstr "Modifié le {date} à {time}"
 
-#: pages/templates.py:534
+#: /Users/adelpla/git/rm-manager/pages/templates.py:569
 msgid "Check sync"
 msgstr "Vérifier la synchronisation"
 
-#: pages/templates.py:537
+#: /Users/adelpla/git/rm-manager/pages/templates.py:573
 msgid ""
 "Connect to the tablet and check if templates are in sync (does not change"
 " anything)"
-msgstr "Se connecte à la tablette et vérifie si les templates sont synchronisés (ne change rien)"
+msgstr ""
+"Se connecte à la tablette et vérifie si les templates sont synchronisés "
+"(ne change rien)"
 
-#: pages/templates.py:540
-msgid "Checking…"
-msgstr "Vérification en cours…"
+#: /Users/adelpla/git/rm-manager/pages/templates.py:582
+msgid ":green[Sync status checked]"
+msgstr ":green[État de synchronisation vérifié]"
 
-#: pages/templates.py:546
-msgid "Sync status checked"
-msgstr "État de synchronisation vérifié"
+#: /Users/adelpla/git/rm-manager/pages/templates.py:584
+msgid ":red[Sync check error]"
+msgstr ":red[Erreur lors de la synchronisation]"
 
-#: pages/templates.py:548
-msgid "Sync check error"
-msgstr "Erreur lors de la synchronisation"
-
-#: pages/templates.py:551
+#: /Users/adelpla/git/rm-manager/pages/templates.py:587
 msgid "Sync now"
 msgstr "Synchroniser maintenant"
 
-#: pages/templates.py:554
+#: /Users/adelpla/git/rm-manager/pages/templates.py:591
 msgid ""
 "Sync templates between this manager and the tablet (uploads new/modified "
 "templates, deletes remote-only templates)"
-msgstr "Synchronise les templates avec la tablette (envoie les templates nouveaux ou modifiés, supprime les templates présents uniquement sur la tablette)"
+msgstr ""
+"Synchronise les templates avec la tablette (envoie les templates nouveaux"
+" ou modifiés, supprime les templates présents uniquement sur la tablette)"
 
-#: pages/templates.py:557 pages/templates.py:581
-msgid "Syncing…"
-msgstr "Synchronisation en cours..."
-
-#: pages/templates.py:566 pages/templates.py:592
+#: /Users/adelpla/git/rm-manager/pages/templates.py:602
+#: /Users/adelpla/git/rm-manager/pages/templates.py:626
 msgid "Templates synced"
 msgstr "Templates synchronisés"
 
-#: pages/templates.py:572 pages/templates.py:600
+#: /Users/adelpla/git/rm-manager/pages/templates.py:608
+#: /Users/adelpla/git/rm-manager/pages/templates.py:641
 msgid "Sync error"
 msgstr "Erreur lors de la synchronisation"
 
-#: pages/templates.py:575
+#: /Users/adelpla/git/rm-manager/pages/templates.py:611
 msgid "Reset & reinitialize"
 msgstr "Réinitialiser"
 
-#: pages/templates.py:578
+#: /Users/adelpla/git/rm-manager/pages/templates.py:615
 msgid ""
 "Delete all local templates and re-fetch from the tablet (use if you think"
 " the local state is corrupted)"
-msgstr "Supprime tous les templates locaux et récupère ceux de la tablette (à n'utiliser que si vous pensez que l'état local est corrompu)"
+msgstr ""
+"Supprime tous les templates locaux et récupère ceux de la tablette (à "
+"n'utiliser que si vous pensez que l'état local est corrompu)"
 
-#: pages/templates.py:606
+#: /Users/adelpla/git/rm-manager/pages/templates.py:647
 #, python-brace-format
 msgid ""
 "Local templates: {local_count}  \n"
-"                                  Remote templates: {remote_count}  \n"
-"                                  To upload: {to_upload_count}  \n"
-"                                  To delete on tablet: {to_delete_count}\n"
-"                                  "
+"                         Remote templates: {remote_count}  \n"
+"                         To upload: {to_upload_count}  \n"
+"                         To delete on tablet: {to_delete_count}\n"
+"                         "
 msgstr ""
 "\n"
 "Templates locaux: {local_count}  \n"
-"                                  Templates distants: {remote_count}  \n"
-"                                  À envoyer: {to_upload_count}  \n"
-"                                  À supprimer: {to_delete_count}\n"
-"                                  "
+"                         Templates distants: {remote_count}  \n"
+"                         À envoyer: {to_upload_count}  \n"
+"                         À supprimer: {to_delete_count}\n"
+"                         "
 
-#: pages/templates.py:621
+#: /Users/adelpla/git/rm-manager/pages/templates.py:662
 #, python-brace-format
 msgid "Last remote check on {date} at {time}"
 msgstr "Dernière vérification le {date} à {time}"
 
-#: pages/templates.py:624
+#: /Users/adelpla/git/rm-manager/pages/templates.py:665
 msgid "Added locally (upload)"
 msgstr "Ajoutés localement (à envoyer)"
 
-#: pages/templates.py:626 pages/templates.py:631 pages/templates.py:636
+#: /Users/adelpla/git/rm-manager/pages/templates.py:667
+#: /Users/adelpla/git/rm-manager/pages/templates.py:676
+#: /Users/adelpla/git/rm-manager/pages/templates.py:685
 msgid "none"
 msgstr "aucun"
 
-#: pages/templates.py:629
+#: /Users/adelpla/git/rm-manager/pages/templates.py:674
 msgid "Modified locally (upload)"
 msgstr "Modifiés localement (à envoyer)"
 
-#: pages/templates.py:634
+#: /Users/adelpla/git/rm-manager/pages/templates.py:683
 msgid "Remote-only (delete on sync)"
 msgstr "Tablette uniquement (à supprimer)"
 
-#: pages/templates.py:642
+#: /Users/adelpla/git/rm-manager/pages/templates.py:695
 msgid ":material/filter_list: Filters"
 msgstr ":material/filter_list: Filtres"
 
-#: pages/templates.py:644
+#: /Users/adelpla/git/rm-manager/pages/templates.py:697
 msgid "Search"
 msgstr "Chercher"
 
-#: pages/templates.py:646
+#: /Users/adelpla/git/rm-manager/pages/templates.py:699
 msgid "Filter by name…"
 msgstr "Filtrer par nom…"
 
-#: pages/templates.py:653 pages/templates.py:824
+#: /Users/adelpla/git/rm-manager/pages/templates.py:706
+#: /Users/adelpla/git/rm-manager/pages/templates.py:877
 msgid "Categories"
 msgstr "Catégories"
 
-#: pages/templates.py:657
+#: /Users/adelpla/git/rm-manager/pages/templates.py:710
 msgid "Filter by category…"
 msgstr "Filtrer par catégorie…"
 
-#: pages/templates.py:663 pages/templates.py:836
+#: /Users/adelpla/git/rm-manager/pages/templates.py:716
+#: /Users/adelpla/git/rm-manager/pages/templates.py:887
 msgid "Labels"
 msgstr "Labels"
 
-#: pages/templates.py:667
+#: /Users/adelpla/git/rm-manager/pages/templates.py:720
 msgid "Filter by label…"
 msgstr "Filtrer par étiquette…"
 
-#: pages/templates.py:693
+#: /Users/adelpla/git/rm-manager/pages/templates.py:723
+#: /Users/adelpla/git/rm-manager/pages/templates.py:869
+msgid "Orientation"
+msgstr "Orientation"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:727
+#, fuzzy
+msgid "All orientations"
+msgstr "Orientation"
+
+#: /Users/adelpla/git/rm-manager/pages/templates.py:750
 msgid "No templates yet. Click 'New' or 'Import'."
 msgstr "Aucun template pour l'instant. Cliquez sur \"Nouveau\" ou \"Importer\"."
 
-#: pages/templates.py:697
+#: /Users/adelpla/git/rm-manager/pages/templates.py:754
 msgid "No templates match the filter."
 msgstr "Aucun template ne correspond aux filtres."
 
-#: pages/templates.py:700
+#: /Users/adelpla/git/rm-manager/pages/templates.py:757
 #, python-brace-format
 msgid "{n} template(s)"
 msgstr "{n} template(s)"
 
-#: pages/templates.py:744
+#: /Users/adelpla/git/rm-manager/pages/templates.py:797
 msgid "Select a template from the list, or click 'New' to create one."
 msgstr ""
 "Sélectionnez un template dans la liste ou cliquez sur \"Nouveau\" pour en"
 " créer un."
 
-#: pages/templates.py:806
+#: /Users/adelpla/git/rm-manager/pages/templates.py:859
 msgid "Metadata"
 msgstr "Métadonnées"
 
-#: pages/templates.py:811
+#: /Users/adelpla/git/rm-manager/pages/templates.py:864
 msgid "Name"
 msgstr "Nom"
 
-#: pages/templates.py:813
+#: /Users/adelpla/git/rm-manager/pages/templates.py:866
 msgid "Author"
 msgstr "Auteur"
 
-#: pages/templates.py:816
-msgid "Orientation"
-msgstr "Orientation"
-
-#: pages/templates.py:830
+#: /Users/adelpla/git/rm-manager/pages/templates.py:881
 msgid "Select or add categories"
 msgstr "Modifier les catégories"
 
-#: pages/templates.py:831
+#: /Users/adelpla/git/rm-manager/pages/templates.py:882
 msgid "Categories are used on the tablet to filter templates."
 msgstr "Les catégories sont utilisées sur la tablette pour filtrer les templates."
 
-#: pages/templates.py:840
+#: /Users/adelpla/git/rm-manager/pages/templates.py:891
 msgid "Select or add labels"
 msgstr "Sélectionnez ou ajoutez des étiquettes"
 
-#: pages/templates.py:841
+#: /Users/adelpla/git/rm-manager/pages/templates.py:892
 msgid "Labels are only used here to filter templates."
 msgstr "Les étiquettes ne sont utilisée qu'ici pour filtrer les templates."
 
-#: pages/templates.py:845
+#: /Users/adelpla/git/rm-manager/pages/templates.py:896
 msgid "Format version"
 msgstr "Version du format"
 
-#: pages/templates.py:848
+#: /Users/adelpla/git/rm-manager/pages/templates.py:899
 msgid "Integer format version (usually 1)"
 msgstr "Un entier représentant la version du format (généralement 1)"
 
-#: pages/templates.py:851
+#: /Users/adelpla/git/rm-manager/pages/templates.py:902
 msgid "Template version"
 msgstr "Version du template"
 
-#: pages/templates.py:853
+#: /Users/adelpla/git/rm-manager/pages/templates.py:904
 msgid ":material/grid_on: Icon"
 msgstr ":material/grid_on: Icône"
 
-#: pages/templates.py:871
+#: /Users/adelpla/git/rm-manager/pages/templates.py:922
 msgid "Icon preview"
 msgstr "Aperçu"
 
-#: pages/templates.py:881
+#: /Users/adelpla/git/rm-manager/pages/templates.py:932
 msgid "Upload SVG file"
 msgstr "Envoyez un fichier SVG"
 
-#: pages/templates.py:913
+#: /Users/adelpla/git/rm-manager/pages/templates.py:964
 #, python-brace-format
 msgid "Icon SVG code ({w}×{h} px)"
 msgstr "Code de l'icône SVG ({w}×{h} px)"
 
-#: pages/templates.py:917
+#: /Users/adelpla/git/rm-manager/pages/templates.py:968
 msgid "Raw SVG source — not base64. Must match the selected orientation."
 msgstr ""
 "Source brute du SVG — pas en base64. Doit correspondre à l'orientation "
 "sélectionnée."
 
-#: pages/templates.py:926
+#: /Users/adelpla/git/rm-manager/pages/templates.py:977
 msgid "JSON"
 msgstr "JSON"
 
-#: pages/templates.py:941
+#: /Users/adelpla/git/rm-manager/pages/templates.py:992
 msgid "Template JSON"
 msgstr "Template JSON"
 
-#: pages/templates.py:945
+#: /Users/adelpla/git/rm-manager/pages/templates.py:996
 msgid ""
 "Enter your reMarkable template JSON here. The preview updates "
 "automatically."
@@ -753,61 +659,61 @@ msgstr ""
 "Entrez ici le JSON de votre template reMarkable. L'aperçu se met à jour "
 "automatiquement."
 
-#: pages/templates.py:949
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1000
 msgid "Preview"
 msgstr "Aperçu"
 
-#: pages/templates.py:955
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1006
 msgid "Invalid JSON body"
 msgstr "Corps du JSON invalide"
 
-#: pages/templates.py:969
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1020
 msgid "Actions"
 msgstr "Actions"
 
-#: pages/templates.py:991
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1042
 msgid "Save the .template file to the selected device's library."
 msgstr ""
 "Enregistre le fichier .template dans la bibliothèque de l'appareil "
 "sélectionné."
 
-#: pages/templates.py:1025
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1076
 msgid "Export"
 msgstr "Exporter"
 
-#: pages/templates.py:1032
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1083
 msgid "Download the .template file to your computer"
 msgstr "Téléchargez le fichier .template"
 
-#: pages/templates.py:1037
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1088
 msgid "Duplicate"
 msgstr "Dupliquer"
 
-#: pages/templates.py:1041
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1093
 msgid "Create an unsaved copy in the editor"
 msgstr "Crée une copie non sauvegardée dans l'éditeur"
 
-#: pages/templates.py:1047
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1099
 msgid "Replace file"
 msgstr "Remplacer"
 
-#: pages/templates.py:1052
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1104
 msgid "Replace this template with a new .template file"
 msgstr "Remplacer ce template par un nouveau fichier .template"
 
-#: pages/templates.py:1062
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1114
 msgid "Delete this template"
 msgstr "Supprimer ce template"
 
-#: pages/templates.py:1066
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1118
 msgid ":material/help: reMarkable JSON format documentation"
 msgstr ":material/help: Documentation du format JSON reMarkable"
 
-#: pages/templates.py:1076
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1128
 msgid ":material/description: Templates"
 msgstr ":material/description: Templates"
 
-#: pages/templates.py:1096
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1148
 msgid ""
 "The template list for this tablet has not been imported yet. Turn on the "
 "tablet and click the button below to start."
@@ -815,77 +721,69 @@ msgstr ""
 "La liste des templates de cette tablette n'a pas encore été importée. "
 "Allumez la tablette et cliquez sur le bouton ci-dessous pour démarrer."
 
-#: pages/templates.py:1102
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1154
 msgid "Initialize templates from this tablet"
 msgstr "Initialiser les templates depuis la tablette"
 
-#: pages/templates.py:1106
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1158
 msgid "Import templates from this tablet and initialize local metadata"
 msgstr ""
 "Importer les templates depuis la tablette et initialiser la bibliothèque "
 "locale"
 
-#: src/dialog.py:26 tests/unit/test_i18n.py:83
+#: /Users/adelpla/git/rm-manager/pages/templates.py:1177
+msgid ""
+"Browse and manage templates for this tablet in the **left panel**.  \n"
+"         Click a template to open it in the **editor** on the right, "
+"where you can update its \n"
+"         name, category, labels, icon, and body.  \n"
+"         Use **:material/add: New template** to create one from scratch."
+"  \n"
+"         When you're done editing, click **:material/save: Save** to save"
+" locally, then \n"
+"         **:material/sync: Sync now** to push all changes to the device.\n"
+"    "
+msgstr ""
+"Parcourez et gérez les templates de cet appareil dans le **panneau de "
+"gauche**.  \n"
+"         Cliquez sur un template pour l'ouvrir dans l'**éditeur** à "
+"droite, où vous pouvez mettre à jour son \n"
+"         nom, ses catégories, ses étiquettes, son icône et son contenu."
+"  \n"
+"         Utilisez le bouton **:material/add: Nouveau** pour créer un "
+"template à partir de zéro.  \n"
+"         Lorsque vous avez terminé l'édition, cliquez sur "
+"**:material/save: Sauvegarder** pour enregistrer localement, puis "
+"**:material/sync: Synchroniser maintenant** pour envoyer les changements "
+"vers l'appareil.\n"
+"    "
+
+#: /Users/adelpla/git/rm-manager/src/dialog.py:26
 msgid "Confirm"
 msgstr "Confirmer"
 
-#: src/maintenance.py:93 src/maintenance.py:129
-msgid "Upload suspended image"
-msgstr "Upload de l'image de veille"
-
-#: src/maintenance.py:95 src/maintenance.py:144
-msgid "Sync templates"
-msgstr "Templates synchronisés"
-
-#: src/maintenance.py:98 src/maintenance.py:169
-msgid "Restart xochitl"
-msgstr "Redémarrage de xochitl"
-
-#: src/maintenance.py:124
-msgid "Starting deployment…"
-msgstr "Déploiement démarré..."
-
-#: src/maintenance.py:191
-msgid "Deployment completed with errors."
-msgstr "Déploiement terminé avec des erreurs :"
-
-#: src/templates.py:75
+#: /Users/adelpla/git/rm-manager/src/templates.py:76
 msgid "No <svg> root element found."
 msgstr "Aucune balise racine <svg> trouvée."
 
-#: src/templates.py:80
+#: /Users/adelpla/git/rm-manager/src/templates.py:81
 msgid "SVG must have an explicit width attribute."
 msgstr "Le SVG doit avoir un attribut \"width\" (largeur) explicite."
 
-#: src/templates.py:82
+#: /Users/adelpla/git/rm-manager/src/templates.py:83
 msgid "SVG must have an explicit height attribute."
 msgstr "Le SVG doit avoir un attribut \"height\" (hauteur) explicite."
 
-#: src/templates.py:87
+#: /Users/adelpla/git/rm-manager/src/templates.py:88
 #, python-brace-format
 msgid "SVG must be {ew}×{eh} px (got {w}×{h})."
 msgstr "Le SVG doit avoir la taille {ew}×{eh} px (actuellement {w}×{h})."
 
-#: src/ui_common.py:68
+#: /Users/adelpla/git/rm-manager/src/ui_common.py:69
 msgid "No device configured. Add one in the page "
 msgstr "Aucun appareil configuré. Ajoutez-en un dans la page "
 
-#: src/ui_common.py:72
+#: /Users/adelpla/git/rm-manager/src/ui_common.py:73
 msgid "Select a tablet in the sidebar."
 msgstr "Sélectionnez une tablette dans la barre latérale."
 
-#: tests/unit/test_i18n.py:65
-msgid "Some unknown string xyz"
-msgstr ""
-
-#: tests/unit/test_i18n.py:74
-msgid "Unknown string not in catalog xyz"
-msgstr ""
-
-#: tests/unit/test_i18n.py:87
-msgid "Keep local only"
-msgstr "Garder en local uniquement"
-
-#: tests/unit/test_i18n.py:88
-msgid "Send to tablet"
-msgstr "Envoyer sur la tablette"

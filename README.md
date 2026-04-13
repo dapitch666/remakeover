@@ -212,15 +212,14 @@ The app uses [gettext](https://docs.python.org/3/library/gettext.html) via [Babe
 Re-extract the message catalog and update existing `.po` files:
 
 ```bash
-# Re-extract all translatable strings into the .pot template
-pybabel extract -F babel.cfg -k _ -o locales/rmmanager.pot .
-
-# Update existing .po files (preserves existing translations, marks changed strings as fuzzy)
-pybabel update -i locales/rmmanager.pot -d locales -D rmmanager
+# Re-extract and update all .po files in one step
+scripts/update_locales.sh
 
 # Compile .po → .mo (required for non-English languages to take effect)
 pybabel compile -d locales -D rmmanager
 ```
+
+The script reads the mapping configuration from `pyproject.toml` (`[tool.babel]`) and skips the `tests/` directory automatically.
 
 Review any entries marked `#, fuzzy` in the `.po` file — they were matched approximately and may need manual correction. Remove the `#, fuzzy` flag once the translation is verified.
 
