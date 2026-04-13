@@ -6,6 +6,7 @@ from contextlib import suppress
 
 import streamlit as st
 
+import src.dialog as _dialog
 from src.constants import (
     DEFAULT_ICON_DATA,
     DEFAULT_TEMPLATE_JSON,
@@ -22,6 +23,7 @@ from src.template_sync import (
     build_assumed_sync_status,
     check_sync_status,
     fetch_and_init_templates,
+    fetch_single_template_from_device,
     refresh_cached_sync_status,
     sync_templates_to_tablet,
 )
@@ -99,21 +101,123 @@ def _get_realtime_sync_status(device: Device) -> dict | None:
     return refreshed
 
 
-def _render_sync_name_line(label: str, names: list[str], empty_message: str) -> None:
-    if not names:
+def _render_sync_name_line(
+    label: str,
+    uuids: list[str],
+    empty_message: str,
+    *,
+    name_by_uuid: dict | None = None,
+    device: Device | None = None,
+    is_device_only: bool = False,
+    row_key: str = "",
+) -> None:
+    if not uuids:
         st.caption(f"{label}: {empty_message}")
         return
 
-    visible = names[:6]
-    remaining = len(names) - len(visible)
-    pill_options = list(visible)
-    if remaining > 0:
-        pill_options.append(f"+{remaining}")
+    expanded_rows: set = st.session_state.setdefault("tpl_pill_expanded_rows", set())
+    is_expanded = row_key in expanded_rows
 
-    st.pills(
-        label,
-        pill_options,
-    )
+    if is_expanded:
+        visible = uuids
+        remaining = 0
+    else:
+        visible = uuids[:6]
+        remaining = len(uuids) - len(visible)
+
+    pill_options = list(visible)
+    expand_label = f"+{remaining}"
+    collapse_label = "−"
+    if remaining > 0:
+        pill_options.append(expand_label)
+    elif is_expanded:
+        pill_options.append(collapse_label)
+
+    pill_key = f"tpl_pills_{row_key}"
+    pending_key = f"tpl_pills_{row_key}_pending"
+
+    def _on_pill_change() -> None:
+        val = st.session_state.get(pill_key)
+        if val is not None:
+            st.session_state[pending_key] = val
+            st.session_state[pill_key] = None
+
+    def _format_pill(value: str) -> str:
+        if value in (expand_label, collapse_label):
+            return value
+        return (name_by_uuid or {}).get(value, value)
+
+    st.pills(label, pill_options, key=pill_key, on_change=_on_pill_change, format_func=_format_pill)
+
+    selected = st.session_state.pop(pending_key, None)
+
+    # Expand "+N" pill (st.rerun() stops further execution)
+    if selected == expand_label:
+        expanded_rows.add(row_key)
+        st.rerun()
+
+    # Collapse "−" pill
+    if selected == collapse_label:
+        expanded_rows.discard(row_key)
+        st.rerun()
+
+    # Template pills need device context
+    if name_by_uuid is None or device is None:
+        return
+
+    confirm_uuid_key = f"tpl_pills_{row_key}_confirm_uuid"
+    confirm_result_key = f"tpl_pills_{row_key}_confirm_result"
+
+    # Handle a pending recovery confirmation from a previous run.
+    # This must be checked before the `selected is None` guard so it runs
+    # on reruns triggered by the dialog (where no new pill was clicked).
+    pending_uuid = st.session_state.get(confirm_uuid_key)
+    if pending_uuid:
+        template_name = name_by_uuid.get(pending_uuid, pending_uuid)
+        result = st.session_state.get(confirm_result_key)
+        if result is True:
+            st.session_state.pop(confirm_uuid_key, None)
+            st.session_state.pop(confirm_result_key, None)
+            import_ok, import_msg = fetch_single_template_from_device(device, pending_uuid)
+            if import_ok:
+                deferred_toast(
+                    _("'{name}' recovered from device").format(name=template_name),
+                    ":material/download:",
+                )
+                _load_template_into_editor(device.name, pending_uuid)
+                _set_selected_template_uuid(pending_uuid)
+            else:
+                deferred_toast(
+                    _("Import failed: {msg}").format(msg=import_msg),
+                    ":material/error:",
+                )
+            st.rerun()
+        elif result is False:
+            st.session_state.pop(confirm_uuid_key, None)
+            st.session_state.pop(confirm_result_key, None)
+            st.rerun()
+        else:
+            _dialog.confirm(
+                title=_("Recover template"),
+                message=_(
+                    "'{name}' only exists on the device. Recover it to local storage?"
+                ).format(name=template_name),
+                key=confirm_result_key,
+            )
+        return
+
+    # No pending confirmation — handle a fresh pill selection
+    if selected is None:
+        return
+
+    template_uuid = selected
+    if is_device_only:
+        st.session_state[confirm_uuid_key] = template_uuid
+        st.rerun()
+
+    _load_template_into_editor(device.name, template_uuid)
+    _set_selected_template_uuid(template_uuid)
+    st.rerun()
 
 
 def _selected_template_uuid() -> str | None:
@@ -541,10 +645,10 @@ def _render_left_panel(device: Device, add_log) -> None:
             if isinstance(check_result, dict):
                 st.info(
                     _("""Local templates: {local_count}  
-                                  Remote templates: {remote_count}  
-                                  To upload: {to_upload_count}  
-                                  To delete on tablet: {to_delete_count}
-                                  """).format(
+                         Remote templates: {remote_count}  
+                         To upload: {to_upload_count}  
+                         To delete on tablet: {to_delete_count}
+                         """).format(
                         local_count=check_result.get("local_count", 0),
                         remote_count=check_result.get("remote_count", 0),
                         to_upload_count=len(check_result.get("to_upload", [])),
@@ -559,18 +663,30 @@ def _render_left_panel(device: Device, add_log) -> None:
                     )
                 _render_sync_name_line(
                     _("Added locally (upload)"),
-                    list(check_result.get("to_upload_added_names", [])),
+                    list(check_result.get("to_upload_added_uuids", [])),
                     _("none"),
+                    name_by_uuid=check_result.get("to_upload_added_name_by_uuid", {}),
+                    device=device,
+                    is_device_only=False,
+                    row_key="added",
                 )
                 _render_sync_name_line(
                     _("Modified locally (upload)"),
-                    list(check_result.get("to_upload_modified_names", [])),
+                    list(check_result.get("to_upload_modified_uuids", [])),
                     _("none"),
+                    name_by_uuid=check_result.get("to_upload_modified_name_by_uuid", {}),
+                    device=device,
+                    is_device_only=False,
+                    row_key="modified",
                 )
                 _render_sync_name_line(
                     _("Remote-only (delete on sync)"),
-                    list(check_result.get("to_delete_remote_names", [])),
+                    list(check_result.get("to_delete_remote_uuids", [])),
                     _("none"),
+                    name_by_uuid=check_result.get("to_delete_remote_name_by_uuid", {}),
+                    device=device,
+                    is_device_only=True,
+                    row_key="remote_only",
                 )
 
     st.divider()
@@ -1047,6 +1163,17 @@ if not os.path.exists(manifest_path):
     st.stop()
 
 refresh_local_manifest(current_device.name)
+
+st.markdown(
+    _("""Browse and manage templates for this tablet in the **left panel**.  
+         Click a template to open it in the **editor** on the right, where you can update its 
+         name, category, labels, icon, and body.  
+         Use **New template** (:material/add:) to create one from scratch.  
+         When you're done editing, click **Save** (:material/save:) to save locally, then 
+         **Sync to tablet** (:material/sync:) to push all changes to the device.
+    """)
+)
+st.divider()
 
 # ── Main split layout: list (left) | editor (right) ──────────────────────────
 

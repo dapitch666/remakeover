@@ -7,8 +7,10 @@ from unittest.mock import patch
 from src.manifest_templates import get_manifest_entry, load_manifest
 from src.models import Device
 from src.template_sync import (
+    _sort_pairs_by_name,
     build_assumed_sync_status,
     compute_sync_status_from_cached_remote,
+    fetch_single_template_from_device,
     refresh_cached_sync_status,
     sync_templates_to_tablet,
 )
@@ -178,10 +180,17 @@ def test_sync_check_reports_manifest_diff(tmp_path):
     assert payload["remote_count"] == 2
     assert len(payload["to_upload"]) == 1
     assert len(payload["to_delete_remote"]) == 1
-    assert payload["to_upload_modified_names"] == ["check"]
-    assert payload["to_upload_added_names"] == []
-    assert payload["to_delete_remote_names"] == ["remote_only"]
+    assert payload["to_upload_modified_uuids"] == [local_uuid]
+    assert payload["to_upload_added_uuids"] == []
+    assert payload["to_delete_remote_uuids"] == ["aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"]
     assert isinstance(payload.get("remote_manifest_snapshot"), dict)
+    # name-by-uuid maps
+    assert payload["to_upload_modified_name_by_uuid"].get(local_uuid) == "check"
+    assert payload["to_upload_added_name_by_uuid"] == {}
+    assert (
+        payload["to_delete_remote_name_by_uuid"].get("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+        == "remote_only"
+    )
 
 
 def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(tmp_path):
@@ -205,14 +214,24 @@ def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(
         },
     }
 
+    alpha_uuid = _uuid_for_filename("D1", "alpha.template")
+    assert alpha_uuid is not None
+
     payload = compute_sync_status_from_cached_remote("D1", remote_manifest)
 
     assert payload["local_count"] == 1
     assert payload["remote_count"] == 1
-    assert payload["to_upload_added_names"] == ["alpha"]
-    assert payload["to_upload_modified_names"] == []
-    assert payload["to_delete_remote_names"] == ["Remote Ghost"]
+    assert payload["to_upload_added_uuids"] == [alpha_uuid]
+    assert payload["to_upload_modified_uuids"] == []
+    assert payload["to_delete_remote_uuids"] == ["bbbbbbbb-cccc-4ddd-8eee-ffffffffffff"]
     assert payload["remote_manifest_state"] == "cached_snapshot"
+    # name-by-uuid maps
+    assert payload["to_upload_added_name_by_uuid"].get(alpha_uuid) == "alpha"
+    assert payload["to_upload_modified_name_by_uuid"] == {}
+    assert (
+        payload["to_delete_remote_name_by_uuid"].get("bbbbbbbb-cccc-4ddd-8eee-ffffffffffff")
+        == "Remote Ghost"
+    )
 
 
 def test_build_assumed_sync_status_uses_local_manifest_as_cached_snapshot(tmp_path):
@@ -272,8 +291,12 @@ def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
     assert refreshed is not None
     assert refreshed["local_count"] == 1
     assert refreshed["remote_count"] == 1
-    assert refreshed["to_upload_added_names"] == ["one"]
-    assert refreshed["to_delete_remote_names"] == ["Remote Only"]
+    assert len(refreshed["to_upload_added_uuids"]) == 1
+    assert refreshed["to_upload_added_name_by_uuid"][refreshed["to_upload_added_uuids"][0]] == "one"
+    assert (
+        refreshed["to_delete_remote_name_by_uuid"].get(refreshed["to_delete_remote_uuids"][0])
+        == "Remote Only"
+    )
     assert refreshed["last_remote_manifest_state"] == "checked"
 
 
@@ -428,3 +451,112 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
     assert ok is True
     assert any("cleanup thumbnails" in msg for msg in logs)
     assert any("permission denied" in msg for msg in logs)
+
+
+def test_fetch_single_template_from_device_downloads_and_saves(tmp_path):
+    _set_data_dir(tmp_path)
+
+    remote_uuid = "cccccccc-dddd-4eee-8fff-000000000001"
+    metadata = {
+        "type": "TemplateType",
+        "visibleName": "My Remote Template",
+        "createdTime": "1712574000000",
+    }
+    payload = {"name": "My Remote Template", "categories": ["Perso"]}
+
+    def _download(_ip, _pw, remote_path):
+        if remote_path.endswith(".metadata"):
+            return json.dumps(metadata).encode("utf-8"), ""
+        if remote_path.endswith(".template"):
+            return json.dumps(payload).encode("utf-8"), ""
+        if remote_path.endswith(".content"):
+            return b"{}", ""
+        return None, "missing"
+
+    with (
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.ssh.upload_file_ssh") as mock_upload,
+    ):
+        ok, msg = fetch_single_template_from_device(_device(), remote_uuid)
+
+    assert ok is True
+    assert "My Remote Template" in msg
+    mock_upload.assert_not_called()  # recovering a remote-only template must not push the manifest
+
+    from src.manifest_templates import get_manifest_entry
+
+    entry = get_manifest_entry("D1", remote_uuid)
+    assert entry is not None
+    assert entry["name"] == "My Remote Template"
+    assert entry["sha256"]
+
+
+def test_fetch_single_template_from_device_fails_gracefully_on_metadata_error(tmp_path):
+    _set_data_dir(tmp_path)
+
+    remote_uuid = "cccccccc-dddd-4eee-8fff-000000000002"
+
+    with patch(
+        "src.template_sync._ssh.download_file_ssh",
+        return_value=(None, "connection refused"),
+    ):
+        ok, msg = fetch_single_template_from_device(_device(), remote_uuid)
+
+    assert ok is False
+    assert "metadata_download_failed" in msg
+
+
+def test_fetch_single_template_rejects_non_template_type(tmp_path):
+    _set_data_dir(tmp_path)
+
+    remote_uuid = "cccccccc-dddd-4eee-8fff-000000000003"
+    metadata = {"type": "DocumentType", "visibleName": "Not A Template"}
+    payload = {"name": "Not A Template"}
+
+    def _download(_ip, _pw, remote_path):
+        if remote_path.endswith(".metadata"):
+            return json.dumps(metadata).encode("utf-8"), ""
+        if remote_path.endswith(".template"):
+            return json.dumps(payload).encode("utf-8"), ""
+        return b"{}", ""
+
+    with (
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.ssh.upload_file_ssh", return_value=(True, "ok")),
+    ):
+        ok, msg = fetch_single_template_from_device(_device(), remote_uuid)
+
+    assert ok is False
+    assert "not_a_template" in msg
+
+
+def test_sort_pairs_by_name_is_case_insensitive():
+    pairs = [("Zeta", "uuid-z"), ("alpha", "uuid-a"), ("Beta", "uuid-b")]
+    result = _sort_pairs_by_name(pairs)
+    assert [name for name, _ in result] == ["alpha", "Beta", "Zeta"]
+
+
+def test_enrich_diff_preserves_both_uuids_for_same_template_name(tmp_path):
+    """Two uploads with the same display name must both appear as separate UUIDs."""
+    _set_data_dir(tmp_path)
+
+    for filename in ("dup1.template", "dup2.template"):
+        save_json_template("D1", filename, json.dumps({"name": "Duplicate", "categories": []}))
+        # preferred_name forces the manifest to store the given display name
+        # rather than the filename stem ("dup1" / "dup2").
+        add_template_entry("D1", filename, preferred_name="Duplicate")
+
+    from src.manifest_templates import load_manifest
+
+    templates = load_manifest("D1").get("templates", {})
+    all_uuids = set(templates.keys())
+    assert len(all_uuids) == 2, "both entries must be in the manifest"
+
+    # Remote is empty → both are "added" (missing_remote)
+    payload = compute_sync_status_from_cached_remote("D1", {"templates": {}})
+
+    added_uuids = payload["to_upload_added_uuids"]
+    name_map = payload["to_upload_added_name_by_uuid"]
+
+    assert set(added_uuids) == all_uuids, "both UUIDs must be present"
+    assert all(name_map[u] == "Duplicate" for u in added_uuids), "both map to the same name"

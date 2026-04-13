@@ -88,6 +88,10 @@ def _manifest_entry_name(entry: Any, fallback: str) -> str:
     return fallback
 
 
+def _sort_pairs_by_name(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return sorted(pairs, key=lambda p: p[0].casefold())
+
+
 def _enrich_diff_with_names(
     diff: dict[str, Any],
     local_manifest: dict[str, Any],
@@ -96,9 +100,9 @@ def _enrich_diff_with_names(
     local_templates = local_manifest.get("templates", {})
     remote_templates = remote_manifest.get("templates", {})
 
-    to_upload_added_names: list[str] = []
-    to_upload_modified_names: list[str] = []
-    to_delete_remote_names: list[str] = []
+    to_upload_added_pairs: list[tuple[str, str]] = []
+    to_upload_modified_pairs: list[tuple[str, str]] = []
+    to_delete_remote_pairs: list[tuple[str, str]] = []
 
     for job in diff.get("to_upload", []):
         template_uuid = str(job.get("uuid") or "").strip()
@@ -108,28 +112,30 @@ def _enrich_diff_with_names(
 
         name = _manifest_entry_name(local_templates.get(template_uuid), template_uuid)
         if reason == "missing_remote":
-            to_upload_added_names.append(name)
+            to_upload_added_pairs.append((name, template_uuid))
         else:
-            to_upload_modified_names.append(name)
+            to_upload_modified_pairs.append((name, template_uuid))
 
     for template_uuid in diff.get("to_delete_remote", []):
         template_id = str(template_uuid).strip()
         if not template_id:
             continue
-        to_delete_remote_names.append(
-            _manifest_entry_name(remote_templates.get(template_id), template_id)
-        )
+        name = _manifest_entry_name(remote_templates.get(template_id), template_id)
+        to_delete_remote_pairs.append((name, template_id))
+
+    def _uuids(pairs: list[tuple[str, str]]) -> list[str]:
+        return [uuid for _, uuid in _sort_pairs_by_name(pairs)]
+
+    def _name_by_uuid(pairs: list[tuple[str, str]]) -> dict[str, str]:
+        return {uuid: name for name, uuid in pairs}
 
     enriched = dict(diff)
-    enriched["to_upload_added_names"] = sorted(
-        set(to_upload_added_names), key=lambda s: s.casefold()
-    )
-    enriched["to_upload_modified_names"] = sorted(
-        set(to_upload_modified_names), key=lambda s: s.casefold()
-    )
-    enriched["to_delete_remote_names"] = sorted(
-        set(to_delete_remote_names), key=lambda s: s.casefold()
-    )
+    enriched["to_upload_added_uuids"] = _uuids(to_upload_added_pairs)
+    enriched["to_upload_modified_uuids"] = _uuids(to_upload_modified_pairs)
+    enriched["to_delete_remote_uuids"] = _uuids(to_delete_remote_pairs)
+    enriched["to_upload_added_name_by_uuid"] = _name_by_uuid(to_upload_added_pairs)
+    enriched["to_upload_modified_name_by_uuid"] = _name_by_uuid(to_upload_modified_pairs)
+    enriched["to_delete_remote_name_by_uuid"] = _name_by_uuid(to_delete_remote_pairs)
     return enriched
 
 
@@ -283,6 +289,74 @@ def fetch_and_init_templates(
         return False, f"upload_remote_manifest_failed: {manifest_upload_msg}"
 
     return True, f"fetched ({imported} template(s) imported from rmMethods)"
+
+
+def fetch_single_template_from_device(
+    device: Device,
+    template_uuid: str,
+) -> tuple[bool, str]:
+    """Download a single template triplet from the tablet and save it locally.
+
+    Used when a remote-only template is clicked in the sync status pills —
+    it imports that one template without touching anything else.
+    """
+    metadata_bytes, meta_err = _ssh.download_file_ssh(
+        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.metadata"
+    )
+    if metadata_bytes is None:
+        return False, f"metadata_download_failed: {meta_err}"
+
+    template_bytes, tpl_err = _ssh.download_file_ssh(
+        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.template"
+    )
+    if template_bytes is None:
+        return False, f"template_download_failed: {tpl_err}"
+
+    content_bytes, content_err = _ssh.download_file_ssh(
+        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.content"
+    )
+    if content_bytes is None:
+        _tpl.logger.info(
+            "No remote .content for %s (%s), using empty object", template_uuid, content_err
+        )
+        content_bytes = b"{}"
+
+    try:
+        metadata = json.loads(metadata_bytes.decode("utf-8"))
+        payload_json = json.loads(template_bytes.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        return False, f"json_decode_failed: {exc}"
+
+    if metadata.get("type") != "TemplateType":
+        return False, f"not_a_template: type={metadata.get('type')!r}"
+
+    normalized_payload = _tpl.ensure_template_payload(payload_json)
+    visible_name = str(
+        metadata.get("visibleName") or normalized_payload.get("name") or template_uuid
+    )
+    paths = _tpl.triplet_paths(device.name, template_uuid)
+    _tpl.write_json_file(paths["template"], normalized_payload)
+    with open(paths["metadata"], "wb") as f:
+        f.write(metadata_bytes)
+    with open(paths["content"], "wb") as f:
+        f.write(content_bytes)
+
+    _tpl.ensure_local_sidecars(device.name, template_uuid, visible_name)
+    sha256 = _tpl.compute_template_sha256(normalized_payload)
+    created_at = _tpl.iso_from_epoch_ms(metadata.get("createdTime")) or _tpl.utc_now_iso()
+    _tpl.upsert_manifest_template(
+        device.name,
+        template_uuid,
+        name=visible_name,
+        created_at=created_at,
+        sha256=sha256,
+    )
+
+    # Do not push the manifest back to the device: the template already exists
+    # there, so nothing on the device changes. Pushing would cause the template
+    # to disappear from the "remote-only" list on the next status recompute.
+
+    return True, f"imported '{visible_name}' from device"
 
 
 def sync_templates_to_tablet(
