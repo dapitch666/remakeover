@@ -125,7 +125,6 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
         return open(p, "rb").read() if os.path.exists(p) else b""
 
     return [
-        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
         patch(
             "src.ssh.upload_file_ssh",
             side_effect=lambda ip, _pw, _blob, path: upload_calls.append((ip, path))

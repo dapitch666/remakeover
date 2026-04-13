@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-13 13:32+0200\n"
+"POT-Creation-Date: 2026-04-13 20:42+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,116 +17,143 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: /Users/adelpla/git/rm-manager/app.py:204
+#: /Users/adelpla/git/rm-manager/app.py:203
 msgid "Tablet"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/app.py:212
+#: /Users/adelpla/git/rm-manager/app.py:211
 msgid "Test SSH connection"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/app.py:232
+#: /Users/adelpla/git/rm-manager/app.py:244
+#, python-brace-format
+msgid "model: {old} -> {new}"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/app.py:245
+#: /Users/adelpla/git/rm-manager/app.py:252
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:126
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:127
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:250
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:251
+msgid "unknown"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/app.py:251
+#, python-brace-format
+msgid "firmware: {old} -> {new}"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/app.py:257
+#, python-brace-format
+msgid "Detected update for '{name}': {details}"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/app.py:279
 msgid "SSH connection OK"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/app.py:235
+#: /Users/adelpla/git/rm-manager/app.py:282
 #, python-brace-format
 msgid "SSH connection failed: {err}"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:17
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:21
 msgid ":material/settings: Device Configuration"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:30
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:34
 #, python-brace-format
 msgid "Edit: {name}"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:32
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:36
 msgid "New device"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:39
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:44
 msgid "Create a new device"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:40
-msgid "Device name"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:52
-msgid "IP Address"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:53
-msgid "SSH Password"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:60
-msgid "Tablet type"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:64
-msgid "Enable templates"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:65
-msgid "Disable carousel"
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:69
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:47
 msgid ""
 "💡 To find the IP address and root password of your reMarkable, enable "
 "developer mode if needed, go to Settings > Help > About > Copyrights and "
 "licenses, then scroll the right column if necessary."
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:76
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:60
+msgid "Device name"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:62
+msgid "My reMarkable"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:65
+msgid "IP Address"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:68
+msgid "SSH Password"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:73
+msgid "Test Connection"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:77
+msgid "Test SSH connection to the device and detect its type and firmware version"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:81
+msgid "Enter an IP address before testing."
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:125
+#, python-brace-format
+msgid "Detected: {dt}, Firmware: {fw}"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:149
 #: /Users/adelpla/git/rm-manager/pages/templates.py:442
 #: /Users/adelpla/git/rm-manager/pages/templates.py:481
 #: /Users/adelpla/git/rm-manager/pages/templates.py:1036
 msgid "Save"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:80
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:153
 msgid "Save device configuration"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:83
-msgid "Please enter a name for this device."
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:86
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:170
 #, python-brace-format
-msgid "A device named '{name}' already exists. Choose a different name."
+msgid ""
+"A local data folder already exists for '{name}'. Choose another device "
+"name."
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:92
-msgid "Please enter an IP address."
-msgstr ""
-
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:98
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:173
 #, python-brace-format
-msgid "'{ip}' is not a valid IP address (e.g. 192.168.1.100)."
+msgid "Could not save configuration: {error}"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:113
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:177
 #, python-brace-format
 msgid "Configuration of '{name}' saved"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:122
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:187
 #: /Users/adelpla/git/rm-manager/pages/templates.py:410
 #: /Users/adelpla/git/rm-manager/pages/templates.py:1109
 msgid "Delete"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:127
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:192
 msgid "Delete this device and its local images"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:134
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:199
 #: /Users/adelpla/git/rm-manager/pages/templates.py:406
 #: /Users/adelpla/git/rm-manager/pages/templates.py:459
 #: /Users/adelpla/git/rm-manager/pages/templates.py:505
@@ -134,22 +161,38 @@ msgstr ""
 msgid "Cancel"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:141
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:207
 #: /Users/adelpla/git/rm-manager/pages/images.py:116
 msgid "Confirm deletion"
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:143
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:209
 #, python-brace-format
 msgid ""
 "Confirm deletion of device '{name}'? This will also remove its local "
 "images and templates."
 msgstr ""
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:159
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:225
 #: /Users/adelpla/git/rm-manager/pages/templates.py:419
 #, python-brace-format
 msgid "'{name}' deleted"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:241
+msgid ""
+"To save, fill all fields and run Test Connection to detect tablet model "
+"and firmware."
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:249
+#, python-brace-format
+msgid "Connected to {device_type} (firmware {firmware_version})"
+msgstr ""
+
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:257
+#, python-brace-format
+msgid "Connection failed: {error}"
 msgstr ""
 
 #: /Users/adelpla/git/rm-manager/pages/images.py:59

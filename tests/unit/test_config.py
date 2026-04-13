@@ -100,3 +100,34 @@ class TestGetDeviceDataDir:
         monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
         path = config_mod.get_device_data_dir("TestDevice")
         assert os.path.isdir(path)
+
+
+class TestDeviceDataDirHelpers:
+    def test_get_device_data_dir_path_does_not_create_directory(self, tmp_path, monkeypatch):
+        import os
+
+        monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
+        path = config_mod.get_device_data_dir_path("NoCreate")
+        assert path.endswith("NoCreate")
+        assert not os.path.exists(path)
+
+    def test_rename_device_data_dir_moves_existing_directory(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
+        src = tmp_path / "data" / "Old_Device"
+        src.mkdir(parents=True, exist_ok=True)
+        (src / "x.txt").write_text("ok", encoding="utf-8")
+
+        config_mod.rename_device_data_dir("Old Device", "New Device")
+
+        assert not src.exists()
+        assert (tmp_path / "data" / "New_Device").exists()
+
+    def test_rename_device_data_dir_raises_when_target_exists(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(config_mod, "BASE_DIR", str(tmp_path))
+        (tmp_path / "data" / "Old").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "data" / "New").mkdir(parents=True, exist_ok=True)
+
+        import pytest
+
+        with pytest.raises(FileExistsError):
+            config_mod.rename_device_data_dir("Old", "New")

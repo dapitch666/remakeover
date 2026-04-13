@@ -35,11 +35,22 @@ CMD_REMOUNT_RW = "mount -o remount,rw /"
 # ---------------------------------------------------------------------------
 
 DEVICE_SIZES = {
+    "reMarkable 1": (1404, 1872),
     "reMarkable 2": (1404, 1872),
     "reMarkable Paper Pro": (1620, 2160),
     "reMarkable Paper Pro Move": (954, 1696),
 }
 DEFAULT_DEVICE_TYPE: str = "reMarkable Paper Pro"
+
+# Maps the substring found in /sys/devices/soc0/machine to the canonical device type name.
+# The kernel machine string is the full board description (e.g. "Freescale i.MX7 Dual reMarkable 2"),
+# so keys are matched as substrings of the lowercased raw value.
+MACHINE_TO_DEVICE_TYPE: dict[str, str] = {
+    "rm1": "reMarkable 1",
+    "rm2": "reMarkable 2",
+    "ferrari": "reMarkable Paper Pro",
+    "chiappa": "reMarkable Paper Pro Move",
+}
 
 # ---------------------------------------------------------------------------
 # UI layout

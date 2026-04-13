@@ -10,8 +10,7 @@ class TestDeviceFromDict:
             "ip": "1.2.3.4",
             "password": "secret",
             "device_type": "reMarkable 2",
-            "templates": False,
-            "carousel": True,
+            "firmware_version": "3.5.2.1896",
             "preferred_image": "bg.png",
         }
         dev = Device.from_dict("MyTablet", data)
@@ -19,8 +18,7 @@ class TestDeviceFromDict:
         assert dev.ip == "1.2.3.4"
         assert dev.password == "secret"
         assert dev.device_type == "reMarkable 2"
-        assert dev.templates is False
-        assert dev.carousel is True
+        assert dev.firmware_version == "3.5.2.1896"
         assert dev.preferred_image == "bg.png"
 
     def test_defaults_when_keys_missing(self):
@@ -28,9 +26,19 @@ class TestDeviceFromDict:
         assert dev.ip == ""
         assert dev.password == ""
         assert dev.device_type == ""
-        assert dev.templates is True
-        assert dev.carousel is True
+        assert dev.firmware_version == ""
         assert dev.preferred_image is None
+
+    def test_ignores_legacy_templates_carousel_keys(self):
+        """Old config files with templates/carousel keys must not crash or set any attribute."""
+        data = {"ip": "1.2.3.4", "password": "pw", "templates": False, "carousel": True}
+        dev = Device.from_dict("T", data)
+        assert not hasattr(dev, "templates")
+        assert not hasattr(dev, "carousel")
+
+    def test_firmware_version_default_empty(self):
+        dev = Device.from_dict("T", {"ip": "1.2.3.4"})
+        assert dev.firmware_version == ""
 
 
 class TestDeviceToDict:
@@ -39,11 +47,20 @@ class TestDeviceToDict:
             "ip": "1.2.3.4",
             "password": "pw",
             "device_type": "reMarkable 2",
-            "templates": True,
-            "carousel": False,
+            "firmware_version": "3.5.2.1896",
         }
         dev = Device.from_dict("X", data)
         assert dev.to_dict() == data
+
+    def test_firmware_version_roundtrip(self):
+        dev = Device.from_dict("X", {"firmware_version": "3.14.0"})
+        assert dev.to_dict()["firmware_version"] == "3.14.0"
+
+    def test_no_templates_carousel_in_output(self):
+        dev = Device.from_dict("X", {})
+        d = dev.to_dict()
+        assert "templates" not in d
+        assert "carousel" not in d
 
     def test_preferred_image_included_when_set(self):
         dev = Device.from_dict("X", {})
@@ -100,6 +117,10 @@ class TestDeviceResolveType:
 
 class TestDeviceSizeLookup:
     """Ensure the right (width, height) is resolved for each known device type."""
+
+    def test_remarkable1_size(self):
+        dev = Device.from_dict("X", {"device_type": "reMarkable 1"})
+        assert DEVICE_SIZES[dev.resolve_type()] == (1404, 1872)
 
     def test_remarkable2_size(self):
         dev = Device.from_dict("X", {"device_type": "reMarkable 2"})

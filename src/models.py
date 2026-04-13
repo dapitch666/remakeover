@@ -17,8 +17,7 @@ class Device:
     ip: str
     password: str
     device_type: str = ""
-    templates: bool = True
-    carousel: bool = True
+    firmware_version: str = ""
     preferred_image: str | None = None
 
     @staticmethod
@@ -28,8 +27,7 @@ class Device:
             ip=data.get("ip", ""),
             password=data.get("password", ""),
             device_type=data.get("device_type", ""),
-            templates=bool(data.get("templates", True)),
-            carousel=bool(data.get("carousel", True)),
+            firmware_version=str(data.get("firmware_version", "")),
             preferred_image=data.get("preferred_image"),
         )
 
@@ -38,8 +36,7 @@ class Device:
             "ip": self.ip,
             "password": self.password,
             "device_type": self.device_type,
-            "templates": self.templates,
-            "carousel": self.carousel,
+            "firmware_version": self.firmware_version,
         }
         if self.preferred_image is not None:
             d["preferred_image"] = self.preferred_image

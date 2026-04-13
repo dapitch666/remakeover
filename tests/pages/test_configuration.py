@@ -16,24 +16,27 @@ from tests.pages.helpers import (
     with_device,
 )
 
+_DETECT_PATCH = "src.ssh.detect_device_info"
+
 # ---------------------------------------------------------------------------
 # Form validation
 # ---------------------------------------------------------------------------
 
 
 def test_configuration_save_requires_name(tmp_path):
-    """Clicking Save without a device name shows a validation error."""
+    """Save stays disabled until a device name is provided."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
-        at.button[0].click().run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        assert save_btn.disabled is True
 
-    assert at.error and any("Please enter a name" in e.value for e in at.error)
+    assert not at.exception
 
 
 def test_configuration_save_rejects_duplicate_name(tmp_path):
-    """Creating a device with the same name as an existing one shows an error."""
+    """Save stays disabled when creating a device with an existing name."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path, name="D1"))):
         at = AppTest.from_file("app.py")
         at.run()
@@ -41,40 +44,51 @@ def test_configuration_save_rejects_duplicate_name(tmp_path):
         new_btn = next(b for b in at.button if "new device" in b.label.lower())
         new_btn.click().run()
         at.text_input[0].set_value("D1").run()
+        at.text_input[1].set_value("192.168.1.20").run()
+        at.text_input[2].set_value("pw").run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.1.0",
+            "error": "",
+            "ip": "192.168.1.20",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
-        save_btn.click().run()
+        assert save_btn.disabled is True
 
     assert not at.exception
-    assert at.error and any("already exists" in e.value for e in at.error)
 
 
 def test_configuration_save_rejects_empty_ip(tmp_path):
-    """Saving a device with no IP shows a validation error."""
+    """Save stays disabled when IP is empty."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
         at.text_input[0].set_value("MyTablet").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
-        save_btn.click().run()
+        assert save_btn.disabled is True
 
     assert not at.exception
-    assert at.error and any("ip address" in e.value.lower() for e in at.error)
 
 
 def test_configuration_save_rejects_invalid_ip(tmp_path):
-    """Saving a device with a malformed IP shows a validation error."""
+    """Save stays disabled when IP is malformed."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
         at.text_input[0].set_value("MyTablet").run()
         at.text_input[1].set_value("not-an-ip").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
-        save_btn.click().run()
+        assert save_btn.disabled is True
 
     assert not at.exception
-    assert at.error and any("valid" in e.value.lower() for e in at.error)
 
 
 # ---------------------------------------------------------------------------
@@ -93,21 +107,16 @@ def test_configuration_page_shows_device_selectbox(tmp_path):
     assert any("new device" in b.label.lower() for b in at.button)
 
 
-def test_configuration_device_type_selectbox_shows_all_models(tmp_path):
-    """Device-type selectbox must list all known models."""
+def test_configuration_edit_mode_has_no_device_type_selectbox(tmp_path):
+    """Device model is auto-detected, so edit mode must not show a model dropdown."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
 
     assert not at.exception
-    type_selectbox = next((s for s in at.selectbox if "tablet" in s.label.lower()), None)
-    assert type_selectbox is not None, "Device-type selectbox not found"
-    options = type_selectbox.options
-    assert "reMarkable 2" in options
-    assert "reMarkable Paper Pro" in options
-    assert "reMarkable Paper Pro Move" in options
-    assert len(options) >= 3
+    type_selectbox = next((s for s in at.selectbox if "model" in s.label.lower()), None)
+    assert type_selectbox is None
 
 
 # ---------------------------------------------------------------------------
@@ -254,3 +263,145 @@ class TestConfigurationDeleteFlow:
 
         assert not at.exception
         assert "config_creating_new" not in at.session_state
+
+
+# ---------------------------------------------------------------------------
+# Test Connection button — create mode only
+# ---------------------------------------------------------------------------
+
+
+def test_test_connection_button_exists_in_create_mode(tmp_path):
+    """Create mode shows a 'Test Connection' button."""
+    with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+
+    assert not at.exception
+    assert any("test connection" in b.label.lower() for b in at.button)
+
+
+def test_create_mode_no_device_type_selectbox(tmp_path):
+    """Create mode does not have a device type selectbox."""
+    with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+
+    assert not at.exception
+    assert not any("tablet" in s.label.lower() for s in at.selectbox)
+
+
+def test_edit_mode_no_templates_carousel_toggles(tmp_path):
+    """Edit mode no longer shows templates or carousel toggles."""
+    with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+
+    assert not at.exception
+    toggle_labels = [t.label.lower() for t in at.toggle]
+    assert not any("template" in lbl for lbl in toggle_labels)
+    assert not any("carousel" in lbl for lbl in toggle_labels)
+
+
+def test_test_connection_success_shows_device_type(tmp_path):
+    """After a successful test, detected device type and firmware are displayed."""
+    with (
+        patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
+        patch(_DETECT_PATCH, return_value=(True, "reMarkable 2", "3.5.2.1896", "")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+        at.text_input[0].set_value("MyTablet").run()
+        at.text_input[1].set_value("192.168.1.1").run()
+        test_btn = next(b for b in at.button if "test connection" in b.label.lower())
+        test_btn.click().run()
+
+    assert not at.exception
+    assert at.session_state["connection_test_result"]["ok"] is True
+    assert at.session_state["connection_test_result"]["device_type"] == "reMarkable 2"
+    assert at.session_state["connection_test_result"]["firmware_version"] == "3.5.2.1896"
+    assert any("reMarkable 2" in s.value for s in at.success)
+
+
+def test_test_connection_failure_shows_error(tmp_path):
+    """After a failed test, an error message is displayed."""
+    with (
+        patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
+        patch(_DETECT_PATCH, return_value=(False, "", "", "Connection refused")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+        at.text_input[1].set_value("192.168.1.99").run()
+        test_btn = next(b for b in at.button if "test connection" in b.label.lower())
+        test_btn.click().run()
+
+    assert not at.exception
+    assert at.session_state["connection_test_result"]["ok"] is False
+    assert any("Connection refused" in e.value for e in at.error)
+
+
+def test_save_uses_detected_device_type(tmp_path):
+    """Saving after a successful test writes the detected device_type and firmware to config."""
+    cfg_path = empty_cfg(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable Paper Pro",
+            "firmware_version": "4.0.0.1",
+            "error": "",
+            "ip": "192.168.1.5",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.text_input[0].set_value("ProTablet").run()
+        at.text_input[1].set_value("192.168.1.5").run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        save_btn.click().run()
+
+    assert not at.exception
+    saved = json.loads((tmp_path / "config.json").read_text())
+    assert "ProTablet" in saved["devices"]
+    assert saved["devices"]["ProTablet"]["device_type"] == "reMarkable Paper Pro"
+    assert saved["devices"]["ProTablet"]["firmware_version"] == "4.0.0.1"
+
+
+def test_renaming_existing_device_renames_data_dir(tmp_path):
+    """Renaming an existing device updates config key and local data directory."""
+    cfg_path = with_device(tmp_path, "D1")
+    old_dir = tmp_path / "D1"
+    old_dir.mkdir(parents=True, exist_ok=True)
+    (old_dir / "marker.txt").write_text("ok", encoding="utf-8")
+
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+        at.text_input[0].set_value("Renamed Device").run()
+        at.text_input[1].set_value("10.0.0.11").run()
+        at.text_input[2].set_value("pw").run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.10.0",
+            "error": "",
+            "ip": "10.0.0.11",
+            "mode": "edit",
+            "device_name": "D1",
+        }
+        at.run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        save_btn.click().run()
+
+    assert not at.exception
+    saved = json.loads((tmp_path / "config.json").read_text())
+    assert "D1" not in saved["devices"]
+    assert "Renamed Device" in saved["devices"]
+    assert not (tmp_path / "D1").exists()
+    assert (tmp_path / "Renamed_Device").exists()
