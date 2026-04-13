@@ -55,7 +55,7 @@ Quick troubleshooting
 ---------------------
 
 - Check Actions → Runs to view workflow logs.
-- Verify that `packages: write` is granted (workflow permissions) and that the organisation allows Actions to publish packages.
+- Verify that `packages: write` is granted (workflow permissions) and that the organization allows Actions to publish packages.
 - If the push to GHCR fails, consider using a temporary PAT (`write:packages`) to isolate the issue.
 
 FAQ

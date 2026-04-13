@@ -101,7 +101,7 @@ Manage custom templates (`.template` JSON format):
 - **Sync** changes to the tablet (local manifest is applied to the device)
 
 ### 🚀 Deployment
-Re-deploy your configuration after a firmware update (which resets all customisations):
+Re-deploy your configuration after a firmware update (which resets all customizations):
 - Sends the preferred sleep-screen image (or a random one)
 - Syncs local `.template` files to rmMethods UUID triplets in xochitl
 - Disables the carousel (moves stock illustrations to a backup folder)
@@ -112,7 +112,7 @@ Re-deploy your configuration after a firmware update (which resets all customisa
 ### ⚙️ Configuration
 Add, edit, or delete devices.
 
-### ✏️ Éditeur de templates
+### ✏️ Templates Editor
 Create and edit `.template` JSON-format files with a live SVG preview. Save results to the local device library for deployment from the Templates page.
 
 ### 📋 Logs
@@ -212,15 +212,14 @@ The app uses [gettext](https://docs.python.org/3/library/gettext.html) via [Babe
 Re-extract the message catalog and update existing `.po` files:
 
 ```bash
-# Re-extract all translatable strings into the .pot template
-pybabel extract -F babel.cfg -k _ -o locales/rmmanager.pot .
-
-# Update existing .po files (preserves existing translations, marks changed strings as fuzzy)
-pybabel update -i locales/rmmanager.pot -d locales -D rmmanager
+# Re-extract and update all .po files in one step
+scripts/update_locales.sh
 
 # Compile .po → .mo (required for non-English languages to take effect)
 pybabel compile -d locales -D rmmanager
 ```
+
+The script reads the mapping configuration from `pyproject.toml` (`[tool.babel]`) and skips the `tests/` directory automatically.
 
 Review any entries marked `#, fuzzy` in the `.po` file — they were matched approximately and may need manual correction. Remove the `#, fuzzy` flag once the translation is verified.
 

@@ -39,7 +39,7 @@ def get_device_data_dir(device_name: str) -> str:
 
 
 def _active_config_path() -> str:
-    """Return the config path, honouring RM_CONFIG_PATH at call time."""
+    """Return the config path, honoring RM_CONFIG_PATH at call time."""
     return os.environ.get("RM_CONFIG_PATH") or CONFIG_PATH
 
 

@@ -174,3 +174,98 @@ def download_file_ssh(ip: str, password: str, remote_path: str) -> tuple[bytes |
     except Exception as e:
         logger.error("SFTP download error from %s:%s: %s", ip, remote_path, e)
         return None, str(e)
+
+
+class SshSession:
+    """Reusable SSH session over a single open connection.
+
+    Opens one paramiko SSHClient and one SFTP channel (lazily) for the
+    lifetime of the session.  All operations share the same TCP connection,
+    so callers avoid repeated handshake and RW-check overhead.
+
+    Do not instantiate directly — use the :func:`ssh_session` context manager.
+    """
+
+    def __init__(self, client: paramiko.SSHClient) -> None:
+        self._client = client
+        self._sftp: paramiko.SFTPClient | None = None
+
+    # ------------------------------------------------------------------
+    # Shell execution
+    # ------------------------------------------------------------------
+
+    def run(self, commands: list[str]) -> tuple[str, str]:
+        """Join *commands* with ``&&`` and execute in one shot."""
+        full_cmd = " && ".join(commands) if commands else ""
+        if not full_cmd:
+            return "", ""
+        try:
+            _, stdout, stderr = self._client.exec_command(full_cmd, timeout=_CMD_TIMEOUT_LONG)
+            return stdout.read().decode(), stderr.read().decode()
+        except Exception as e:
+            logger.error("SshSession.run failed: %s", e)
+            return "", str(e)
+
+    # ------------------------------------------------------------------
+    # File transfer
+    # ------------------------------------------------------------------
+
+    def upload(self, content: bytes, remote_path: str) -> tuple[bool, str]:
+        """Write *content* to *remote_path* via the shared SFTP channel."""
+        sftp = self._sftp_channel()
+        try:
+            with sftp.file(remote_path, "wb") as f:
+                f.write(content)
+            logger.info("SshSession upload OK → %s (%d bytes)", remote_path, len(content))
+            return True, "OK"
+        except Exception as e:
+            logger.error("SshSession upload error → %s: %s", remote_path, e)
+            return False, str(e)
+
+    def download(self, remote_path: str) -> tuple[bytes | None, str]:
+        """Read *remote_path* via the shared SFTP channel."""
+        sftp = self._sftp_channel()
+        try:
+            with sftp.file(remote_path, "rb") as f:
+                content = f.read()
+            logger.info("SshSession download OK ← %s (%d bytes)", remote_path, len(content))
+            return content, ""
+        except Exception as e:
+            logger.error("SshSession download error ← %s: %s", remote_path, e)
+            return None, str(e)
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _sftp_channel(self) -> paramiko.SFTPClient:
+        if self._sftp is None:
+            self._sftp = self._client.open_sftp()
+        return self._sftp
+
+    def _close(self) -> None:
+        if self._sftp is not None:
+            with suppress(Exception):
+                self._sftp.close()
+            self._sftp = None
+
+
+@contextmanager
+def ssh_session(ip: str, password: str) -> Generator[SshSession, None, None]:
+    """Open one SSH connection, ensure RW, then yield a reusable :class:`SshSession`.
+
+    Usage::
+
+        with ssh_session(ip, pw) as s:
+            s.upload(data, "/path/to/file")
+            out, err = s.run(["systemctl restart xochitl"])
+    """
+    with _ssh_client(ip, password) as client:
+        ok, msg = _ensure_rw(client)
+        if not ok:
+            raise RuntimeError(f"remount failed: {msg}")
+        session = SshSession(client)
+        try:
+            yield session
+        finally:
+            session._close()

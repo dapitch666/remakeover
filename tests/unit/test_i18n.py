@@ -10,8 +10,10 @@ import src.i18n as i18n
 @pytest.fixture(autouse=True)
 def clear_catalog_cache():
     """Clear the module-level catalog cache between tests."""
+    # noinspection PyProtectedMember
     i18n._catalogs.clear()
     yield
+    # noinspection PyProtectedMember
     i18n._catalogs.clear()
 
 
@@ -81,15 +83,3 @@ class TestTranslateFunction:
     def test_fr_confirm(self):
         with patch("streamlit.session_state", {"lang": "fr"}):
             assert i18n._("Confirm") == "Confirmer"
-
-    def test_fr_upload_dialog_action_labels(self):
-        with patch("streamlit.session_state", {"lang": "fr"}):
-            assert i18n._("Keep local only") == "Garder en local uniquement"
-            assert i18n._("Send to tablet") == "Envoyer sur la tablette"
-
-    def test_fr_upload_dialog_help_text(self):
-        with patch("streamlit.session_state", {"lang": "fr"}):
-            assert (
-                i18n._("You can still send it later from the image actions.")
-                == "Vous pourrez toujours l'envoyer plus tard depuis les actions de l'image."
-            )

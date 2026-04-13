@@ -83,7 +83,7 @@ def test_configuration_save_rejects_invalid_ip(tmp_path):
 
 
 def test_configuration_page_shows_device_selectbox(tmp_path):
-    """When a device exists, Configuration shows its edit form and a 'Nouvel appareil' button."""
+    """When a device exists, Configuration shows its edit form and a 'New device' button."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()
@@ -138,7 +138,7 @@ def test_saving_new_device_sets_pending_selected_tablet(tmp_path):
 
 
 def test_cancel_button_shown_in_creation_mode_when_device_exists(tmp_path):
-    """When clicking 'Nouvel appareil', a Cancel button appears alongside Save."""
+    """When clicking 'New Device', a Cancel button appears alongside Save."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
         at = AppTest.from_file("app.py")
         at.run()

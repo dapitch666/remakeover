@@ -18,7 +18,7 @@ def _patched_st(cancel_clicked: bool, confirm_clicked: bool, initial_state=None)
     st = MagicMock()
     st.session_state = {} if initial_state is None else initial_state
     # st.dialog(title) must act as a no-op decorator so _dialog() runs directly
-    st.dialog.side_effect = lambda title: lambda fn: fn
+    st.dialog.side_effect = lambda _title: lambda fn: fn
     c_cancel, c_ok = _make_columns_mock(cancel_clicked, confirm_clicked)
     st.columns.return_value = (MagicMock(), c_cancel, MagicMock(), c_ok, MagicMock())
     return patch("src.dialog.st", st), st

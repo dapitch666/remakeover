@@ -10,6 +10,8 @@ import src.images as _images
 import src.ssh as _ssh
 from src.config import save_config, truncate_display_name
 from src.constants import DEVICE_SIZES, GRID_COLUMNS, SUSPENDED_PNG_PATH
+
+# noinspection PyProtectedMember
 from src.i18n import _
 from src.models import Device
 from src.ui_common import (

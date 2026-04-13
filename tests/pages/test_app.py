@@ -1,4 +1,4 @@
-"""Tests for the main app entry-point (app.py) behaviour.
+"""Tests for the main app entry-point (app.py) behavior.
 
 Covers: initial render, auto-redirect to configuration, sidebar state propagation,
 SSH connectivity result display.

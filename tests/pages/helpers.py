@@ -91,6 +91,7 @@ def at_page(
     """Boot app.py then switch to *page*, applying optional patches and session state overrides."""
     cfg_path = cfg_path or with_device(tmp_path)
     env = make_env(tmp_path, cfg_path)
+    # noinspection PyAbstractClass
     with ExitStack() as stack:
         stack.enter_context(patch.dict(os.environ, env))
         for p in patches or []:
@@ -112,14 +113,14 @@ def at_page(
 def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
     """Return a list of patch() context managers for all src.* side-effectful calls."""
 
-    def _save_device_image(device_name, img_data, filename):
+    def _save_device_image(_device_name, img_data, filename):
         out = os.path.join(str(images_dir), filename)
         with open(out, "wb") as f:
             f.write(img_data)
         saved_files.append(out)
         return True
 
-    def _load_device_image(device_name, img_name):
+    def _load_device_image(_device_name, img_name):
         p = os.path.join(str(images_dir), img_name)
         return open(p, "rb").read() if os.path.exists(p) else b""
 
@@ -127,12 +128,13 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
         patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
         patch(
             "src.ssh.upload_file_ssh",
-            side_effect=lambda ip, pw, blob, path: upload_calls.append((ip, path)) or (True, "ok"),
+            side_effect=lambda ip, _pw, _blob, path: upload_calls.append((ip, path))
+            or (True, "ok"),
         ),
         patch("src.ssh.download_file_ssh", return_value=(PNG_BYTES, "")),
         patch(
             "src.ssh.run_ssh_cmd",
-            side_effect=lambda ip, pw, cmds: run_cmds.append((ip, tuple(cmds))),
+            side_effect=lambda ip, _pw, cmds: run_cmds.append((ip, tuple(cmds))),
         ),
         patch("src.images.process_image", return_value=b"processed"),
         patch("src.images.get_device_images_dir", return_value=str(images_dir)),
@@ -144,7 +146,6 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
         patch("src.images.load_device_image", side_effect=_load_device_image),
         patch("src.images.delete_device_image", return_value=True),
         patch("src.images.rename_device_image", return_value=True),
-        patch("src.maintenance.run_maintenance", return_value={"ok": True}),
         patch("src.dialog.confirm", return_value=True),
     ]
 

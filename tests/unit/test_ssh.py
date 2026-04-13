@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+# noinspection PyProtectedMember
 from src.ssh import (
     _ensure_rw,
     download_file_ssh,
@@ -236,7 +237,8 @@ class TestTestSshConnection:
 
 
 class TestUploadFileSsh:
-    def _make_sftp(self):
+    @staticmethod
+    def _make_sftp():
         sftp = MagicMock()
         # sftp.file() used as context manager — MagicMock handles __enter__/__exit__
         return sftp

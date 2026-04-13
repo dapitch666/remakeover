@@ -1,8 +1,16 @@
-"""Package for rm-manager core modules.
+"""Package for rm-manager core modules."""
 
-This package will host SSH, image and template helpers and the
-maintenance orchestration code. Modules are scaffolds and should be
-implemented incrementally.
-"""
-
-__all__ = ["ssh", "images", "templates", "maintenance"]
+__all__ = [
+    "config",
+    "constants",
+    "dialog",
+    "i18n",
+    "images",
+    "manifest_templates",
+    "models",
+    "ssh",
+    "template_renderer",
+    "template_sync",
+    "templates",
+    "ui_common",
+]
