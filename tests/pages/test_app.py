@@ -4,6 +4,7 @@ Covers: initial render, auto-redirect to configuration, sidebar state propagatio
 SSH connectivity result display.
 """
 
+import json
 import os
 from unittest.mock import patch
 
@@ -56,7 +57,7 @@ def test_ssh_test_success_shows_sidebar_success(tmp_path):
     cfg_path = with_device(tmp_path)
     with (
         patch.dict(os.environ, make_env(tmp_path, cfg_path)),
-        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
+        patch("src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", "")),
     ):
         at = AppTest.from_file("app.py")
         at.run()
@@ -72,7 +73,7 @@ def test_ssh_test_failure_shows_sidebar_error(tmp_path):
     cfg_path = with_device(tmp_path)
     with (
         patch.dict(os.environ, make_env(tmp_path, cfg_path)),
-        patch("src.ssh.ssh_connectivity_test", return_value=(False, "Connection refused")),
+        patch("src.ssh.detect_device_info", return_value=(False, "", "", "Connection refused")),
     ):
         at = AppTest.from_file("app.py")
         at.run()
@@ -88,7 +89,7 @@ def test_ssh_result_cleared_on_tablet_change(tmp_path):
     cfg_path = with_two_devices(tmp_path)
     with (
         patch.dict(os.environ, make_env(tmp_path, cfg_path)),
-        patch("src.ssh.ssh_connectivity_test", return_value=(True, "")),
+        patch("src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", "")),
     ):
         at = AppTest.from_file("app.py")
         at.run()
@@ -101,3 +102,52 @@ def test_ssh_result_cleared_on_tablet_change(tmp_path):
 
     assert not at.exception
     assert "_ssh_test_result" not in at.session_state
+
+
+def test_sidebar_ssh_test_updates_firmware_in_config(tmp_path):
+    """Successful detection updates firmware/version fields in config when changed."""
+    cfg_path = with_device(tmp_path)
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch("src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "4.0.1", "")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.button(key="sidebar_test_ssh").click().run()
+
+    assert not at.exception
+    saved = json.loads((tmp_path / "config.json").read_text())
+    assert saved["devices"]["D1"]["firmware_version"] == "4.0.1"
+
+
+def test_sidebar_ssh_test_keeps_config_when_detection_is_unchanged(tmp_path):
+    """No config write-side change is made when detected values are unchanged."""
+    cfg_file = tmp_path / "config.json"
+    cfg_file.write_text(
+        json.dumps(
+            {
+                "devices": {
+                    "D1": {
+                        "ip": "10.0.0.1",
+                        "password": "pw",
+                        "device_type": "reMarkable 2",
+                        "firmware_version": "3.0.0",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    before = cfg_file.read_text(encoding="utf-8")
+
+    with (
+        patch.dict(os.environ, make_env(tmp_path, str(cfg_file))),
+        patch("src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", "")),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.button(key="sidebar_test_ssh").click().run()
+
+    assert not at.exception
+    after = cfg_file.read_text(encoding="utf-8")
+    assert before == after

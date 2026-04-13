@@ -9,10 +9,12 @@ import streamlit as st
 from src.config import (
     BASE_DIR,
     load_config,
+    save_config,
 )
 
 # noinspection PyProtectedMember
 from src.i18n import SUPPORTED_LANGUAGES, _
+from src.ui_common import deferred_toast
 
 _LANG_FLAGS = {"en": ("🇬🇧", "English"), "fr": ("🇫🇷", "Français")}
 
@@ -90,7 +92,7 @@ def _add_log(message: str):
     entry = f"{ts} - {message}"
     try:
         st.session_state.setdefault("logs", []).append(entry)
-    except Exception:
+    except (AttributeError, RuntimeError):
         print(entry)
 
 
@@ -101,7 +103,7 @@ def _read_version():
     try:
         with open(os.path.join(BASE_DIR, "VERSION"), encoding="utf-8") as f:
             return f.read().strip()
-    except Exception:
+    except OSError:
         return None
 
 
@@ -133,14 +135,11 @@ def _sidebar_version(version):
 
 
 def _debug_overlay():
-    try:
-        debug_mode = (BASE_DIR != "/app") or os.environ.get("DEBUG", "").lower() in (
-            "1",
-            "true",
-            "yes",
-        )
-    except Exception:
-        debug_mode = False
+    debug_mode = (BASE_DIR != "/app") or os.environ.get("DEBUG", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if not debug_mode:
         return
 
@@ -196,7 +195,7 @@ def _device_selector(config: dict) -> str | None:
 
     with st.sidebar:
         from src.models import Device as _Device
-        from src.ssh import ssh_connectivity_test
+        from src.ssh import detect_device_info
 
         col1, col2 = st.columns([4, 1], vertical_alignment="bottom")
         with col1:
@@ -212,13 +211,61 @@ def _device_selector(config: dict) -> str | None:
                 help=_("Test SSH connection"),
             ):
                 _device = _Device.from_dict(selected_name, devices[selected_name])
-                ok, err = ssh_connectivity_test(_device.ip, _device.password or "")
+                ok, detected_type, detected_fw, err = detect_device_info(
+                    _device.ip, _device.password or ""
+                )
                 st.session_state["_ssh_test_result"] = {
                     "ok": ok,
                     "err": err,
                     "tablet": selected_name,
                 }
                 if ok:
+                    old_type = devices[selected_name].get("device_type", "")
+                    old_fw = devices[selected_name].get("firmware_version", "")
+                    changed_fields: list[str] = []
+                    if detected_type and detected_type != old_type:
+                        devices[selected_name]["device_type"] = detected_type
+                        changed_fields.append("device_type")
+                    if detected_fw and detected_fw != old_fw:
+                        devices[selected_name]["firmware_version"] = detected_fw
+                        changed_fields.append("firmware_version")
+
+                    if changed_fields:
+                        try:
+                            save_config(config)
+                        except OSError as exc:
+                            _add_log(
+                                f"Detected metadata change for '{selected_name}' but failed to persist: {exc}"
+                            )
+                        else:
+                            details: list[str] = []
+                            if "device_type" in changed_fields:
+                                details.append(
+                                    _("model: {old} -> {new}").format(
+                                        old=old_type or _("unknown"),
+                                        new=detected_type,
+                                    )
+                                )
+                            if "firmware_version" in changed_fields:
+                                details.append(
+                                    _("firmware: {old} -> {new}").format(
+                                        old=old_fw or _("unknown"),
+                                        new=detected_fw,
+                                    )
+                                )
+                            deferred_toast(
+                                _("Detected update for '{name}': {details}").format(
+                                    name=selected_name,
+                                    details=", ".join(details),
+                                ),
+                                ":material/task_alt:",
+                            )
+                            _add_log(
+                                f"Updated detected metadata for '{selected_name}': "
+                                f"device_type='{old_type}' -> '{detected_type}', "
+                                f"firmware_version='{old_fw}' -> '{detected_fw}'"
+                            )
+
                     _add_log(f"SSH connection successful to '{selected_name}'")
                 else:
                     _add_log(f"SSH connection failed to '{selected_name}': {err}")

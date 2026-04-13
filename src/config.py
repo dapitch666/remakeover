@@ -25,17 +25,47 @@ BASE_DIR = _repo_root()
 CONFIG_PATH: str = os.path.join(BASE_DIR, "data", "config.json")
 
 
+def _safe_device_dir_name(device_name: str) -> str:
+    """Return the filesystem-safe directory name used for a device."""
+    return device_name.replace("/", "_").replace(" ", "_")
+
+
+def get_device_data_dir_path(device_name: str) -> str:
+    """Return the per-device data directory path without creating it."""
+    safe = _safe_device_dir_name(device_name)
+    base = os.environ.get("RM_DATA_DIR") or os.path.join(BASE_DIR, "data")
+    return os.path.join(base, safe)
+
+
 def get_device_data_dir(device_name: str) -> str:
     """Return (and create) the per-device data directory: data/{device}/
 
     The base data directory can be overridden via the ``RM_DATA_DIR`` environment
     variable — used in tests to avoid writing into the real ``data/`` tree.
     """
-    safe = device_name.replace("/", "_").replace(" ", "_")
-    base = os.environ.get("RM_DATA_DIR") or os.path.join(BASE_DIR, "data")
-    path = os.path.join(base, safe)
+    path = get_device_data_dir_path(device_name)
     os.makedirs(path, exist_ok=True)
     return path
+
+
+def rename_device_data_dir(old_name: str, new_name: str) -> None:
+    """Rename a device data directory if it exists.
+
+    Raises ``FileExistsError`` when the target directory already exists.
+    """
+    if old_name == new_name:
+        return
+
+    old_path = get_device_data_dir_path(old_name)
+    new_path = get_device_data_dir_path(new_name)
+
+    if not os.path.exists(old_path):
+        return
+    if os.path.exists(new_path):
+        raise FileExistsError(f"Target device data directory already exists: {new_path}")
+
+    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+    os.rename(old_path, new_path)
 
 
 def _active_config_path() -> str:

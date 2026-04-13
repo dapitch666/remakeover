@@ -7,9 +7,9 @@ operation, and return an ``(ok, msg)`` or ``(output, error)`` pair.
 Public API
 ----------
 - run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
-- ssh_connectivity_test(ip, password) -> (ok, msg)
 - upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
 - download_file_ssh(ip, password, remote_path) -> (bytes | None, msg)
+- detect_device_info(ip, password) -> (ok, device_type, firmware_version, error_msg)
 """
 
 import logging
@@ -18,7 +18,7 @@ from contextlib import contextmanager, suppress
 
 import paramiko
 
-from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW
+from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW, MACHINE_TO_DEVICE_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -106,19 +106,53 @@ def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
         return "", str(e)
 
 
-def ssh_connectivity_test(ip: str, password: str) -> tuple[bool, str]:
-    """Test simple SSH connectivity without modifying the device."""
-    logger.info("SSH connectivity test start for %s", ip)
+def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, str]:
+    """Detect device type and firmware version via SSH (read-only, no remount needed).
+
+    Reads ``/sys/devices/soc0/machine`` to identify the hardware and
+    ``/etc/os-release`` to extract the firmware version string.
+
+    Returns ``(ok, device_type, firmware_version, error_msg)``.
+    On success ``ok=True`` and ``error_msg=""``.
+    On failure ``ok=False``, ``device_type`` and ``firmware_version`` are ``""``.
+    """
+    logger.info("detect_device_info start for %s", ip)
     try:
         with _ssh_client(ip, password) as client:
-            _, stdout, stderr = client.exec_command("echo ok", timeout=_CMD_TIMEOUT_QUICK)
-            output = stdout.read().decode().strip()
-            error = stderr.read().decode().strip()
-        logger.info("SSH connectivity test OK for %s (out=%s, err_len=%d)", ip, output, len(error))
-        return output == "ok", error
+            _, stdout, _ = client.exec_command(
+                "cat /sys/devices/soc0/machine", timeout=_CMD_TIMEOUT_QUICK
+            )
+            machine_raw = stdout.read().decode().strip()
+
+            _, stdout2, _ = client.exec_command(
+                "grep IMG_VERSION /etc/os-release", timeout=_CMD_TIMEOUT_QUICK
+            )
+            fw_raw = stdout2.read().decode().strip()
+
+        machine_lower = machine_raw.lower()
+        device_type = next(
+            (name for key, name in MACHINE_TO_DEVICE_TYPE.items() if key in machine_lower), ""
+        )
+
+        firmware_version = ""
+        for line in fw_raw.splitlines():
+            if line.startswith("IMG_VERSION="):
+                firmware_version = line.split("=", 1)[1].strip().strip('"')
+                break
+
+        if not device_type:
+            logger.warning(
+                "detect_device_info: unrecognised machine string '%s' for %s", machine_raw, ip
+            )
+            return False, "", firmware_version, f"Unknown machine: '{machine_raw}'"
+
+        logger.info(
+            "detect_device_info OK for %s: type=%s fw=%s", ip, device_type, firmware_version
+        )
+        return True, device_type, firmware_version, ""
     except Exception as e:
-        logger.error("SSH connectivity test error for %s: %s", ip, e)
-        return False, str(e)
+        logger.error("detect_device_info error for %s: %s", ip, e)
+        return False, "", "", str(e)
 
 
 def upload_file_ssh(

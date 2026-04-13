@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 # noinspection PyProtectedMember
 from src.ssh import (
     _ensure_rw,
+    detect_device_info,
     download_file_ssh,
     run_ssh_cmd,
-    ssh_connectivity_test,
     upload_file_ssh,
 )
 
@@ -202,36 +202,6 @@ class TestRunSshCmd:
 
 
 # ---------------------------------------------------------------------------
-# ssh_connectivity_test
-# ---------------------------------------------------------------------------
-
-
-class TestTestSshConnection:
-    def test_success(self):
-        inst = MagicMock()
-        inst.exec_command.return_value = _exec_response(b"ok", b"")
-        with _patched_client(inst):
-            ok, err = ssh_connectivity_test(IP, PW)
-        assert ok is True
-        assert err == ""
-
-    def test_unexpected_output(self):
-        inst = MagicMock()
-        inst.exec_command.return_value = _exec_response(b"not ok", b"")
-        with _patched_client(inst):
-            ok, _ = ssh_connectivity_test(IP, PW)
-        assert ok is False
-
-    def test_connect_failure(self):
-        inst = MagicMock()
-        inst.connect.side_effect = OSError("refused")
-        with _patched_client(inst):
-            ok, err = ssh_connectivity_test(IP, PW)
-        assert ok is False
-        assert "refused" in err
-
-
-# ---------------------------------------------------------------------------
 # upload_file_ssh
 # ---------------------------------------------------------------------------
 
@@ -316,3 +286,110 @@ class TestDownloadFileSsh:
             data, err = download_file_ssh(IP, PW, "/remote/file")
         assert data is None
         assert "timeout" in err
+
+
+# ---------------------------------------------------------------------------
+# detect_device_info
+# ---------------------------------------------------------------------------
+
+
+class TestDetectDeviceInfo:
+    def test_rm2_detected(self):
+        """/sys/devices/soc0/machine value 'rm2' maps to 'reMarkable 2'."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm2", b""),
+            (b"IMG_VERSION=3.5.2.1896", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is True
+        assert device_type == "reMarkable 2"
+        assert fw == "3.5.2.1896"
+        assert err == ""
+
+    def test_rm1_detected(self):
+        """/sys/devices/soc0/machine value 'rm1' maps to 'reMarkable 1'."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm1", b""),
+            (b"IMG_VERSION=2.15.0.999", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is True
+        assert device_type == "reMarkable 1"
+        assert fw == "2.15.0.999"
+
+    def test_ferrari_detected(self):
+        """/sys/devices/soc0/machine value 'ferrari' maps to 'reMarkable Paper Pro'."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"ferrari", b""),
+            (b"IMG_VERSION=4.0.0.100", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is True
+        assert device_type == "reMarkable Paper Pro"
+
+    def test_chiappa_detected(self):
+        """/sys/devices/soc0/machine value 'chiappa' maps to 'reMarkable Paper Pro Move'."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"chiappa", b""),
+            (b"IMG_VERSION=4.1.0.50", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is True
+        assert device_type == "reMarkable Paper Pro Move"
+
+    def test_firmware_version_quoted(self):
+        """IMG_VERSION with surrounding quotes is stripped correctly."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"reMarkable rm2", b""),
+            (b'IMG_VERSION="3.5.2.1896"', b""),
+        )
+        with _patched_client(inst):
+            ok, _, fw, _ = detect_device_info(IP, PW)
+        assert ok is True
+        assert fw == "3.5.2.1896"
+
+    def test_unknown_machine_returns_false(self):
+        """Unrecognised machine string returns ok=False with a descriptive error."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"Raspberry Pi 4", b""),
+            (b"IMG_VERSION=0.0.0", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is False
+        assert device_type == ""
+        assert "Raspberry Pi 4" in err
+
+    def test_empty_firmware_is_tolerated(self):
+        """If grep returns nothing, firmware_version is '' but device_type still works."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm2", b""),
+            (b"", b""),
+        )
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is True
+        assert device_type == "reMarkable 2"
+        assert fw == ""
+
+    def test_connect_failure(self):
+        """SSH connection error returns ok=False with error message."""
+        inst = MagicMock()
+        inst.connect.side_effect = OSError("Connection refused")
+        with _patched_client(inst):
+            ok, device_type, fw, err = detect_device_info(IP, PW)
+        assert ok is False
+        assert device_type == ""
+        assert fw == ""
+        assert "Connection refused" in err
