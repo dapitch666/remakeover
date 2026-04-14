@@ -124,21 +124,30 @@ def test_configuration_edit_mode_has_no_device_type_selectbox(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_saving_new_device_sets_pending_selected_tablet(tmp_path):
+def test_saving_new_device_selects_tablet_in_sidebar(tmp_path):
     """Saving a new device causes the sidebar to select it."""
     cfg_path = empty_cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file("app.py")
         at.run()
         at.switch_page("pages/configuration.py").run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.5.0",
+            "error": "",
+            "ip": "192.168.1.1",
+            "mode": "new",
+            "device_name": "",
+        }
         at.text_input[0].set_value("NewTablet").run()
         at.text_input[1].set_value("192.168.1.1").run()
+        at.text_input[2].set_value("password").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
     assert not at.exception
     assert at.session_state["tablet"] == "NewTablet"
-    assert "pending_selected_tablet" not in at.session_state
 
 
 # ---------------------------------------------------------------------------

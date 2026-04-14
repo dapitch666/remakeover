@@ -1,6 +1,6 @@
-streamlit==1.55.0
+streamlit==1.56.0
 paramiko==4.0.0
-pillow==12.1.1
+pillow==12.2.0
 fonttools==4.62.1
 zstandard==0.25.0
 babel==2.18.0

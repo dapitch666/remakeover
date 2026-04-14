@@ -175,7 +175,7 @@ with col_save:
                 _("Configuration of '{name}' saved").format(name=final_name),
                 ":material/task_alt:",
             )
-            st.session_state["pending_selected_tablet"] = final_name
+            st.session_state["tablet"] = final_name
             st.session_state.pop("config_creating_new", None)
             st.session_state.pop("connection_test_result", None)
             st.rerun()

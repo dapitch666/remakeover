@@ -184,11 +184,6 @@ def _device_selector(config: dict) -> str | None:
     ):
         st.session_state["tablet"] = qp_tablet
 
-    # Consume pending selection set by another page (e.g. after saving a new device).
-    pending = st.session_state.pop("pending_selected_tablet", None)
-    if pending and pending in device_names:
-        st.session_state["tablet"] = pending
-
     # Keep a valid selected tablet in session state when the list changes.
     if st.session_state.get("tablet") not in device_names:
         st.session_state["tablet"] = device_names[0]
@@ -301,7 +296,6 @@ def main():
     # ── Shared session state ──────────────────────────────────────────────
     st.session_state.setdefault("logs", [])
     st.session_state["add_log"] = _add_log
-    st.session_state["BASE_DIR"] = BASE_DIR
 
     # Resolve language from URL param before any _() call (page titles, etc.)
     _init_language()

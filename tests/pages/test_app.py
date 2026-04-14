@@ -37,21 +37,6 @@ def test_no_config_redirects_to_configuration(tmp_path):
     assert at.session_state["_auto_config_redirect"] is True
 
 
-def test_pending_selected_tablet_is_applied_to_sidebar(tmp_path):
-    """pending_selected_tablet set in session state is transferred to the sidebar selectbox
-    on the next run without raising a StreamlitAPIException."""
-    cfg_path = with_two_devices(tmp_path)
-    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
-        at.run()
-        at.session_state["pending_selected_tablet"] = "D2"
-        at.run()
-
-    assert not at.exception
-    assert at.session_state["tablet"] == "D2"
-    assert "pending_selected_tablet" not in at.session_state
-
-
 def test_ssh_test_success_shows_sidebar_success(tmp_path):
     """Clicking the SSH test button stores a success result shown in the sidebar."""
     cfg_path = with_device(tmp_path)
