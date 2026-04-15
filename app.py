@@ -301,7 +301,6 @@ def main():
     # ── Shared session state ──────────────────────────────────────────────
     st.session_state.setdefault("logs", [])
     st.session_state["add_log"] = _add_log
-    st.session_state["BASE_DIR"] = BASE_DIR
 
     # Resolve language from URL param before any _() call (page titles, etc.)
     _init_language()

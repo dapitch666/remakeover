@@ -137,8 +137,7 @@ def test_saving_new_device_sets_pending_selected_tablet(tmp_path):
         save_btn.click().run()
 
     assert not at.exception
-    assert at.session_state["tablet"] == "NewTablet"
-    assert "pending_selected_tablet" not in at.session_state
+    assert at.session_state["pending_selected_tablet"] == "NewTablet"
 
 
 # ---------------------------------------------------------------------------
