@@ -37,7 +37,7 @@ def empty_cfg(tmp_path) -> str:
     return write_config(tmp_path, {"devices": {}})
 
 
-def with_device(tmp_path, name: str = "D1") -> str:
+def with_device(tmp_path, name: str = "D1", sleep_screen_enabled: bool = True) -> str:
     """Config with a single fully-configured device."""
     return write_config(
         tmp_path,
@@ -47,6 +47,7 @@ def with_device(tmp_path, name: str = "D1") -> str:
                     "ip": "10.0.0.1",
                     "password": "pw",
                     "device_type": "reMarkable 2",
+                    "sleep_screen_enabled": sleep_screen_enabled,
                 }
             }
         },
@@ -59,8 +60,18 @@ def with_two_devices(tmp_path) -> str:
         tmp_path,
         {
             "devices": {
-                "D1": {"ip": "10.0.0.1", "password": "pw", "device_type": "reMarkable 2"},
-                "D2": {"ip": "10.0.0.2", "password": "pw2", "device_type": "reMarkable 2"},
+                "D1": {
+                    "ip": "10.0.0.1",
+                    "password": "pw",
+                    "device_type": "reMarkable 2",
+                    "sleep_screen_enabled": True,
+                },
+                "D2": {
+                    "ip": "10.0.0.2",
+                    "password": "pw2",
+                    "device_type": "reMarkable 2",
+                    "sleep_screen_enabled": True,
+                },
             }
         },
     )

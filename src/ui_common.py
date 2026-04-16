@@ -8,22 +8,19 @@ import streamlit as st
 from babel.core import UnknownLocaleError
 from babel.dates import format_date, format_time
 
-import src.ssh as _ssh
-from src.constants import CMD_RESTART_XOCHITL, SUSPENDED_PNG_PATH
 from src.i18n import _, get_language
 
 _DEFERRED_TOAST_KEY = "_deferred_toast"
+_KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
+_ICON_COLOR = {
+    ":material/task_alt:": "green",
+    ":material/error:": "red",
+}
 
 
 def deferred_toast(msg: str, icon: str | None = None) -> None:
     """Queue a toast to be displayed on the next rerun via show_deferred_toast()."""
     st.session_state[_DEFERRED_TOAST_KEY] = {"msg": msg, "icon": icon}
-
-
-_ICON_COLOR = {
-    ":material/task_alt:": "green",
-    ":material/error:": "red",
-}
 
 
 def show_deferred_toast() -> None:
@@ -43,18 +40,18 @@ def init_page(require_selected: bool = True) -> tuple[dict, str | None, dict]:
     ``config``, ``selected_name`` and ``DEVICES`` are read from
     ``st.session_state`` — the same boilerplate that every page repeats.
 
-    When *require_selected* is True (default), calls ``require_device`` which
+    When *require_selected* is True (default), calls ``_require_device`` which
     stops rendering if no device is configured or selected.
     """
     config: dict = st.session_state.get("config", {})
     selected_name: str | None = st.session_state.get("selected_name")
     devices: dict = config.get("devices", {})
     if require_selected:
-        require_device(devices, selected_name)
+        _require_device(devices, selected_name)
     return config, selected_name, devices
 
 
-def require_device(devices: dict, selected_name) -> None:
+def _require_device(devices: dict, selected_name) -> None:
     """Guard helper called at the top of every device-specific page.
 
     * If *devices* is empty, shows a warning with a link to the configuration
@@ -84,9 +81,6 @@ def rainbow_divider():
         ");"
         '">'
     )
-
-
-_KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
 
 
 def normalise_filename(filename: str, ext: str = ".png") -> str:
@@ -127,18 +121,6 @@ def handle_rename_confirmation(
         st.session_state[pending_key] = None
         st.session_state[renaming_key] = None
         st.rerun()
-
-
-def send_suspended_png(device, img_data: bytes, img_name: str, selected_name: str, add_log) -> bool:
-    """Upload *img_data* as suspended.png and restart xochitl. Returns True on success."""
-    pw = device.password or ""
-    success, msg = _ssh.upload_file_ssh(device.ip, pw, img_data, SUSPENDED_PNG_PATH)
-    if success:
-        _ssh.run_ssh_cmd(device.ip, pw, [CMD_RESTART_XOCHITL])
-        add_log(f"Sent {img_name} to '{selected_name}'")
-        return True
-    add_log(f"Error sending {img_name} to '{selected_name}': {msg}")
-    return False
 
 
 def format_datetime_for_ui(

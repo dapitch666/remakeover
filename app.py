@@ -211,7 +211,7 @@ def _device_selector(config: dict) -> str | None:
                 help=_("Test SSH connection"),
             ):
                 _device = _Device.from_dict(selected_name, devices[selected_name])
-                ok, detected_type, detected_fw, err = detect_device_info(
+                ok, detected_type, detected_fw, sleep_screen_enabled, err = detect_device_info(
                     _device.ip, _device.password or ""
                 )
                 st.session_state["_ssh_test_result"] = {
@@ -229,6 +229,10 @@ def _device_selector(config: dict) -> str | None:
                     if detected_fw and detected_fw != old_fw:
                         devices[selected_name]["firmware_version"] = detected_fw
                         changed_fields.append("firmware_version")
+                    old_sleep = devices[selected_name].get("sleep_screen_enabled", False)
+                    if sleep_screen_enabled != old_sleep:
+                        devices[selected_name]["sleep_screen_enabled"] = sleep_screen_enabled
+                        changed_fields.append("sleep_screen_enabled")
 
                     if changed_fields:
                         try:
@@ -253,6 +257,11 @@ def _device_selector(config: dict) -> str | None:
                                         new=detected_fw,
                                     )
                                 )
+                            if "sleep_screen_enabled" in changed_fields:
+                                if sleep_screen_enabled:
+                                    details.append(_("sleep_screen now enabled"))
+                                else:
+                                    details.append(_("sleep_screen now disabled"))
                             deferred_toast(
                                 _("Detected update for '{name}': {details}").format(
                                     name=selected_name,

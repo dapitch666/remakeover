@@ -309,7 +309,7 @@ def test_test_connection_success_shows_device_type(tmp_path):
     """After a successful test, detected device type and firmware are displayed."""
     with (
         patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
-        patch(_DETECT_PATCH, return_value=(True, "reMarkable 2", "3.5.2.1896", "")),
+        patch(_DETECT_PATCH, return_value=(True, "reMarkable 2", "3.5.2.1896", False, "")),
     ):
         at = AppTest.from_file("app.py")
         at.run()
@@ -330,7 +330,7 @@ def test_test_connection_failure_shows_error(tmp_path):
     """After a failed test, an error message is displayed."""
     with (
         patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
-        patch(_DETECT_PATCH, return_value=(False, "", "", "Connection refused")),
+        patch(_DETECT_PATCH, return_value=(False, "", "", False, "Connection refused")),
     ):
         at = AppTest.from_file("app.py")
         at.run()
@@ -370,6 +370,33 @@ def test_save_uses_detected_device_type(tmp_path):
     assert "ProTablet" in saved["devices"]
     assert saved["devices"]["ProTablet"]["device_type"] == "reMarkable Paper Pro"
     assert saved["devices"]["ProTablet"]["firmware_version"] == "4.0.0.1"
+
+
+def test_save_persists_sleep_screen_enabled(tmp_path):
+    """When connection_test_result has sleep_screen_enabled=True, it is written to config."""
+    cfg_path = empty_cfg(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.switch_page("pages/configuration.py").run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.5.2.1896",
+            "sleep_screen_enabled": True,
+            "error": "",
+            "ip": "192.168.1.10",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.text_input[0].set_value("SleepTablet").run()
+        at.text_input[1].set_value("192.168.1.10").run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        save_btn.click().run()
+
+    assert not at.exception
+    saved = json.loads((tmp_path / "config.json").read_text())
+    assert saved["devices"]["SleepTablet"]["sleep_screen_enabled"] is True
 
 
 def test_renaming_existing_device_renames_data_dir(tmp_path):

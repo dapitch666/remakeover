@@ -18,7 +18,7 @@ from contextlib import contextmanager, suppress
 
 import paramiko
 
-from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW, MACHINE_TO_DEVICE_TYPE
+from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW, MACHINE_TO_DEVICE_TYPE, XOCHITL_CONF_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -106,15 +106,17 @@ def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
         return "", str(e)
 
 
-def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, str]:
-    """Detect device type and firmware version via SSH (read-only, no remount needed).
+def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, bool, str]:
+    """Detect device type, firmware version, and sleep-screen config via SSH.
 
-    Reads ``/sys/devices/soc0/machine`` to identify the hardware and
-    ``/etc/os-release`` to extract the firmware version string.
+    Reads ``/sys/devices/soc0/machine`` to identify the hardware,
+    ``/etc/os-release`` to extract the firmware version string, and checks
+    whether ``SleepScreenPath`` is already configured in xochitl.conf.
 
-    Returns ``(ok, device_type, firmware_version, error_msg)``.
+    Returns ``(ok, device_type, firmware_version, sleep_screen_enabled, error_msg)``.
     On success ``ok=True`` and ``error_msg=""``.
-    On failure ``ok=False``, ``device_type`` and ``firmware_version`` are ``""``.
+    On failure ``ok=False``, ``device_type`` and ``firmware_version`` are ``""``
+    and ``sleep_screen_enabled`` is ``False``.
     """
     logger.info("detect_device_info start for %s", ip)
     try:
@@ -129,6 +131,12 @@ def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, str]:
             )
             fw_raw = stdout2.read().decode().strip()
 
+            _, stdout3, _ = client.exec_command(
+                f"grep -q '^SleepScreenPath=' {XOCHITL_CONF_PATH} && echo yes || echo no",
+                timeout=_CMD_TIMEOUT_QUICK,
+            )
+            sleep_raw = stdout3.read().decode().strip()
+
         machine_lower = machine_raw.lower()
         device_type = next(
             (name for key, name in MACHINE_TO_DEVICE_TYPE.items() if key in machine_lower), ""
@@ -140,19 +148,25 @@ def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, str]:
                 firmware_version = line.split("=", 1)[1].strip().strip('"')
                 break
 
+        sleep_screen_enabled = sleep_raw == "yes"
+
         if not device_type:
             logger.warning(
                 "detect_device_info: unrecognised machine string '%s' for %s", machine_raw, ip
             )
-            return False, "", firmware_version, f"Unknown machine: '{machine_raw}'"
+            return False, "", firmware_version, False, f"Unknown machine: '{machine_raw}'"
 
         logger.info(
-            "detect_device_info OK for %s: type=%s fw=%s", ip, device_type, firmware_version
+            "detect_device_info OK for %s: type=%s fw=%s sleep=%s",
+            ip,
+            device_type,
+            firmware_version,
+            sleep_screen_enabled,
         )
-        return True, device_type, firmware_version, ""
+        return True, device_type, firmware_version, sleep_screen_enabled, ""
     except Exception as e:
         logger.error("detect_device_info error for %s: %s", ip, e)
-        return False, "", "", str(e)
+        return False, "", "", False, str(e)
 
 
 def upload_file_ssh(
@@ -277,7 +291,7 @@ class SshSession:
             self._sftp = self._client.open_sftp()
         return self._sftp
 
-    def _close(self) -> None:
+    def close(self) -> None:
         if self._sftp is not None:
             with suppress(Exception):
                 self._sftp.close()
@@ -302,4 +316,4 @@ def ssh_session(ip: str, password: str) -> Generator[SshSession, None, None]:
         try:
             yield session
         finally:
-            session._close()
+            session.close()

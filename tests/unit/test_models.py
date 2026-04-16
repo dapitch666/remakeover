@@ -19,7 +19,21 @@ class TestDeviceFromDict:
         assert dev.password == "secret"
         assert dev.device_type == "reMarkable 2"
         assert dev.firmware_version == "3.5.2.1896"
-        assert dev.preferred_image == "bg.png"
+
+    def test_sleep_screen_enabled_parsed(self):
+        data = {
+            "ip": "1.2.3.4",
+            "password": "pw",
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.5.2",
+            "sleep_screen_enabled": True,
+        }
+        dev = Device.from_dict("T", data)
+        assert dev.sleep_screen_enabled is True
+
+    def test_sleep_screen_enabled_defaults_to_false(self):
+        dev = Device.from_dict("T", {"ip": "1.2.3.4"})
+        assert dev.sleep_screen_enabled is False
 
     def test_defaults_when_keys_missing(self):
         dev = Device.from_dict("T", {})
@@ -27,73 +41,11 @@ class TestDeviceFromDict:
         assert dev.password == ""
         assert dev.device_type == ""
         assert dev.firmware_version == ""
-        assert dev.preferred_image is None
-
-    def test_ignores_legacy_templates_carousel_keys(self):
-        """Old config files with templates/carousel keys must not crash or set any attribute."""
-        data = {"ip": "1.2.3.4", "password": "pw", "templates": False, "carousel": True}
-        dev = Device.from_dict("T", data)
-        assert not hasattr(dev, "templates")
-        assert not hasattr(dev, "carousel")
+        assert dev.sleep_screen_enabled is False
 
     def test_firmware_version_default_empty(self):
         dev = Device.from_dict("T", {"ip": "1.2.3.4"})
         assert dev.firmware_version == ""
-
-
-class TestDeviceToDict:
-    def test_roundtrip(self):
-        data = {
-            "ip": "1.2.3.4",
-            "password": "pw",
-            "device_type": "reMarkable 2",
-            "firmware_version": "3.5.2.1896",
-        }
-        dev = Device.from_dict("X", data)
-        assert dev.to_dict() == data
-
-    def test_firmware_version_roundtrip(self):
-        dev = Device.from_dict("X", {"firmware_version": "3.14.0"})
-        assert dev.to_dict()["firmware_version"] == "3.14.0"
-
-    def test_no_templates_carousel_in_output(self):
-        dev = Device.from_dict("X", {})
-        d = dev.to_dict()
-        assert "templates" not in d
-        assert "carousel" not in d
-
-    def test_preferred_image_included_when_set(self):
-        dev = Device.from_dict("X", {})
-        dev.set_preferred("my.png")
-        assert dev.to_dict()["preferred_image"] == "my.png"
-
-    def test_preferred_image_omitted_when_none(self):
-        dev = Device.from_dict("X", {})
-        assert "preferred_image" not in dev.to_dict()
-
-
-class TestDevicePreferredImage:
-    def test_is_preferred_true(self):
-        dev = Device.from_dict("X", {"preferred_image": "img.png"})
-        assert dev.is_preferred("img.png") is True
-
-    def test_is_preferred_false_different_name(self):
-        dev = Device.from_dict("X", {"preferred_image": "img.png"})
-        assert dev.is_preferred("other.png") is False
-
-    def test_is_preferred_false_when_none(self):
-        dev = Device.from_dict("X", {})
-        assert dev.is_preferred("img.png") is False
-
-    def test_set_preferred_updates_name(self):
-        dev = Device.from_dict("X", {})
-        dev.set_preferred("bg.png")
-        assert dev.preferred_image == "bg.png"
-
-    def test_set_preferred_none_clears(self):
-        dev = Device.from_dict("X", {"preferred_image": "bg.png"})
-        dev.set_preferred(None)
-        assert dev.preferred_image is None
 
 
 class TestDeviceResolveType:

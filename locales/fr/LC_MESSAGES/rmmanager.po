@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  rm-manager\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-13 20:42+0200\n"
+"POT-Creation-Date: 2026-04-16 09:53+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -29,10 +29,10 @@ msgstr "modèle : {old} -> {new}"
 
 #: /Users/adelpla/git/rm-manager/app.py:245
 #: /Users/adelpla/git/rm-manager/app.py:252
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:126
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:127
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:250
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:251
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:124
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:125
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:246
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:247
 msgid "unknown"
 msgstr "inconnu"
 
@@ -95,66 +95,66 @@ msgstr "Ma reMarkable"
 msgid "IP Address"
 msgstr "Adresse IP"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:68
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:67
 msgid "SSH Password"
 msgstr "Mot de passe SSH"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:73
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:71
 msgid "Test Connection"
 msgstr "Tester la connexion SSH"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:77
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:75
 msgid "Test SSH connection to the device and detect its type and firmware version"
 msgstr "Teste la connexion SSH à l'appareil et détecte son type et sa version de firmware"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:81
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:79
 msgid "Enter an IP address before testing."
 msgstr "Saisir une adresse IP avant de tester la connexion."
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:125
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:123
 #, python-brace-format
 msgid "Detected: {dt}, Firmware: {fw}"
 msgstr "Détecté : {dt}, Firmware : {fw}"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:149
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:147
 #: /Users/adelpla/git/rm-manager/pages/templates.py:442
 #: /Users/adelpla/git/rm-manager/pages/templates.py:481
 #: /Users/adelpla/git/rm-manager/pages/templates.py:1036
 msgid "Save"
 msgstr "Sauvegarder"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:153
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:151
 msgid "Save device configuration"
 msgstr "Enregistrer la configuration de l'appareil"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:170
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:168
 #, python-brace-format
 msgid ""
 "A local data folder already exists for '{name}'. Choose another device "
 "name."
 msgstr "Un répertoire local existe déjà pour '{name}'. Choisissez un autre nom d'appareil."
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:173
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:171
 #, python-brace-format
 msgid "Could not save configuration: {error}"
 msgstr "Impossible de sauvegarder la configuration : {error}"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:177
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:175
 #, python-brace-format
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:187
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:185
 #: /Users/adelpla/git/rm-manager/pages/templates.py:410
 #: /Users/adelpla/git/rm-manager/pages/templates.py:1109
 msgid "Delete"
 msgstr "Supprimer"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:192
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:190
 msgid "Delete this device and its local images"
 msgstr "Supprimer cet appareil et ses images locales"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:199
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:197
 #: /Users/adelpla/git/rm-manager/pages/templates.py:406
 #: /Users/adelpla/git/rm-manager/pages/templates.py:459
 #: /Users/adelpla/git/rm-manager/pages/templates.py:505
@@ -162,12 +162,12 @@ msgstr "Supprimer cet appareil et ses images locales"
 msgid "Cancel"
 msgstr "Annuler"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:207
-#: /Users/adelpla/git/rm-manager/pages/images.py:116
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:205
+#: /Users/adelpla/git/rm-manager/pages/images.py:106
 msgid "Confirm deletion"
 msgstr "Confirmer la suppression"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:209
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:207
 #, python-brace-format
 msgid ""
 "Confirm deletion of device '{name}'? This will also remove its local "
@@ -176,84 +176,94 @@ msgstr ""
 "Confirmez-vous la suppression de l'appareil '{name}' ? Cette action "
 "supprimera aussi ses images et templates locaux."
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:225
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:223
 #: /Users/adelpla/git/rm-manager/pages/templates.py:419
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr "'{name}' supprimé"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:241
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:238
 msgid ""
 "To save, fill all fields and run Test Connection to detect tablet model "
 "and firmware."
-msgstr "Pour enregistrer, remplissez tous les champs et lancez le test de connexion pour détecter le modèle de tablette et la version du firmware."
+msgstr ""
+"Pour enregistrer, remplissez tous les champs et lancez le test de "
+"connexion pour détecter le modèle de tablette et la version du firmware."
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:249
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:245
 #, python-brace-format
 msgid "Connected to {device_type} (firmware {firmware_version})"
 msgstr "Connecté à {device_type} (firmware {firmware_version})"
 
-#: /Users/adelpla/git/rm-manager/pages/configuration.py:257
+#: /Users/adelpla/git/rm-manager/pages/configuration.py:253
 #, python-brace-format
 msgid "Connection failed: {error}"
 msgstr "Échec de la connexion : {error}"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:59
+#: /Users/adelpla/git/rm-manager/pages/images.py:46
+#: /Users/adelpla/git/rm-manager/pages/images.py:95
+#, python-brace-format
+msgid "Image renamed from '{o}' to {n}"
+msgstr "Image renommée de '{o}' à {n}"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:54
 msgid "Rename image"
 msgstr "Renommer l'image"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:77
+#: /Users/adelpla/git/rm-manager/pages/images.py:72
 msgid "Click to rename"
 msgstr "Cliquez pour renommer"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:92
+#: /Users/adelpla/git/rm-manager/pages/images.py:86
 msgid "Confirm replacement"
 msgstr "Confirmer le remplacement"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:93
+#: /Users/adelpla/git/rm-manager/pages/images.py:87
 #, python-brace-format
 msgid "'{new}' already exists. Replace this file?"
 msgstr "'{new}' existe déjà. Voulez-vous remplacer ce fichier ?"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:117
+#: /Users/adelpla/git/rm-manager/pages/images.py:107
 #, python-brace-format
 msgid "Confirm deletion of {name}?"
 msgstr "Confirmez-vous la suppression de {name} ?"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:152
-#: /Users/adelpla/git/rm-manager/pages/images.py:237
+#: /Users/adelpla/git/rm-manager/pages/images.py:114
+#, python-brace-format
+msgid "{img_name} deleted"
+msgstr "'{img_name}' supprimé"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:135
+#: /Users/adelpla/git/rm-manager/pages/images.py:211
 #, python-brace-format
 msgid "{name} sent to {device}"
 msgstr "{name} envoyée à {device}"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:157
+#: /Users/adelpla/git/rm-manager/pages/images.py:140
 #, python-brace-format
 msgid "Error sending {name}"
 msgstr "Erreur lors de l'envoi de {name}"
 
 #: /Users/adelpla/git/rm-manager/pages/images.py:163
-msgid "Preferred image removed"
-msgstr "Image préférée retirée"
-
-#: /Users/adelpla/git/rm-manager/pages/images.py:168
-#, python-brace-format
-msgid "{name} set as preferred image"
-msgstr "{name} définie comme image préférée"
-
-#: /Users/adelpla/git/rm-manager/pages/images.py:193
 msgid "Add an image"
 msgstr "Ajouter une image"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:197
+#: /Users/adelpla/git/rm-manager/pages/images.py:169
 #, python-brace-format
 msgid "Drag an image here (will be converted to PNG {w}x{h})"
 msgstr "Glisser une image ici (sera convertie en PNG {w}x{h})"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:215
-msgid "Send to tablet?"
-msgstr "Envoyer sur la tablette ?"
+#: /Users/adelpla/git/rm-manager/pages/images.py:184
+#, python-brace-format
+msgid "Image saved: {filename}"
+msgstr "Image sauvegardée : {filename}"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:216
+#: /Users/adelpla/git/rm-manager/pages/images.py:189
+#, python-brace-format
+msgid "Send to device?"
+msgstr "Envoyer à l'appareil ?"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:190
 #, python-brace-format
 msgid ""
 "Image saved locally.\n"
@@ -262,77 +272,129 @@ msgstr ""
 "L'image a été sauvegardée localement.\n"
 "Voulez-vous aussi l'envoyer sur **{device}** ?"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:220
+#: /Users/adelpla/git/rm-manager/pages/images.py:194
 msgid "No"
 msgstr "Non"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:221
+#: /Users/adelpla/git/rm-manager/pages/images.py:195
 msgid "Yes"
 msgstr "Oui"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:222
+#: /Users/adelpla/git/rm-manager/pages/images.py:196
 msgid "You can still send it later from the image actions."
 msgstr "Vous pourrez toujours l'envoyer plus tard depuis les actions de l'image."
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:241
+#: /Users/adelpla/git/rm-manager/pages/images.py:215
 msgid "Error sending image."
 msgstr "Erreur lors de l'envoi."
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:255
+#: /Users/adelpla/git/rm-manager/pages/images.py:229
 msgid ":material/image: Images"
 msgstr ":material/image: Images"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:269
+#: /Users/adelpla/git/rm-manager/pages/images.py:242
 msgid ""
-"Below you will find all images saved for this tablet. Click the **name** "
-"of an image to rename it. The three buttons under each image let you "
-"**send it as the suspended image** (:material/cloud_upload:), set it as "
-"the **preferred image** (:material/star:) — used as priority during "
-"deployment — or **delete** it (:material/delete:). At the bottom of the "
-"page you can **retrieve the image currently displayed on the tablet** or "
-"**add a new image from your computer** — it will be automatically "
-"converted to the correct format and dimensions."
+"Below you will find all images saved for this device. \n"
+"             Click the **name** of an image to rename it.  \n"
+"             The buttons under each image let you "
+"**:material/cloud_upload: send it as the suspended image** \n"
+"             or **:material/delete: delete** it.  \n"
+"             At the bottom of the page you can **retrieve the sleep "
+"screen currently installed on the device**, \n"
+"             **add a new image from your computer** — it will be "
+"automatically converted to the correct format and dimensions. \n"
+"             — or **restore the default sleep screen** if you want to "
+"remove the custom one and go back to the \n"
+"             factory default.\n"
+"        "
 msgstr ""
-"Retrouvez ci-dessous toutes les images enregistrées pour cette tablette. "
-"Cliquez sur le **nom** d'une image pour la renommer. Les trois boutons "
-"sous chaque image permettent de l'**envoyer comme écran de veille** "
-"(:material/cloud_upload:), de la définir comme **image préférée** "
-"(:material/star:) — utilisée en priorité lors d'un déploiement — ou de la"
-" **supprimer** (:material/delete:). En bas de page, vous pouvez "
-"**récupérer l'image actuellement affichée sur la tablette** ou **ajouter "
-"une nouvelle image depuis votre ordinateur** — elle sera automatiquement "
-"convertie au bon format et aux bonnes dimensions."
+"Retrouvez ci-dessous toutes les images enregistrées pour cet appareil. \n"
+"             Cliquez sur le **nom** d'une image pour la renommer.  \n"
+"             Les boutons sous chaque image permettent de "
+"**:material/cloud_upload: l'envoyer comme image de veille** \n"
+"             ou de la **:material/delete: supprimer**.  \n"
+"             En bas de page, vous pouvez **récupérer l'image "
+"de veille actuellement installée sur l'appareil**, \n"
+"             **ajouter une nouvelle image depuis votre ordinateur** — elle sera "
+"automatiquement convertie au bon format et aux bonnes dimensions. \n"
+"             — ou **restaurer l'image de veille par défaut** si vous voulez "
+"supprimer la personnalisation de l'image de veille et revenir à \n"
+"             la configuration usine.\n"
+"        "
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:291
+#: /Users/adelpla/git/rm-manager/pages/images.py:265
 msgid ""
-"No images saved for this tablet. Import the image currently on the tablet"
-" or add one from your computer below."
+"No images saved for this device. Import the sleep screen currently "
+"installed on the device or add one from your computer below."
 msgstr ""
-"Aucune image enregistrée pour cette tablette. Importez l'image "
-"actuellement sur la tablette ou ajoutez-en une depuis votre ordinateur "
+"Aucune image enregistrée pour cet appareil. Importez l'image "
+"installée actuellement sur l'appareil ou ajoutez-en une depuis votre ordinateur "
 "ci-dessous."
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:299
+#: /Users/adelpla/git/rm-manager/pages/images.py:273
 msgid "Get current image"
 msgstr "Récupérer l'image actuelle"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:301
-msgid "Import from tablet"
-msgstr "Importer depuis la tablette"
+#: /Users/adelpla/git/rm-manager/pages/images.py:275
+msgid "Import from device"
+msgstr "Importer depuis l'appareil"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:305
-msgid "Download the current suspended image from the tablet"
-msgstr "Télécharger l'image actuelle de l'écran de veille depuis la tablette"
+#: /Users/adelpla/git/rm-manager/pages/images.py:279
+msgid "No custom sleep screen is configured on this device"
+msgstr "Aucune image de veille personnalisée n'est configurée sur cet appareil"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:309
+#: /Users/adelpla/git/rm-manager/pages/images.py:281
+msgid "Download the current suspended image from the device"
+msgstr "Télécharger l'image de veille actuelle depuis l'appareil"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:285
 #, python-brace-format
 msgid "Error: {err}"
 msgstr "Erreur : {err}"
 
-#: /Users/adelpla/git/rm-manager/pages/images.py:316
+#: /Users/adelpla/git/rm-manager/pages/images.py:292
 #, python-brace-format
 msgid "Image saved: {name}"
 msgstr "Image sauvegardée : {name}"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:296
+#: /Users/adelpla/git/rm-manager/pages/images.py:329
+msgid "Restore default"
+msgstr "Restaurer par défaut"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:303
+msgid "Restore default sleep screen?"
+msgstr "Restaurer l'image de veille par défaut ?"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:305
+#, python-brace-format
+msgid ""
+"This will remove the custom sleep screen from **{device}** and restore "
+"the factory default."
+msgstr ""
+"Ceci supprimera l'image de veille personnalisée de **{device}** et "
+"restaurera la configuration d'usine."
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:309
+msgid "Restore"
+msgstr "Restaurer"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:315
+#, python-brace-format
+msgid "Sleep screen reset to default on {device}"
+msgstr "L'image de veille a été réinitialisée au défaut sur {device}"
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:319
+msgid "Error resetting sleep screen."
+msgstr "Erreur lors de la réinitialisation de l'image de veille."
+
+#: /Users/adelpla/git/rm-manager/pages/images.py:333
+msgid ""
+"Remove the custom sleep screen from the device and restore the factory "
+"default"
+msgstr ""
+"Supprime l'image de veille personnalisée de l'appareil et restaure la "
+"configuration d'usine"
 
 #: /Users/adelpla/git/rm-manager/pages/logs.py:11
 msgid ":material/list: Session Logs"
@@ -600,9 +662,8 @@ msgid "Orientation"
 msgstr "Orientation"
 
 #: /Users/adelpla/git/rm-manager/pages/templates.py:727
-#, fuzzy
 msgid "All orientations"
-msgstr "Orientation"
+msgstr "Toutes les orientations"
 
 #: /Users/adelpla/git/rm-manager/pages/templates.py:750
 msgid "No templates yet. Click 'New' or 'Import'."
@@ -822,11 +883,11 @@ msgstr "Le SVG doit avoir un attribut \"height\" (hauteur) explicite."
 msgid "SVG must be {ew}×{eh} px (got {w}×{h})."
 msgstr "Le SVG doit avoir la taille {ew}×{eh} px (actuellement {w}×{h})."
 
-#: /Users/adelpla/git/rm-manager/src/ui_common.py:69
+#: /Users/adelpla/git/rm-manager/src/ui_common.py:67
 msgid "No device configured. Add one in the page "
 msgstr "Aucun appareil configuré. Ajoutez-en un dans la page "
 
-#: /Users/adelpla/git/rm-manager/src/ui_common.py:73
+#: /Users/adelpla/git/rm-manager/src/ui_common.py:71
 msgid "Select a tablet in the sidebar."
 msgstr "Sélectionnez une tablette dans la barre latérale."
 
@@ -847,4 +908,13 @@ msgstr "Sélectionnez une tablette dans la barre latérale."
 
 #~ msgid "'{ip}' is not a valid IP address (e.g. 192.168.1.100)."
 #~ msgstr "'{ip}' n'est pas une adresse IP valide (ex. : 192.168.1.100)."
+
+#~ msgid "Preferred image removed"
+#~ msgstr "Image préférée retirée"
+
+#~ msgid "{name} set as preferred image"
+#~ msgstr "{name} définie comme image préférée"
+
+#~ msgid "Send to tablet?"
+#~ msgstr "Envoyer sur la tablette ?"
 

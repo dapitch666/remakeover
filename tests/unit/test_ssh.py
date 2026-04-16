@@ -300,12 +300,14 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"rm2", b""),
             (b"IMG_VERSION=3.5.2.1896", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is True
         assert device_type == "reMarkable 2"
         assert fw == "3.5.2.1896"
+        assert sleep is False
         assert err == ""
 
     def test_rm1_detected(self):
@@ -314,9 +316,10 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"rm1", b""),
             (b"IMG_VERSION=2.15.0.999", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is True
         assert device_type == "reMarkable 1"
         assert fw == "2.15.0.999"
@@ -327,9 +330,10 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"ferrari", b""),
             (b"IMG_VERSION=4.0.0.100", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is True
         assert device_type == "reMarkable Paper Pro"
 
@@ -339,9 +343,10 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"chiappa", b""),
             (b"IMG_VERSION=4.1.0.50", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is True
         assert device_type == "reMarkable Paper Pro Move"
 
@@ -351,9 +356,10 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"reMarkable rm2", b""),
             (b'IMG_VERSION="3.5.2.1896"', b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, _, fw, _ = detect_device_info(IP, PW)
+            ok, _, fw, _, _ = detect_device_info(IP, PW)
         assert ok is True
         assert fw == "3.5.2.1896"
 
@@ -363,11 +369,13 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"Raspberry Pi 4", b""),
             (b"IMG_VERSION=0.0.0", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is False
         assert device_type == ""
+        assert sleep is False
         assert "Raspberry Pi 4" in err
 
     def test_empty_firmware_is_tolerated(self):
@@ -376,9 +384,10 @@ class TestDetectDeviceInfo:
         inst.exec_command.side_effect = _make_exec(
             (b"rm2", b""),
             (b"", b""),
+            (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is True
         assert device_type == "reMarkable 2"
         assert fw == ""
@@ -388,8 +397,35 @@ class TestDetectDeviceInfo:
         inst = MagicMock()
         inst.connect.side_effect = OSError("Connection refused")
         with _patched_client(inst):
-            ok, device_type, fw, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
         assert ok is False
         assert device_type == ""
         assert fw == ""
+        assert sleep is False
         assert "Connection refused" in err
+
+    def test_sleep_screen_enabled_detected(self):
+        """When SleepScreenPath is present in xochitl.conf, sleep_screen_enabled is True."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm2", b""),
+            (b"IMG_VERSION=3.5.2.1896", b""),
+            (b"yes", b""),
+        )
+        with _patched_client(inst):
+            ok, _, _, sleep, _ = detect_device_info(IP, PW)
+        assert ok is True
+        assert sleep is True
+
+    def test_sleep_screen_disabled_detected(self):
+        """When SleepScreenPath is absent from xochitl.conf, sleep_screen_enabled is False."""
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm2", b""),
+            (b"IMG_VERSION=3.5.2.1896", b""),
+            (b"no", b""),
+        )
+        with _patched_client(inst):
+            ok, _, _, sleep, _ = detect_device_info(IP, PW)
+        assert ok is True
+        assert sleep is False

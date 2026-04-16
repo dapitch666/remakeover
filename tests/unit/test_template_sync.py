@@ -75,7 +75,7 @@ class _FakeSession:
             return self._remote_manifest_bytes, ""
         return None, "missing"
 
-    def upload(self, content: bytes, path: str):
+    def upload(self, _content: bytes, path: str):
         self.uploaded.append(path)
         return True, "ok"
 
