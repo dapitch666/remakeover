@@ -78,7 +78,7 @@ with col_test:
             st.session_state.pop("connection_test_result", None)
             test_feedback_error = _("Enter an IP address before testing.")
         else:
-            ok, device_type_detected, fw_detected, err_msg = detect_device_info(
+            ok, device_type_detected, fw_detected, sleep_detected, err_msg = detect_device_info(
                 ip.strip(), password
             )
             if ok:
@@ -86,6 +86,7 @@ with col_test:
                     "ok": True,
                     "device_type": device_type_detected,
                     "firmware_version": fw_detected,
+                    "sleep_screen_enabled": sleep_detected,
                     "error": "",
                     "ip": ip.strip(),
                     "mode": "new" if is_new else "edit",
@@ -96,6 +97,7 @@ with col_test:
                     "ok": False,
                     "device_type": "",
                     "firmware_version": "",
+                    "sleep_screen_enabled": False,
                     "error": err_msg,
                     "ip": ip.strip(),
                     "mode": "new" if is_new else "edit",
@@ -111,12 +113,15 @@ test_matches_context = (
 
 detected_type = ""
 detected_fw = ""
+detected_sleep = False
 if test_matches_context and test_result.get("ok"):
     detected_type = test_result.get("device_type", "")
     detected_fw = test_result.get("firmware_version", "")
+    detected_sleep = test_result.get("sleep_screen_enabled", False)
 elif not is_new:
     detected_type = device_config.get("device_type", "")
     detected_fw = device_config.get("firmware_version", "")
+    detected_sleep = device_config.get("sleep_screen_enabled", False)
 
 if detected_type or detected_fw:
     st.caption(
@@ -156,6 +161,7 @@ with col_save:
             "password": password,
             "device_type": detected_type,
             "firmware_version": detected_fw,
+            "sleep_screen_enabled": detected_sleep,
         }
         try:
             if not is_new and final_name != device_name:

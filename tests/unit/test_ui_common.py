@@ -3,8 +3,9 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from src.images import rollback_sleep_screen, send_suspended_png
 from src.models import Device
-from src.ui_common import format_datetime_for_ui, normalise_filename, send_suspended_png
+from src.ui_common import format_datetime_for_ui, normalise_filename
 
 
 class TestNormaliseFilename:
@@ -56,20 +57,72 @@ class TestNormaliseFilename:
 class TestSendSuspendedPng:
     _device = Device.from_dict("D1", {"ip": "10.0.0.1", "password": "pw"})
 
-    def test_success_returns_true_and_logs(self):
+    def test_success_first_send_restarts_xochitl(self):
+        """First send: SleepScreenPath is newly written, so xochitl is restarted."""
         log: list[str] = []
+        run_calls: list = []
+        # First run_ssh_cmd call is _ensure_sleep_screen_path → returns 'just_set'
+        # Second call is CMD_RESTART_XOCHITL
+        responses = [("just_set", ""), ("", "")]
+
+        def _run_cmd(_ip, _pw, cmds):
+            run_calls.append(cmds)
+            return responses.pop(0)
+
         with (
-            patch("src.ui_common._ssh.upload_file_ssh", return_value=(True, "ok")),
-            patch("src.ui_common._ssh.run_ssh_cmd"),
+            patch("src.images._ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.images._ssh.run_ssh_cmd", side_effect=_run_cmd),
         ):
-            result = send_suspended_png(self._device, b"imgdata", "bg.png", "D1", log.append)
+            result = send_suspended_png(self._device, b"imgdata", "bg.png", log.append)
         assert result is True
         assert any("Sent" in m for m in log)
+        assert len(run_calls) == 2
+
+    def test_success_subsequent_send_skips_restart(self):
+        """Subsequent send: SleepScreenPath already set, xochitl is NOT restarted."""
+        log: list[str] = []
+        run_calls: list = []
+
+        def _run_cmd(_ip, _pw, cmds):
+            run_calls.append(cmds)
+            return "already_set", ""
+
+        with (
+            patch("src.images._ssh.upload_file_ssh", return_value=(True, "ok")),
+            patch("src.images._ssh.run_ssh_cmd", side_effect=_run_cmd),
+        ):
+            result = send_suspended_png(self._device, b"imgdata", "bg.png", log.append)
+        assert result is True
+        assert any("Sent" in m for m in log)
+        assert len(run_calls) == 1  # only the ensure call, no restart
 
     def test_failure_returns_false_and_logs_error(self):
         log: list[str] = []
-        with patch("src.ui_common._ssh.upload_file_ssh", return_value=(False, "refused")):
-            result = send_suspended_png(self._device, b"imgdata", "bg.png", "D1", log.append)
+        with patch("src.images._ssh.upload_file_ssh", return_value=(False, "refused")):
+            result = send_suspended_png(self._device, b"imgdata", "bg.png", log.append)
+        assert result is False
+        assert any("Error" in m for m in log)
+
+
+# ---------------------------------------------------------------------------
+# rollback_sleep_screen
+# ---------------------------------------------------------------------------
+
+
+class TestRollbackSleepScreen:
+    _device = Device.from_dict("D1", {"ip": "10.0.0.1", "password": "pw"})
+
+    def test_success_returns_true_and_logs(self):
+        log: list[str] = []
+        with patch("src.images._ssh.run_ssh_cmd", return_value=("", "")):
+            result = rollback_sleep_screen(self._device, log.append)
+        assert result is True
+        assert any("reset" in m for m in log)
+
+    def test_failure_returns_false_and_logs_error(self):
+        log: list[str] = []
+        with patch("src.images._ssh.run_ssh_cmd", return_value=("", "Connection refused")):
+            result = rollback_sleep_screen(self._device, log.append)
         assert result is False
         assert any("Error" in m for m in log)
 

@@ -18,7 +18,7 @@ class Device:
     password: str
     device_type: str = ""
     firmware_version: str = ""
-    preferred_image: str | None = None
+    sleep_screen_enabled: bool = False
 
     @staticmethod
     def from_dict(name: str, data: dict[str, Any]) -> Device:
@@ -28,19 +28,8 @@ class Device:
             password=data.get("password", ""),
             device_type=data.get("device_type", ""),
             firmware_version=str(data.get("firmware_version", "")),
-            preferred_image=data.get("preferred_image"),
+            sleep_screen_enabled=data.get("sleep_screen_enabled", False),
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        d = {
-            "ip": self.ip,
-            "password": self.password,
-            "device_type": self.device_type,
-            "firmware_version": self.firmware_version,
-        }
-        if self.preferred_image is not None:
-            d["preferred_image"] = self.preferred_image
-        return d
 
     def resolve_type(
         self,
@@ -56,9 +45,3 @@ class Device:
         if self.device_type in device_sizes:
             return self.device_type
         return default
-
-    def is_preferred(self, image_name: str) -> bool:
-        return bool(self.preferred_image and self.preferred_image == image_name)
-
-    def set_preferred(self, image_name: str | None) -> None:
-        self.preferred_image = image_name or None

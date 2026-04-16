@@ -8,8 +8,13 @@ Import from here rather than hard-coding strings in individual modules.
 # Remote filesystem paths
 # ---------------------------------------------------------------------------
 
-# Suspended / sleep-screen image shown when the tablet is locked
-SUSPENDED_PNG_PATH = "/usr/share/remarkable/suspended.png"
+# Suspended / sleep-screen image shown when the tablet is locked.
+# Stored in the user's home directory so it persists across firmware updates.
+SUSPENDED_PNG_PATH = "/home/root/suspended.png"
+
+# xochitl configuration file — holds the SleepScreenPath key that points
+# xochitl to the custom sleep image and disables the image carousel.
+XOCHITL_CONF_PATH = "/home/root/.config/remarkable/xochitl.conf"
 
 # rmMethods template storage directory (persists across firmware updates)
 REMOTE_XOCHITL_DATA_DIR = "/home/root/.local/share/remarkable/xochitl"
