@@ -1,15 +1,14 @@
 """SSH helpers for reMarkable device communication.
 
-All public functions open a fresh SSH connection, remount the root
-filesystem read-write if necessary (via ``_ensure_rw``), perform their
+All public functions open a fresh SSH connection, perform their
 operation, and return an ``(ok, msg)`` or ``(output, error)`` pair.
 
 Public API
 ----------
-- run_ssh_cmd(ip, password, commands) -> (stdout, stderr)
-- upload_file_ssh(ip, password, content, remote_path) -> (ok, msg)
-- download_file_ssh(ip, password, remote_path) -> (bytes | None, msg)
-- detect_device_info(ip, password) -> (ok, device_type, firmware_version, error_msg)
+- run_ssh_cmd(device, commands) -> (stdout, stderr)
+- upload_file_ssh(device, content, remote_path) -> (ok, msg)
+- download_file_ssh(device, remote_path) -> (bytes | None, msg)
+- detect_device_info(device) -> (ok, device_type, firmware_version, sleep_screen_enabled, error_msg)
 """
 
 import logging
@@ -18,12 +17,18 @@ from contextlib import contextmanager, suppress
 
 import paramiko
 
-from src.constants import CMD_CHECK_RW, CMD_REMOUNT_RW, MACHINE_TO_DEVICE_TYPE, XOCHITL_CONF_PATH
+from src.constants import (
+    CMD_CHECK_SLEEP_SCREEN,
+    CMD_READ_FIRMWARE,
+    CMD_READ_MACHINE,
+    MACHINE_TO_DEVICE_TYPE,
+)
+from src.models import Device
 
 logger = logging.getLogger(__name__)
 
 # Timeout (seconds) applied to exec_command calls.
-# Quick: short-lived shell one-liners (RW check, remount, connectivity probe).
+# Quick: short-lived shell one-liners (connectivity probe, etc.).
 # Long: operations that may block — systemctl restart, symlink loops, etc.
 _CMD_TIMEOUT_QUICK: int = 10
 _CMD_TIMEOUT_LONG: int = 60
@@ -42,45 +47,12 @@ def _ssh_client(ip: str, password: str) -> Generator[paramiko.SSHClient, None, N
             client.close()
 
 
-def _ensure_rw(client: paramiko.SSHClient) -> tuple[bool, str]:
-    """Check if `/` is mounted read-write on an open *client* and remount if not.
-
-    Returns (True, "already_rw"|"remounted") on success, (False, error) on failure.
-    Reuses the provided open connection — no extra TCP round-trip.
-    """
-    try:
-        _, stdout, _ = client.exec_command(CMD_CHECK_RW, timeout=_CMD_TIMEOUT_QUICK)
-        status = stdout.read().decode().strip()
-    except Exception as e:
-        logger.warning("RW check failed, assuming read-only: %s", e)
-        status = "readonly"
-
-    if status == "writable":
-        logger.debug("Filesystem already read-write, skipping remount")
-        return True, "already_rw"
-
-    logger.info("Filesystem is read-only, remounting read-write")
-    try:
-        _, stdout, stderr = client.exec_command(CMD_REMOUNT_RW, timeout=_CMD_TIMEOUT_QUICK)
-        stdout.read()
-        err = stderr.read().decode().strip()
-        if err:
-            logger.warning("remount stderr: %s", err)
-        return True, "remounted"
-    except Exception as e:
-        logger.error("remount failed: %s", e)
-        return False, str(e)
-
-
-def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
-    """Execute commands over SSH, ensuring filesystem is writable first."""
+def run_ssh_cmd(device: Device, commands) -> tuple[str, str]:
+    """Execute commands over SSH."""
+    ip = device.ip
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
     try:
-        with _ssh_client(ip, password) as client:
-            ok, rw_msg = _ensure_rw(client)
-            if not ok:
-                return "", f"remount failed: {rw_msg}"
-
+        with _ssh_client(ip, device.password) as client:
             full_cmd = " && ".join(commands) if commands else ""
             if not full_cmd:
                 return "", ""
@@ -93,20 +65,14 @@ def run_ssh_cmd(ip: str, password: str, commands) -> tuple[str, str]:
                 logger.error("SSH exec failed on %s: %s", ip, e)
                 return "", str(e)
 
-            logger.info(
-                "SSH exec on %s (rw=%s, out_len=%d, err_len=%d)",
-                ip,
-                rw_msg,
-                len(output),
-                len(error),
-            )
+            logger.info("SSH exec on %s (out_len=%d, err_len=%d)", ip, len(output), len(error))
             return output, error
     except Exception as e:
         logger.error("SSH error on %s: %s", ip, e)
         return "", str(e)
 
 
-def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, bool, str]:
+def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:
     """Detect device type, firmware version, and sleep-screen config via SSH.
 
     Reads ``/sys/devices/soc0/machine`` to identify the hardware,
@@ -118,23 +84,17 @@ def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, bool, st
     On failure ``ok=False``, ``device_type`` and ``firmware_version`` are ``""``
     and ``sleep_screen_enabled`` is ``False``.
     """
+    ip = device.ip
     logger.info("detect_device_info start for %s", ip)
     try:
-        with _ssh_client(ip, password) as client:
-            _, stdout, _ = client.exec_command(
-                "cat /sys/devices/soc0/machine", timeout=_CMD_TIMEOUT_QUICK
-            )
+        with _ssh_client(ip, device.password) as client:
+            _, stdout, _ = client.exec_command(CMD_READ_MACHINE, timeout=_CMD_TIMEOUT_QUICK)
             machine_raw = stdout.read().decode().strip()
 
-            _, stdout2, _ = client.exec_command(
-                "grep IMG_VERSION /etc/os-release", timeout=_CMD_TIMEOUT_QUICK
-            )
+            _, stdout2, _ = client.exec_command(CMD_READ_FIRMWARE, timeout=_CMD_TIMEOUT_QUICK)
             fw_raw = stdout2.read().decode().strip()
 
-            _, stdout3, _ = client.exec_command(
-                f"grep -q '^SleepScreenPath=' {XOCHITL_CONF_PATH} && echo yes || echo no",
-                timeout=_CMD_TIMEOUT_QUICK,
-            )
+            _, stdout3, _ = client.exec_command(CMD_CHECK_SLEEP_SCREEN, timeout=_CMD_TIMEOUT_QUICK)
             sleep_raw = stdout3.read().decode().strip()
 
         machine_lower = machine_raw.lower()
@@ -169,12 +129,12 @@ def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, bool, st
         return False, "", "", False, str(e)
 
 
-def run_detection(ip: str, password: str) -> dict:
+def run_detection(device: Device) -> dict:
     """Call detect_device_info and return a normalised result dict.
 
     Keys: ok, device_type, firmware_version, sleep_screen_enabled, error.
     """
-    ok, device_type, fw, sleep_enabled, err = detect_device_info(ip, password)
+    ok, device_type, fw, sleep_enabled, err = detect_device_info(device)
     return {
         "ok": ok,
         "device_type": device_type if ok else "",
@@ -184,20 +144,12 @@ def run_detection(ip: str, password: str) -> dict:
     }
 
 
-def upload_file_ssh(
-    ip: str, password: str, file_content: bytes, remote_path: str
-) -> tuple[bool, str]:
-    """Ensure filesystem is writable, then upload *file_content* to *remote_path* via SFTP.
-
-    Uses a single SSH connection for both the RW check/remount and the SFTP transfer.
-    """
+def upload_file_ssh(device: Device, file_content: bytes, remote_path: str) -> tuple[bool, str]:
+    """Upload *file_content* to *remote_path* via SFTP."""
+    ip = device.ip
     logger.info("SSH prepare upload to %s:%s (bytes=%d)", ip, remote_path, len(file_content))
     try:
-        with _ssh_client(ip, password) as client:
-            ok, msg = _ensure_rw(client)
-            if not ok:
-                return False, f"remount failed: {msg}"
-
+        with _ssh_client(ip, device.password) as client:
             sftp = client.open_sftp()
             try:
                 with sftp.file(remote_path, "wb") as f:
@@ -217,14 +169,15 @@ def upload_file_ssh(
         return False, str(e)
 
 
-def download_file_ssh(ip: str, password: str, remote_path: str) -> tuple[bytes | None, str]:
+def download_file_ssh(device: Device, remote_path: str) -> tuple[bytes | None, str]:
     """Download *remote_path* via SFTP.
 
     Returns ``(content, "")`` on success, ``(None, error_message)`` on failure.
     """
+    ip = device.ip
     logger.info("SFTP download start from %s:%s", ip, remote_path)
     try:
-        with _ssh_client(ip, password) as client:
+        with _ssh_client(ip, device.password) as client:
             sftp = client.open_sftp()
             try:
                 with sftp.file(remote_path, "rb") as f:
@@ -314,19 +267,16 @@ class SshSession:
 
 
 @contextmanager
-def ssh_session(ip: str, password: str) -> Generator[SshSession, None, None]:
-    """Open one SSH connection, ensure RW, then yield a reusable :class:`SshSession`.
+def ssh_session(device: Device) -> Generator[SshSession, None, None]:
+    """Open one SSH connection and yield a reusable :class:`SshSession`.
 
     Usage::
 
-        with ssh_session(ip, pw) as s:
+        with ssh_session(device) as s:
             s.upload(data, "/path/to/file")
             out, err = s.run(["systemctl restart xochitl"])
     """
-    with _ssh_client(ip, password) as client:
-        ok, msg = _ensure_rw(client)
-        if not ok:
-            raise RuntimeError(f"remount failed: {msg}")
+    with _ssh_client(device.ip, device.password) as client:
         session = SshSession(client)
         try:
             yield session

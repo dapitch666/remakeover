@@ -138,13 +138,13 @@ def flow_patches(images_dir, upload_calls, run_cmds, saved_files):
     return [
         patch(
             "src.ssh.upload_file_ssh",
-            side_effect=lambda ip, _pw, _blob, path: upload_calls.append((ip, path))
+            side_effect=lambda device, _blob, path: upload_calls.append((device.ip, path))
             or (True, "ok"),
         ),
         patch("src.ssh.download_file_ssh", return_value=(PNG_BYTES, "")),
         patch(
             "src.ssh.run_ssh_cmd",
-            side_effect=lambda ip, _pw, cmds: run_cmds.append((ip, tuple(cmds))),
+            side_effect=lambda device, cmds: run_cmds.append((device.ip, tuple(cmds))) or ("", ""),
         ),
         patch("src.images.process_image", return_value=b"processed"),
         patch("src.images.get_device_images_dir", return_value=str(images_dir)),

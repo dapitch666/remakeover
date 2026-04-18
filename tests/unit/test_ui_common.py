@@ -65,7 +65,7 @@ class TestSendSuspendedPng:
         # Second call is CMD_RESTART_XOCHITL
         responses = [("just_set", ""), ("", "")]
 
-        def _run_cmd(_ip, _pw, cmds):
+        def _run_cmd(_device, cmds):
             run_calls.append(cmds)
             return responses.pop(0)
 
@@ -83,7 +83,7 @@ class TestSendSuspendedPng:
         log: list[str] = []
         run_calls: list = []
 
-        def _run_cmd(_ip, _pw, cmds):
+        def _run_cmd(_device, cmds):
             run_calls.append(cmds)
             return "already_set", ""
 
