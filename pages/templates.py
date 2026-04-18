@@ -25,7 +25,7 @@ from src.template_sync import (
     fetch_and_init_templates,
     fetch_single_template_from_device,
     refresh_cached_sync_status,
-    sync_templates_to_tablet,
+    sync_templates_to_device,
 )
 from src.templates import (
     add_template_entry,
@@ -515,65 +515,71 @@ def _render_left_panel(device: Device, add_log) -> None:
     # Action buttons: New / Import
     col_new, col_import = st.columns(2, gap="small")
     with col_new:
-        if st.button(
+
+        def _on_new():
+            _reset_editor_for_new()
+            _set_selected_template_uuid(_SENTINEL_NEW)
+
+        st.button(
             _("New"),
             key="tpl_btn_new",
             icon=":material/add:",
             width="stretch",
             help=_("Create a new template from scratch"),
-        ):
-            _reset_editor_for_new()
-            _set_selected_template_uuid(_SENTINEL_NEW)
-            st.rerun()
+            on_click=_on_new,
+        )
     with col_import:
-        if st.button(
+
+        def _on_import():
+            _show_import_dialog(device, add_log)
+
+        st.button(
             _("Import"),
             key="tpl_btn_import",
             icon=":material/upload_file:",
             width="stretch",
             help=_("Import .template files from your computer"),
-        ):
-            _show_import_dialog(device, add_log)
+            on_click=_on_import,
+        )
 
     # Sync section (collapsed)
     with st.expander(_(":material/sync: Sync"), expanded=False):
         manifest_json_path = get_device_manifest_path(device.name)
         if not os.path.exists(manifest_json_path):
             st.warning(_("Not initialized yet."), icon=":material/backup:")
-            if st.button(
-                _("Initialize from tablet"),
-                key=f"tpl_fetch_init_{device.name}",
-                type="primary",
-                icon=":material/download:",
-                width="stretch",
-            ):
+
+            def _on_sync_init_from_device():
                 _ok, _msg = fetch_and_init_templates(device, overwrite_backup=False)
                 if _ok:
                     add_log(f"Templates initialized for '{device.name}' : {_msg}")
                     _refresh_sync_snapshot_after_remote_change(
                         device,
                         add_log,
-                        "initialized_from_tablet",
+                        "initialized_from_device",
                     )
                     deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-                    st.rerun()
-                add_log(f"Error initializing templates for '{device.name}' : {_msg}")
-                st.error(_("Error: {msg}").format(msg=_msg), icon=":material/error:")
+                else:
+                    add_log(f"Error initializing templates for '{device.name}' : {_msg}")
+                    st.session_state["_tpl_sync_init_error"] = _msg
+
+            st.button(
+                _("Initialize from device"),
+                key=f"tpl_fetch_init_{device.name}",
+                type="primary",
+                icon=":material/download:",
+                width="stretch",
+                on_click=_on_sync_init_from_device,
+            )
+            _sync_init_error = st.session_state.pop("_tpl_sync_init_error", None)
+            if _sync_init_error:
+                st.error(_("Error: {msg}").format(msg=_sync_init_error), icon=":material/error:")
         else:
             local_manifest = load_manifest(device.name)
             if local_manifest.get("last_modified"):
                 date, time = format_datetime_for_ui(local_manifest["last_modified"])
                 st.caption(_("Last modified on {date} at {time}").format(date=date, time=time))
 
-            if st.button(
-                _("Check sync"),
-                key=f"tpl_check_status_{device.name}",
-                icon=":material/compare:",
-                help=_(
-                    "Connect to the tablet and check if templates are in sync (does not change anything)"
-                ),
-                width="stretch",
-            ):
+            def _on_check_sync():
                 ok_check, payload = check_sync_status(device, add_log)
                 if ok_check:
                     if isinstance(payload, dict):
@@ -583,16 +589,19 @@ def _render_left_panel(device: Device, add_log) -> None:
                 else:
                     st.toast(_(":red[Sync check error]"), icon=":material/error:")
 
-            if st.button(
-                _("Sync now"),
-                key=f"tpl_check_sync_{device.name}",
-                icon=":material/sync:",
+            st.button(
+                _("Check sync"),
+                key=f"tpl_check_status_{device.name}",
+                icon=":material/compare:",
                 help=_(
-                    "Sync templates between this manager and the tablet (uploads new/modified templates, deletes remote-only templates)"
+                    "Connect to the device and check if templates are in sync (does not change anything)"
                 ),
                 width="stretch",
-            ):
-                _ok = sync_templates_to_tablet(device.name, device, add_log)
+                on_click=_on_check_sync,
+            )
+
+            def _on_sync_now():
+                _ok = sync_templates_to_device(device.name, device, add_log)
                 if _ok:
                     _refresh_sync_snapshot_after_remote_change(
                         device,
@@ -604,18 +613,21 @@ def _render_left_panel(device: Device, add_log) -> None:
                     if _current and _current != _SENTINEL_NEW:
                         _load_template_into_editor(device.name, str(_current))
                     st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
-                    st.rerun()
-                deferred_toast(_("Sync error"), ":material/error:")
+                else:
+                    deferred_toast(_("Sync error"), ":material/error:")
 
-            if st.button(
-                _("Reset & reinitialize"),
-                key=f"tpl_reset_reinit_{device.name}",
-                icon=":material/settings_backup_restore:",
+            st.button(
+                _("Sync now"),
+                key=f"tpl_check_sync_{device.name}",
+                icon=":material/sync:",
                 help=_(
-                    "Delete all local templates and re-fetch from the tablet (use if you think the local state is corrupted)"
+                    "Sync templates between this manager and the device (uploads new/modified templates, deletes remote-only templates)"
                 ),
                 width="stretch",
-            ):
+                on_click=_on_sync_now,
+            )
+
+            def _on_reset_reinit():
                 _ok, _msg = fetch_and_init_templates(device, overwrite_backup=True)
                 if _ok:
                     _refresh_sync_snapshot_after_remote_change(
@@ -639,7 +651,17 @@ def _render_left_panel(device: Device, add_log) -> None:
                         _set_loaded_template_uuid(None)
                 else:
                     deferred_toast(_("Sync error"), ":material/error:")
-                st.rerun()
+
+            st.button(
+                _("Reset & reinitialize"),
+                key=f"tpl_reset_reinit_{device.name}",
+                icon=":material/settings_backup_restore:",
+                help=_(
+                    "Delete all local templates and re-fetch from the device (use if you think the local state is corrupted)"
+                ),
+                width="stretch",
+                on_click=_on_reset_reinit,
+            )
 
             check_result = _get_realtime_sync_status(device)
             if isinstance(check_result, dict):
@@ -647,7 +669,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                     _("""Local templates: {local_count}  
                          Remote templates: {remote_count}  
                          To upload: {to_upload_count}  
-                         To delete on tablet: {to_delete_count}
+                         To delete on device: {to_delete_count}
                          """).format(
                         local_count=check_result.get("local_count", 0),
                         remote_count=check_result.get("remote_count", 0),
@@ -774,15 +796,18 @@ def _render_left_panel(device: Device, add_log) -> None:
                         'display:inline-block;"></div>'
                     )
             with name_col:
-                if st.button(
+
+                def _on_select_template(uuid_=template_uuid):
+                    _load_template_into_editor(device.name, uuid_)
+                    _set_selected_template_uuid(uuid_)
+
+                st.button(
                     display_name,
                     key=f"tpl_list_btn_{template_uuid}_{list_gen}",
                     type="primary" if is_selected else "tertiary",
                     width="stretch",
-                ):
-                    _load_template_into_editor(device.name, template_uuid)
-                    _set_selected_template_uuid(template_uuid)
-                    st.rerun()
+                    on_click=_on_select_template,
+                )
 
 
 # ── Right panel: editor ───────────────────────────────────────────────────────
@@ -879,7 +904,7 @@ def _render_editor_panel(device: Device, add_log) -> None:
             key="tpl_meta_categories",
             accept_new_options=True,
             placeholder=_("Select or add categories"),
-            help=_("Categories are used on the tablet to filter templates."),
+            help=_("Categories are used on the device to filter templates."),
         )
     with _mf5:
         _current_labels = normalise_string_list(st.session_state.get("tpl_meta_labels"))
@@ -1032,15 +1057,8 @@ def _render_editor_panel(device: Device, add_log) -> None:
     col_save, col_dl, col_duplicate, col_reload, col_delete = st.columns(5)
 
     with col_save:
-        if st.button(
-            _("Save"),
-            key=f"tpl_editor_save_{_gen}",
-            type="primary",
-            icon=":material/save:",
-            disabled=not (_json_valid and _name_is_provided),
-            width="stretch",
-            help=_("Save the .template file to the selected device's library."),
-        ):
+
+        def _on_tpl_save():
             _base = str(st.session_state.get("tpl_meta_name", "")).strip() or (
                 str(selected) if not is_new else "My Template"
             )
@@ -1061,7 +1079,17 @@ def _render_editor_panel(device: Device, add_log) -> None:
                 _set_selected_template_uuid(saved_uuid)
                 _set_loaded_template_uuid(saved_uuid)
             st.session_state["tpl_editor_save_gen"] = _gen + 1
-            st.rerun()
+
+        st.button(
+            _("Save"),
+            key=f"tpl_editor_save_{_gen}",
+            type="primary",
+            icon=":material/save:",
+            disabled=not (_json_valid and _name_is_provided),
+            width="stretch",
+            help=_("Save the .template file to the selected device's library."),
+            on_click=_on_tpl_save,
+        )
 
     with col_dl:
         enabled = _json_valid and _name_is_provided
@@ -1084,36 +1112,47 @@ def _render_editor_panel(device: Device, add_log) -> None:
         )
 
     with col_duplicate:
-        if st.button(
+
+        def _on_tpl_duplicate():
+            _duplicate_template_into_editor(device, str(selected), add_log)
+
+        st.button(
             _("Duplicate"),
             key=f"tpl_duplicate_btn_{selected}",
             icon=":material/content_copy:",
             width="stretch",
             disabled=is_new,
             help=_("Create an unsaved copy in the editor"),
-        ):
-            _duplicate_template_into_editor(device, str(selected), add_log)
-            st.rerun()
+            on_click=_on_tpl_duplicate,
+        )
     with col_reload:
-        if st.button(
+
+        def _on_tpl_reload():
+            _show_reload_dialog(selected, device, add_log)
+
+        st.button(
             _("Replace file"),
             key=f"tpl_reload_btn_{selected}",
             icon=":material/upload_file:",
             disabled=is_new,
             width="stretch",
             help=_("Replace this template with a new .template file"),
-        ):
-            _show_reload_dialog(selected, device, add_log)
+            on_click=_on_tpl_reload,
+        )
     with col_delete:
-        if st.button(
+
+        def _on_tpl_delete():
+            _show_delete_dialog(selected, device, add_log)
+
+        st.button(
             _("Delete"),
             key=f"tpl_delete_btn_{selected}",
             icon=":material/delete:",
             disabled=is_new,
             width="stretch",
             help=_("Delete this template"),
-        ):
-            _show_delete_dialog(selected, device, add_log)
+            on_click=_on_tpl_delete,
+        )
     # Format documentation
     with st.expander(_(":material/help: reMarkable JSON format documentation"), expanded=False):
         _spec_path = os.path.join(
@@ -1145,36 +1184,43 @@ manifest_path = get_device_manifest_path(current_device.name)
 if not os.path.exists(manifest_path):
     st.warning(
         _(
-            "The template list for this tablet has not been imported yet. "
-            "Turn on the tablet and click the button below to start."
+            "The template list for this device has not been imported yet. "
+            "Turn on the device and click the button below to start."
         ),
         icon=":material/backup:",
     )
-    if st.button(
-        _("Initialize templates from this tablet"),
-        key=f"tpl_fetch_backup_{current_device.name}",
-        type="primary",
-        icon=":material/download:",
-        help=_("Import templates from this tablet and initialize local metadata"),
-    ):
+
+    def _on_init_templates():
         ok, msg = fetch_and_init_templates(current_device, overwrite_backup=False)
         if ok:
             add_log_fn(f"Templates initialized for '{current_device.name}' : {msg}")
             _refresh_sync_snapshot_after_remote_change(
                 current_device,
                 add_log_fn,
-                "initialized_from_tablet",
+                "initialized_from_device",
             )
             deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-            st.rerun()
-        add_log_fn(f"Error initializing templates for '{current_device.name}' : {msg}")
-        st.error(_("Error: {msg}").format(msg=msg), icon=":material/error:")
+        else:
+            add_log_fn(f"Error initializing templates for '{current_device.name}' : {msg}")
+            st.session_state["_tpl_page_init_error"] = msg
+
+    st.button(
+        _("Initialize templates from this device"),
+        key=f"tpl_fetch_backup_{current_device.name}",
+        type="primary",
+        icon=":material/download:",
+        help=_("Import templates from this device and initialize local metadata"),
+        on_click=_on_init_templates,
+    )
+    _page_init_error = st.session_state.pop("_tpl_page_init_error", None)
+    if _page_init_error:
+        st.error(_("Error: {msg}").format(msg=_page_init_error), icon=":material/error:")
     st.stop()
 
 refresh_local_manifest(current_device.name)
 
 st.markdown(
-    _("""Browse and manage templates for this tablet in the **left panel**.  
+    _("""Browse and manage templates for this device in the **left panel**.  
          Click a template to open it in the **editor** on the right, where you can update its 
          name, category, labels, icon, and body.  
          Use **:material/add: New template** to create one from scratch.  

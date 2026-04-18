@@ -18,13 +18,28 @@ from src.ui_common import deferred_toast
 
 _LANG_FLAGS = {"en": ("🇬🇧", "English"), "fr": ("🇫🇷", "Français")}
 
+_NEW_DEVICE = "__new_device__"
+
+_CONFIG_INPUT_KEYS = (
+    "config_device_name",
+    "config_device_ip",
+    "config_device_password",
+    "new_config_device_name",
+    "new_config_device_ip",
+    "new_config_device_password",
+    "connection_test_result",
+)
+
+
+def _on_device_change():
+    for key in _CONFIG_INPUT_KEYS:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.session_state["config_panel_open"] = st.session_state["device"] == _NEW_DEVICE
+
 
 def _normalize_lang_value(raw: str | None) -> str | None:
-    """Normalize language query values to canonical short codes (en/fr).
-
-    Accepts legacy values such as full labels (with or without flag) so old
-    links continue to work.
-    """
+    """Normalize language query values to canonical short codes (en/fr)."""
     if raw is None:
         return None
 
@@ -68,8 +83,15 @@ def _language_selector() -> None:
     The widget shows a rich label (flag + full name), while URL/query state is
     explicitly synced using canonical short codes (``en``/``fr``).
     """
+
+    def _on_lang_change():
+        selected = st.session_state.get("lang_selector")
+        if selected:
+            st.session_state["lang"] = selected
+            st.query_params["lang"] = selected
+
     with st.sidebar:
-        selected_lang = st.segmented_control(
+        st.segmented_control(
             "Language",
             options=list(SUPPORTED_LANGUAGES),
             format_func=lambda lang: f"{_LANG_FLAGS[lang][0]} {_LANG_FLAGS[lang][1]}",
@@ -77,13 +99,8 @@ def _language_selector() -> None:
             key="lang_selector",
             default=st.session_state.get("lang", "en"),
             width="stretch",
+            on_change=_on_lang_change,
         )
-
-    if selected_lang and selected_lang != st.session_state.get("lang"):
-        st.session_state["lang"] = selected_lang
-
-    if st.query_params.get("lang") != st.session_state["lang"]:
-        st.query_params["lang"] = st.session_state["lang"]
 
 
 # ── Session logging helper ────────────────────────────────────────────────────
@@ -161,147 +178,201 @@ def _debug_overlay():
         )
 
 
+def _apply_detected_metadata(
+    selected_name: str, devices: dict, config: dict, result: dict, add_log
+) -> None:
+    """Update device config in-place with newly detected metadata and persist if changed."""
+    old_type = devices[selected_name].get("device_type", "")
+    old_fw = devices[selected_name].get("firmware_version", "")
+    old_sleep = devices[selected_name].get("sleep_screen_enabled", False)
+    detected_type = result["device_type"]
+    detected_fw = result["firmware_version"]
+    sleep_screen_enabled = result["sleep_screen_enabled"]
+
+    changed_fields: list[str] = []
+    if detected_type and detected_type != old_type:
+        devices[selected_name]["device_type"] = detected_type
+        changed_fields.append("device_type")
+    if detected_fw and detected_fw != old_fw:
+        devices[selected_name]["firmware_version"] = detected_fw
+        changed_fields.append("firmware_version")
+    if sleep_screen_enabled != old_sleep:
+        devices[selected_name]["sleep_screen_enabled"] = sleep_screen_enabled
+        changed_fields.append("sleep_screen_enabled")
+
+    if not changed_fields:
+        return
+
+    try:
+        save_config(config)
+    except OSError as exc:
+        add_log(f"Detected metadata change for '{selected_name}' but failed to persist: {exc}")
+        return
+
+    details: list[str] = []
+    if "device_type" in changed_fields:
+        details.append(
+            _("model: {old} -> {new}").format(old=old_type or _("unknown"), new=detected_type)
+        )
+    if "firmware_version" in changed_fields:
+        details.append(
+            _("firmware: {old} -> {new}").format(old=old_fw or _("unknown"), new=detected_fw)
+        )
+    if "sleep_screen_enabled" in changed_fields:
+        details.append(
+            _("sleep screen now enabled")
+            if sleep_screen_enabled
+            else _("sleep screen now disabled")
+        )
+    deferred_toast(
+        _("Detected update for '{name}': {details}").format(
+            name=selected_name, details=", ".join(details)
+        ),
+        ":material/task_alt:",
+    )
+    add_log(
+        f"Updated detected metadata for '{selected_name}': "
+        f"device_type='{old_type}' -> '{detected_type}', "
+        f"firmware_version='{old_fw}' -> '{detected_fw}'"
+    )
+
+
 def _device_selector(config: dict) -> str | None:
-    """Render device selector and SSH test controls in the sidebar.
+    """Render device selector, SSH test controls, and config panel in the sidebar.
 
     Returns the selected device name when at least one device is configured,
     otherwise returns ``None``.
     """
+    from src.config_ui import render_config_panel
+
     devices = config.get("devices", {})
-    if not devices:
-        st.session_state["selected_name"] = None
-        return None
+    selected_name = None
 
-    device_names = list(devices.keys())
+    if devices:
+        device_names = list(devices.keys())
 
-    # Apply an explicit `?tablet=` URL selection only when session state
-    # has no valid selection yet, so user interactions keep priority.
-    qp_tablet = st.query_params.get("tablet")
-    if (
-        st.session_state.get("tablet") not in device_names
-        and qp_tablet
-        and qp_tablet in device_names
-    ):
-        st.session_state["tablet"] = qp_tablet
+        device_names_with_new = device_names + [_NEW_DEVICE]
 
-    # Consume pending selection set by another page (e.g. after saving a new device).
-    pending = st.session_state.pop("pending_selected_tablet", None)
-    if pending and pending in device_names:
-        st.session_state["tablet"] = pending
+        # Apply an explicit `?device=` URL selection only when session state
+        # has no valid selection yet, so user interactions keep priority.
+        # Do not override the sentinel (user is creating a new device).
+        qp_device = st.query_params.get("device")
+        if (
+            st.session_state.get("device") not in device_names_with_new
+            and qp_device
+            and qp_device in device_names
+        ):
+            st.session_state["device"] = qp_device
 
-    # Keep a valid selected tablet in session state when the list changes.
-    if st.session_state.get("tablet") not in device_names:
-        st.session_state["tablet"] = device_names[0]
+        # Consume pending selection set after saving a new device.
+        pending = st.session_state.pop("pending_selected_device", None)
+        if pending and pending in device_names:
+            st.session_state["device"] = pending
 
-    with st.sidebar:
-        from src.models import Device as _Device
-        from src.ssh import detect_device_info
+        # Keep a valid selected device in session state when the list changes.
+        if st.session_state.get("device") not in device_names_with_new:
+            st.session_state["device"] = device_names[0]
 
-        col1, col2 = st.columns([4, 1], vertical_alignment="bottom")
-        with col1:
-            selected_name = st.selectbox(
-                _("Tablet"),
-                device_names,
-                key="tablet",
+        with st.sidebar:
+            from src.models import Device as _Device
+
+            col_device, col_btn_settings, col_btn_ssh = st.columns(
+                [4, 1, 1], vertical_alignment="bottom", gap="xsmall"
             )
-        with col2:
-            if st.button(
-                ":material/wifi:",
-                key="sidebar_test_ssh",
-                help=_("Test SSH connection"),
+            with col_device:
+                raw_device = st.selectbox(
+                    _("Device"),
+                    device_names_with_new,
+                    key="device",
+                    on_change=_on_device_change,
+                    format_func=lambda x: _("─ New device ─") if x == _NEW_DEVICE else x,
+                )
+            selected_name = None if raw_device == _NEW_DEVICE else raw_device
+            if (
+                raw_device != _NEW_DEVICE
+                and st.session_state.get("_last_real_device") != raw_device
             ):
-                _device = _Device.from_dict(selected_name, devices[selected_name])
-                ok, detected_type, detected_fw, sleep_screen_enabled, err = detect_device_info(
-                    _device.ip, _device.password or ""
-                )
-                st.session_state["_ssh_test_result"] = {
-                    "ok": ok,
-                    "err": err,
-                    "tablet": selected_name,
-                }
-                if ok:
-                    old_type = devices[selected_name].get("device_type", "")
-                    old_fw = devices[selected_name].get("firmware_version", "")
-                    changed_fields: list[str] = []
-                    if detected_type and detected_type != old_type:
-                        devices[selected_name]["device_type"] = detected_type
-                        changed_fields.append("device_type")
-                    if detected_fw and detected_fw != old_fw:
-                        devices[selected_name]["firmware_version"] = detected_fw
-                        changed_fields.append("firmware_version")
-                    old_sleep = devices[selected_name].get("sleep_screen_enabled", False)
-                    if sleep_screen_enabled != old_sleep:
-                        devices[selected_name]["sleep_screen_enabled"] = sleep_screen_enabled
-                        changed_fields.append("sleep_screen_enabled")
+                st.session_state["_last_real_device"] = raw_device
+            with col_btn_settings:
 
-                    if changed_fields:
-                        try:
-                            save_config(config)
-                        except OSError as exc:
-                            _add_log(
-                                f"Detected metadata change for '{selected_name}' but failed to persist: {exc}"
+                def _toggle_config_panel():
+                    st.session_state["config_panel_open"] = not st.session_state.get(
+                        "config_panel_open", False
+                    )
+
+                st.button(
+                    ":material/settings:",
+                    key="sidebar_config_toggle",
+                    help=_("Device configuration"),
+                    width="stretch",
+                    type="primary"
+                    if st.session_state.get("config_panel_open", False)
+                    else "secondary",
+                    on_click=_toggle_config_panel,
+                )
+            with col_btn_ssh:
+                if selected_name:
+                    _device = _Device.from_dict(selected_name, devices[selected_name])
+
+                    def _on_ssh_test():
+                        from src.ssh import run_detection
+
+                        result = run_detection(_device.ip, _device.password or "")
+                        st.session_state["_ssh_test_result"] = {**result, "device": selected_name}
+                        if result["ok"]:
+                            _apply_detected_metadata(
+                                selected_name, devices, config, result, _add_log
                             )
+                            _add_log(f"SSH connection successful to '{selected_name}'")
                         else:
-                            details: list[str] = []
-                            if "device_type" in changed_fields:
-                                details.append(
-                                    _("model: {old} -> {new}").format(
-                                        old=old_type or _("unknown"),
-                                        new=detected_type,
-                                    )
-                                )
-                            if "firmware_version" in changed_fields:
-                                details.append(
-                                    _("firmware: {old} -> {new}").format(
-                                        old=old_fw or _("unknown"),
-                                        new=detected_fw,
-                                    )
-                                )
-                            if "sleep_screen_enabled" in changed_fields:
-                                if sleep_screen_enabled:
-                                    details.append(_("sleep_screen now enabled"))
-                                else:
-                                    details.append(_("sleep_screen now disabled"))
-                            deferred_toast(
-                                _("Detected update for '{name}': {details}").format(
-                                    name=selected_name,
-                                    details=", ".join(details),
-                                ),
-                                ":material/task_alt:",
-                            )
                             _add_log(
-                                f"Updated detected metadata for '{selected_name}': "
-                                f"device_type='{old_type}' -> '{detected_type}', "
-                                f"firmware_version='{old_fw}' -> '{detected_fw}'"
+                                f"SSH connection failed to '{selected_name}': {result['error']}"
                             )
 
-                    _add_log(f"SSH connection successful to '{selected_name}'")
+                    st.button(
+                        ":material/wifi:",
+                        key="sidebar_test_ssh",
+                        width="stretch",
+                        help=_("Test SSH connection"),
+                        on_click=_on_ssh_test,
+                    )
+
+            _ssh_result = st.session_state.get("_ssh_test_result")
+            if _ssh_result and _ssh_result.get("device") != selected_name:
+                del st.session_state["_ssh_test_result"]
+                _ssh_result = None
+            if _ssh_result:
+                if _ssh_result["ok"]:
+                    st.success(_("SSH connection OK"), icon=":material/task_alt:")
                 else:
-                    _add_log(f"SSH connection failed to '{selected_name}': {err}")
+                    st.error(
+                        _("SSH connection failed: {err}").format(err=_ssh_result["error"]),
+                        icon=":material/error:",
+                    )
 
-        _ssh_result = st.session_state.get("_ssh_test_result")
-        if _ssh_result and _ssh_result.get("tablet") != selected_name:
-            del st.session_state["_ssh_test_result"]
-            _ssh_result = None
-        if _ssh_result:
-            if _ssh_result["ok"]:
-                st.success(_("SSH connection OK"), icon=":material/task_alt:")
-            else:
-                st.error(
-                    _("SSH connection failed: {err}").format(err=_ssh_result["err"]),
-                    icon=":material/error:",
-                )
+            if st.session_state.get("config_panel_open", False):
+                render_config_panel(config, selected_name, _add_log)
 
-    # Persist selection in session state for pages to consume.
-    st.session_state["selected_name"] = selected_name
-    st.query_params["tablet"] = selected_name
+        # Persist selection in session state for pages to consume.
+        st.session_state["selected_name"] = selected_name
+        if selected_name:
+            st.query_params["device"] = selected_name
+        elif "device" in st.query_params:
+            del st.query_params["device"]
+    else:
+        st.session_state["selected_name"] = None
+        if "device" in st.query_params:
+            del st.query_params["device"]
+        with st.sidebar:
+            render_config_panel(config, None, _add_log)
+
     return selected_name
 
 
 def main():
     st.set_page_config(
         page_title="rM Manager",
-        page_icon="assets/favicon.png",
+        page_icon="assets/favicon.svg",
         layout="wide",
         initial_sidebar_state="auto",
     )
@@ -322,13 +393,9 @@ def main():
     config = st.session_state["config"]
 
     # ── Navigation ────────────────────────────────────────────────────────
-    config_page = st.Page(
-        "pages/configuration.py", title="Configuration", icon=":material/settings:"
-    )
     pages = [
         st.Page("pages/images.py", title="Images", icon=":material/image:"),
         st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
-        config_page,
         st.Page("pages/logs.py", title="Logs", icon=":material/list:"),
     ]
 
@@ -336,18 +403,7 @@ def main():
 
     _language_selector()
 
-    selected_name = _device_selector(config)
-    # On the very first visit with no devices configured, send the user
-    # straight to the configuration page.  The flag prevents the redirect
-    # from firing again for the rest of the session (so the warning pages
-    # remain reachable via the sidebar navigation if the user wants to).
-    if (
-        selected_name is None
-        and pg is not config_page
-        and not st.session_state.get("_auto_config_redirect")
-    ):
-        st.session_state["_auto_config_redirect"] = True
-        st.switch_page(config_page)
+    _device_selector(config)
 
     _inject_css()
     _sidebar_version(_read_version())

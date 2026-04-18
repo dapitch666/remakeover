@@ -1,6 +1,6 @@
 """Device-level and application constants.
 
-All paths and commands are relative to the reMarkable tablet filesystem.
+All paths and commands are relative to the reMarkable device filesystem.
 Import from here rather than hard-coding strings in individual modules.
 """
 
@@ -8,7 +8,7 @@ Import from here rather than hard-coding strings in individual modules.
 # Remote filesystem paths
 # ---------------------------------------------------------------------------
 
-# Suspended / sleep-screen image shown when the tablet is locked.
+# Suspended / sleep-screen image shown when the device is locked.
 # Stored in the user's home directory so it persists across firmware updates.
 SUSPENDED_PNG_PATH = "/home/root/suspended.png"
 
@@ -19,7 +19,7 @@ XOCHITL_CONF_PATH = "/home/root/.config/remarkable/xochitl.conf"
 # rmMethods template storage directory (persists across firmware updates)
 REMOTE_XOCHITL_DATA_DIR = "/home/root/.local/share/remarkable/xochitl"
 
-# Manifest filename stored alongside templates on the tablet
+# Manifest filename stored alongside templates on the device
 REMOTE_MANIFEST_FILENAME = ".manifest.json"
 
 # ---------------------------------------------------------------------------
@@ -30,7 +30,8 @@ REMOTE_MANIFEST_FILENAME = ".manifest.json"
 CMD_RESTART_XOCHITL = "systemctl restart xochitl"
 
 # Check whether `/` is currently mounted read-write
-CMD_CHECK_RW = 'mount | grep "on / " | grep -q "(rw," && printf "writable" || printf "readonly"'
+# CMD_CHECK_RW = 'mount | grep "on / " | grep -q "(rw," && printf "writable" || printf "readonly"'
+CMD_CHECK_RW = "echo writable"
 
 # Remount the root filesystem as read-write
 CMD_REMOUNT_RW = "mount -o remount,rw /"

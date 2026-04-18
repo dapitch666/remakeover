@@ -51,11 +51,10 @@ Open your browser at http://localhost:8501
 2. The page shows an edit form for the currently selected device, or a creation form when no device is configured yet
 3. Fill in the fields:
    - **Name**: a free-form label to identify the device
-   - **IP address**: the tablet's IP (USB or Wi-Fi)
-   - **SSH password**: the tablet's root password (visible in Settings > Help > About > Copyrights and licences)
-   - **Tablet type**: select from the supported models
-   - **Enable templates** / **Disable carousel**: as needed
-4. Click **Save**
+   - **IP address**: the device's IP (USB or Wi-Fi)
+   - **SSH password**: the device's root password (visible in Settings > Help > About > Copyrights and licences)
+4. Click **Test Connection** to verify access and detect the device type/firmware automatically 
+5. Click **Save**
 
 ### Supported models and sleep-screen dimensions
 
@@ -85,20 +84,20 @@ data/
 
 ### 🖼️ Images
 Manage sleep-screen images (`suspended.png`):
-- **Import** the image currently on the tablet
+- **Import** the image currently on the device
 - **Add** a new image from your computer (PNG, JPG, JPEG — resized automatically)
-- **Send** an image directly to the tablet
+- **Send** an image directly to the device
 - **Set a preferred image** (used first during a deployment)
 - **Rename** or **delete** local images
 
 ### 📄 Templates
 Manage custom templates (`.template` JSON format):
-- **Import** templates from the tablet (initial setup)
+- **Import** templates from the device (initial setup)
 - **Add** new `.template` files
 - **Edit categories and labels** for each template
 - **Rename**, **delete**, or **reload** templates
-- **Check sync status** by comparing local and tablet manifests
-- **Sync** changes to the tablet (local manifest is applied to the device)
+- **Check sync status** by comparing local and device manifests
+- **Sync** changes to the device (local manifest is applied to the device)
 
 ### 🚀 Deployment
 Re-deploy your configuration after a firmware update (which resets all customizations):
@@ -249,31 +248,31 @@ Then add the new language code to `SUPPORTED_LANGUAGES` in [src/i18n.py](src/i18
 
 ### Intended network environment
 
-This application is designed to run on a **trusted local network only**. It communicates with your reMarkable tablet over SSH using the root password, with no additional transport-layer protection beyond what SSH itself provides.
+This application is designed to run on a **trusted local network only**. It communicates with your reMarkable device over SSH using the root password, with no additional transport-layer protection beyond what SSH itself provides.
 
 It is **not intended to be exposed to the internet**. A typical safe deployment is a home or office NAS (e.g. a Synology) running the Docker container behind a reverse proxy configured with a private-network-only access policy, so the app is reachable inside the LAN but never from outside.
 
 ### SSH host-key trust policy (`AutoAddPolicy`)
 
-Paramiko is configured with `AutoAddPolicy`, which means the app **does not verify the SSH host key** of the tablet and will connect to any device at the configured IP address without prompting. This is a conscious trade-off:
+Paramiko is configured with `AutoAddPolicy`, which means the app **does not verify the SSH host key** of the device and will connect to any device at the configured IP address without prompting. This is a conscious trade-off:
 
-> The reMarkable tablet **regenerates its SSH host key on every firmware update**. Storing a known host key would cause every post-update deployment to fail — exactly the scenario this app is built to handle. Persistent known-hosts are therefore not a practical mitigation here.
+> The reMarkable device **regenerates its SSH host key on every firmware update**. Storing a known host key would cause every post-update deployment to fail — exactly the scenario this app is built to handle. Persistent known-hosts are therefore not a practical mitigation here.
 
 The residual risk is a local-network MITM attack. This is acceptable given the intended deployment context (private LAN, no internet exposure), but you should be aware of it if your network topology changes.
 
 ### Plaintext password storage
 
-The SSH root password of each registered tablet is stored in plain text in `data/config.json`. This file is excluded from version control (`.gitignore`) but is readable by any process or user with access to the `data/` directory or the Docker volume mount.
+The SSH root password of each registered device is stored in plain text in `data/config.json`. This file is excluded from version control (`.gitignore`) but is readable by any process or user with access to the `data/` directory or the Docker volume mount.
 
 Practical mitigations:
 - Keep the `data/` directory (and its Docker volume) accessible only to the user running the container.
 - Back up `data/config.json` securely (e.g. encrypted backup).
-- The reMarkable root password has a limited blast radius: it grants SSH access to the tablet itself, not to any other system.
+- The reMarkable root password has a limited blast radius: it grants SSH access to the device itself, not to any other system.
 
 ---
 
 ## 📌 Important notes
 
 - Configuration and data are persisted in `data/` — back up this folder
-- The SSH connection uses the tablet's root password, visible in **Settings > Help > About > Copyrights and licences**
+- The SSH connection uses the device's root password, visible in **Settings > Help > About > Copyrights and licences**
 - Developer mode is not required on recent models

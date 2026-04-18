@@ -13,8 +13,8 @@ class TestDeviceFromDict:
             "firmware_version": "3.5.2.1896",
             "preferred_image": "bg.png",
         }
-        dev = Device.from_dict("MyTablet", data)
-        assert dev.name == "MyTablet"
+        dev = Device.from_dict("MyDevice", data)
+        assert dev.name == "MyDevice"
         assert dev.ip == "1.2.3.4"
         assert dev.password == "secret"
         assert dev.device_type == "reMarkable 2"
@@ -54,7 +54,7 @@ class TestDeviceResolveType:
         assert dev.resolve_type(DEVICE_SIZES, DEFAULT_DEVICE_TYPE) == "reMarkable 2"
 
     def test_unknown_type_returns_default(self):
-        dev = Device.from_dict("X", {"device_type": "Alien Tablet"})
+        dev = Device.from_dict("X", {"device_type": "Alien Device"})
         assert dev.resolve_type(DEVICE_SIZES, DEFAULT_DEVICE_TYPE) == DEFAULT_DEVICE_TYPE
 
     def test_no_args_uses_constants(self):
