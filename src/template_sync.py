@@ -313,7 +313,7 @@ def fetch_single_template_from_device(
     device: Device,
     template_uuid: str,
 ) -> tuple[bool, str]:
-    """Download a single template triplet from the tablet and save it locally.
+    """Download a single template triplet from the device and save it locally.
 
     Used when a remote-only template is clicked in the sync status pills —
     it imports that one template without touching anything else.
@@ -377,13 +377,13 @@ def fetch_single_template_from_device(
     return True, f"imported '{visible_name}' from device"
 
 
-def sync_templates_to_tablet(
+def sync_templates_to_device(
     selected_name: str,
     device,
     add_log,
     restart_xochitl: bool = True,
 ) -> bool:
-    """Synchronize local templates to tablet using manifest comparison."""
+    """Synchronize local templates to device using manifest comparison."""
     ip = device.ip
     pw = device.password or ""
 

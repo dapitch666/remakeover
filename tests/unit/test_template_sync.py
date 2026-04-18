@@ -14,7 +14,7 @@ from src.template_sync import (
     compute_sync_status_from_cached_remote,
     fetch_single_template_from_device,
     refresh_cached_sync_status,
-    sync_templates_to_tablet,
+    sync_templates_to_device,
 )
 from src.templates import add_template_entry, save_json_template
 
@@ -97,7 +97,7 @@ def _patch_session(fake: _FakeSession):
 
 
 # ---------------------------------------------------------------------------
-# sync_templates_to_tablet tests
+# sync_templates_to_device tests
 # ---------------------------------------------------------------------------
 
 
@@ -112,7 +112,7 @@ def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_
     fake = _FakeSession(remote_manifest_bytes=None)  # missing → use default
 
     with _patch_session(fake):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     assert any(p.endswith(".template") for p in fake.uploaded)
@@ -148,7 +148,7 @@ def test_sync_deletes_remote_entries_absent_from_local_manifest(tmp_path):
     fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
 
     with _patch_session(fake):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
@@ -319,7 +319,7 @@ def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
 
 def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
     # Legacy behavior removed: keep this test name to preserve intent coverage,
-    # now validating that missing-local UUIDs are removed from tablet.
+    # now validating that missing-local UUIDs are removed from device.
     _set_data_dir(tmp_path)
     logs, add_log = _logger_bucket()
 
@@ -338,7 +338,7 @@ def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
     fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
 
     with _patch_session(fake):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
@@ -359,7 +359,7 @@ def test_sync_does_not_refresh_local_manifest(tmp_path):
         _patch_session(fake),
         patch("src.templates.refresh_local_manifest", side_effect=AssertionError("unexpected")),
     ):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     assert any("Templates synced" in msg for msg in logs)
@@ -376,7 +376,7 @@ def test_sync_thumbnail_cleanup_uses_single_quoted_rm_command(tmp_path):
     fake = _FakeSession(remote_manifest_bytes=None)
 
     with _patch_session(fake):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     cleanup_calls = [
@@ -417,7 +417,7 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
     fake = _FakeSession(remote_manifest_bytes=None, run_side_effect=_run_side_effect)
 
     with _patch_session(fake):
-        ok = sync_templates_to_tablet("D1", _device(), add_log)
+        ok = sync_templates_to_device("D1", _device(), add_log)
 
     assert ok is True
     assert any("cleanup thumbnails" in msg for msg in logs)

@@ -1,4 +1,4 @@
-"""SSH helpers for reMarkable tablet communication.
+"""SSH helpers for reMarkable device communication.
 
 All public functions open a fresh SSH connection, remount the root
 filesystem read-write if necessary (via ``_ensure_rw``), perform their
@@ -167,6 +167,21 @@ def detect_device_info(ip: str, password: str) -> tuple[bool, str, str, bool, st
     except Exception as e:
         logger.error("detect_device_info error for %s: %s", ip, e)
         return False, "", "", False, str(e)
+
+
+def run_detection(ip: str, password: str) -> dict:
+    """Call detect_device_info and return a normalised result dict.
+
+    Keys: ok, device_type, firmware_version, sleep_screen_enabled, error.
+    """
+    ok, device_type, fw, sleep_enabled, err = detect_device_info(ip, password)
+    return {
+        "ok": ok,
+        "device_type": device_type if ok else "",
+        "firmware_version": fw if ok else "",
+        "sleep_screen_enabled": sleep_enabled if ok else False,
+        "error": err if not ok else "",
+    }
 
 
 def upload_file_ssh(

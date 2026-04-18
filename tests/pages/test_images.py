@@ -1,6 +1,6 @@
 """Tests for pages/images.py.
 
-Covers: empty warning, image grid, rename mode, delete flow, import from tablet,
+Covers: empty warning, image grid, rename mode, delete flow, import from device,
         error handling, upload section render, preferred-image actions, and
         segmented-control on_change callback paths.
 """
@@ -35,7 +35,7 @@ def test_images_page_warns_when_no_devices(tmp_path):
         at.switch_page("pages/images.py").run()
 
     assert not at.exception
-    assert any("No device" in m.value for m in at.markdown)
+    assert any("No device" in w.value for w in at.warning)
 
 
 # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ def test_images_page_warns_when_no_devices(tmp_path):
 
 
 def test_upload_and_send_flow(tmp_path):
-    """Clicking 'Import from tablet' downloads and saves an image."""
+    """Clicking 'Import from device' downloads and saves an image."""
     cfg: dict = {
         "devices": {
             "D1": {
@@ -210,7 +210,7 @@ class TestImagesPage:
         assert at.session_state["img_pending_delete"] is None
 
     def test_import_from_device_saves_image(self, tmp_path):
-        """Clicking 'Import from tablet' downloads and saves the image."""
+        """Clicking 'Import from device' downloads and saves the image."""
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         saved: list = []

@@ -280,7 +280,22 @@ else:
 col_add, col_dl, col_restore = st.columns(3)
 with col_dl:
     st.subheader(_("Get current image"), divider="rainbow")
-    if st.button(
+
+    def _on_import_from_device():
+        image_data, err = _ssh.download_file_ssh(
+            current_device.ip, current_device.password, SUSPENDED_PNG_PATH
+        )
+        if image_data is None:
+            st.session_state["_import_img_error"] = err
+            add_log_fn(f"Error downloading suspended.png from '{current_device.name}': {err}")
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            _filename = f"{timestamp}.png"
+            _images.save_device_image(current_device.name, image_data, _filename)
+            add_log_fn(f"suspended.png downloaded from '{current_device.name}' as {_filename}")
+            deferred_toast(_("Image saved: {name}").format(name=_filename), ":material/task_alt:")
+
+    st.button(
         _("Import from device"),
         key=f"ui_import_from_device_{current_device.name}",
         icon=":material/download:",
@@ -291,20 +306,11 @@ with col_dl:
             else _("Download the current suspended image from the device")
         ),
         disabled=not current_device.sleep_screen_enabled,
-    ):
-        image_data, err = _ssh.download_file_ssh(
-            current_device.ip, current_device.password, SUSPENDED_PNG_PATH
-        )
-        if image_data is None:
-            st.error(_("Error: {err}").format(err=err), icon=":material/error:")
-            add_log_fn(f"Error downloading suspended.png from '{current_device.name}': {err}")
-        else:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            _filename = f"{timestamp}.png"
-            _images.save_device_image(current_device.name, image_data, _filename)
-            add_log_fn(f"suspended.png downloaded from '{current_device.name}' as {_filename}")
-            deferred_toast(_("Image saved: {name}").format(name=_filename), ":material/task_alt:")
-            st.rerun()
+        on_click=_on_import_from_device,
+    )
+    _import_img_error = st.session_state.pop("_import_img_error", None)
+    if _import_img_error:
+        st.error(_("Error: {err}").format(err=_import_img_error), icon=":material/error:")
 
 with col_restore:
     st.subheader(_("Restore default"), divider="rainbow")

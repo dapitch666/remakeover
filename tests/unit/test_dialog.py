@@ -91,12 +91,12 @@ def test_confirm_supports_custom_labels_and_help_text():
             "Message",
             key="k",
             cancel_label="Keep local only",
-            confirm_label="Send to tablet",
+            confirm_label="Send to device",
             help_text="You can still send it later.",
         )
 
     c_cancel = st.columns.return_value[1]
     c_ok = st.columns.return_value[3]
     assert c_cancel.button.call_args.args[0] == "Keep local only"
-    assert c_ok.button.call_args.args[0] == "Send to tablet"
+    assert c_ok.button.call_args.args[0] == "Send to device"
     st.caption.assert_called_once_with("You can still send it later.")

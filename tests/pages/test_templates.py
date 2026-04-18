@@ -135,7 +135,14 @@ def _svg_area(at):
 
 
 def _save_btn(at):
-    return next((b for b in at.button if b.label == "Save"), None)
+    return next(
+        (
+            b
+            for b in at.button
+            if b.label == "Save" and not (b.key and b.key.startswith("ui_config_save_"))
+        ),
+        None,
+    )
 
 
 def _delete_btn(at):
@@ -166,7 +173,7 @@ def test_templates_page_warns_when_no_devices(tmp_path):
         at.run()
         at.switch_page("pages/templates.py").run()
     assert not at.exception
-    assert any("No device" in m.value for m in at.markdown)
+    assert any("No device" in w.value for w in at.warning)
 
 
 # ---------------------------------------------------------------------------

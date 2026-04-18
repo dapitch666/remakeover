@@ -54,20 +54,20 @@ def init_page(require_selected: bool = True) -> tuple[dict, str | None, dict]:
 def _require_device(devices: dict, selected_name) -> None:
     """Guard helper called at the top of every device-specific page.
 
-    * If *devices* is empty, shows a warning with a link to the configuration
-      page and stops rendering.
+    * If *devices* is empty, shows a warning telling the user to add a device
+       in the sidebar and stops rendering.
     * If *selected_name* is not set or not in *devices*, shows an info message
-      prompting the user to select a tablet in the sidebar and stops rendering.
+      prompting the user to select a device in the sidebar and stops rendering.
     """
     if not devices:
         _left, col, _right = st.columns([0.5, 3, 0.5])
-        with col, st.container(horizontal=True, width="content", gap="xsmall", border=True):
-            st.markdown(":orange[:material/warning:]")
-            st.markdown(_("No device configured. Add one in the page "))
-            st.page_link("pages/configuration.py", icon=":material/settings:")
+        with col:
+            st.warning(
+                _("No device configured. Add one in the sidebar."), icon=":material/arrow_left_alt:"
+            )
         st.stop()
     if not selected_name or selected_name not in devices:
-        st.info(_("Select a tablet in the sidebar."))
+        st.info(_("Select a device in the sidebar."))
         st.stop()
 
 

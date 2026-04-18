@@ -635,7 +635,7 @@ def remove_remote_custom_templates(
     session: "_ssh.SshSession",
     uuids: set[str],
 ) -> tuple[bool, str]:
-    """Remove rmMethods UUID triplets from *uuids* on the tablet."""
+    """Remove rmMethods UUID triplets from *uuids* on the device."""
     if not uuids:
         return True, "ok"
 

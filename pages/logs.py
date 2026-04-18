@@ -14,15 +14,27 @@ if not st.session_state.get("logs"):
     st.info(_("No logs for this session."))
 else:
     st.code("\n".join(reversed(st.session_state["logs"])), language=None)
-    if st.button(
+
+    def _on_clear_logs_click():
+        st.session_state["pending_clear_logs"] = True
+
+    st.button(
         _("Clear session logs"),
         key="ui_clear_logs",
         icon=":material/delete:",
         help=_("Clear logs stored in the current session"),
-    ):
+        on_click=_on_clear_logs_click,
+    )
+
+    if st.session_state.get("pending_clear_logs"):
         _dialog.confirm(_("Clear logs"), _("Clear logs for this session?"), key="clear_logs")
-    if st.session_state.get("clear_logs") is True:
-        st.session_state["logs"] = []
-        st.success(_("Logs cleared."), icon=":material/task_alt:")
-        del st.session_state.clear_logs
-        st.rerun()
+        result = st.session_state.get("clear_logs")
+        if result is True:
+            st.session_state["logs"] = []
+            del st.session_state["clear_logs"]
+            del st.session_state["pending_clear_logs"]
+            st.rerun()
+        elif result is False:
+            del st.session_state["clear_logs"]
+            del st.session_state["pending_clear_logs"]
+            st.rerun()

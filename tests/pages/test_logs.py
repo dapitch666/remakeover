@@ -64,13 +64,14 @@ class TestLogsPage:
         assert not at.exception
 
     def test_clear_logs_confirmed_empties_logs(self, tmp_path):
-        """Pre-setting clear_logs=True causes the log list to be cleared."""
+        """Pre-setting pending_clear_logs+clear_logs=True causes the log list to be cleared."""
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["logs"] = ["entry1", "entry2"]
+            at.session_state["pending_clear_logs"] = True
             at.session_state["clear_logs"] = True
             at.switch_page("pages/logs.py").run()
 
@@ -78,13 +79,14 @@ class TestLogsPage:
         assert at.session_state["logs"] == []
 
     def test_clear_logs_cancelled_keeps_logs(self, tmp_path):
-        """Pre-setting clear_logs=False keeps the log list unchanged."""
+        """Pre-setting pending_clear_logs+clear_logs=False keeps the log list unchanged."""
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
             at.session_state["logs"] = ["stay"]
+            at.session_state["pending_clear_logs"] = True
             at.session_state["clear_logs"] = False
             at.switch_page("pages/logs.py").run()
 
