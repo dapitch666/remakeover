@@ -25,7 +25,7 @@ class Device:
         return Device(
             name=name,
             ip=data.get("ip", ""),
-            password=data.get("password", ""),
+            password=data.get("password") or "",
             device_type=data.get("device_type", ""),
             firmware_version=str(data.get("firmware_version", "")),
             sleep_screen_enabled=data.get("sleep_screen_enabled", False),

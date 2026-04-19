@@ -29,12 +29,29 @@ REMOTE_MANIFEST_FILENAME = ".manifest.json"
 # Restart the main reMarkable UI process to apply changes
 CMD_RESTART_XOCHITL = "systemctl restart xochitl"
 
-# Check whether `/` is currently mounted read-write
-# CMD_CHECK_RW = 'mount | grep "on / " | grep -q "(rw," && printf "writable" || printf "readonly"'
-CMD_CHECK_RW = "echo writable"
+# Read the hardware board identifier (e.g. "rm2", "ferrari")
+CMD_READ_MACHINE = "cat /sys/devices/soc0/machine"
 
-# Remount the root filesystem as read-write
-CMD_REMOUNT_RW = "mount -o remount,rw /"
+# Extract the firmware version line from os-release
+CMD_READ_FIRMWARE = "grep IMG_VERSION /etc/os-release"
+
+# Check whether SleepScreenPath is configured; add it under [General] if not.
+# Outputs 'already_set' or 'just_set' so the caller knows whether a restart is needed.
+CMD_CHECK_OR_SET_SLEEP_SCREEN = (
+    f"if grep -q '^SleepScreenPath=' {XOCHITL_CONF_PATH}; "
+    f"then echo 'already_set'; "
+    f"else sed -i '/^\\[General\\]/a SleepScreenPath={SUSPENDED_PNG_PATH}' {XOCHITL_CONF_PATH}"
+    f" && echo 'just_set'; fi"
+)
+
+# Check whether SleepScreenPath is configured in xochitl.conf
+CMD_CHECK_SLEEP_SCREEN = f"grep -q '^SleepScreenPath=' {XOCHITL_CONF_PATH} && echo yes || echo no"
+
+# Remove SleepScreenPath from xochitl.conf
+CMD_REMOVE_SLEEP_SCREEN = f"sed -i '/^SleepScreenPath=/d' {XOCHITL_CONF_PATH}"
+
+# Delete the suspended.png image file from the device
+CMD_DELETE_SUSPENDED_PNG = f"rm -f {SUSPENDED_PNG_PATH}"
 
 # ---------------------------------------------------------------------------
 # Device catalogue

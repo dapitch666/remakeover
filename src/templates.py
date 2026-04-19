@@ -18,8 +18,6 @@ from contextlib import suppress
 from json import JSONDecodeError
 from typing import Any
 
-import paramiko
-
 import src.ssh as _ssh
 from src.config import get_device_data_dir
 from src.constants import (
@@ -38,6 +36,7 @@ from src.manifest_templates import (
     upsert_manifest_template,
     utc_now_iso,
 )
+from src.models import Device
 from src.ssh import run_ssh_cmd
 
 logger = logging.getLogger(__name__)
@@ -613,7 +612,7 @@ def remove_template_entry(device_name: str, filename: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str] | str]:
+def list_remote_custom_templates(device: Device) -> tuple[bool, list[str] | str]:
     """Return remote templates UUID values currently present."""
     cmd = (
         f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.template; do "
@@ -621,10 +620,7 @@ def list_remote_custom_templates(ip: str, password: str) -> tuple[bool, list[str
         'basename "$file" .template; '
         "done"
     )
-    try:
-        out, err = run_ssh_cmd(ip, password, [cmd])
-    except (OSError, paramiko.SSHException) as e:
-        return False, str(e)
+    out, err = run_ssh_cmd(device, [cmd])
     if err.strip():
         return False, err.strip()
     uuids = sorted({line.strip() for line in out.splitlines() if line.strip()})

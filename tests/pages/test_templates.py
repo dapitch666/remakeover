@@ -284,7 +284,7 @@ class TestTemplatesSync:
         env = make_env(tmp_path, cfg_path)
 
         @contextmanager
-        def _fake_session(_ip, _pw):
+        def _fake_session(_device):
             s = MagicMock()
             s.run.return_value = ("", "")
             s.upload.return_value = (True, "ok")
@@ -358,7 +358,7 @@ class TestTemplatesSync:
         env = make_env(tmp_path, cfg_path)
 
         @contextmanager
-        def _fake_session(_ip, _pw):
+        def _fake_session(_device):
             s = MagicMock()
             s.download.return_value = (
                 None,

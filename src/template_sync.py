@@ -30,8 +30,8 @@ def _is_missing_remote_manifest_error(err: str) -> bool:
     return "no such file" in lowered or "not found" in lowered
 
 
-def _fetch_remote_manifest(ip: str, pw: str) -> tuple[bool, dict[str, Any], str]:
-    content, err = _ssh.download_file_ssh(ip, pw, _remote_manifest_path())
+def _fetch_remote_manifest(device: Device) -> tuple[bool, dict[str, Any], str]:
+    content, err = _ssh.download_file_ssh(device, _remote_manifest_path())
     if content is None:
         if _is_missing_remote_manifest_error(err):
             return True, default_manifest(), "missing"
@@ -44,9 +44,9 @@ def _fetch_remote_manifest(ip: str, pw: str) -> tuple[bool, dict[str, Any], str]
     return True, normalize_manifest(parsed), "ok"
 
 
-def _push_remote_manifest(ip: str, pw: str, manifest: dict[str, Any]) -> tuple[bool, str]:
+def _push_remote_manifest(device: Device, manifest: dict[str, Any]) -> tuple[bool, str]:
     payload = json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
-    return _ssh.upload_file_ssh(ip, pw, payload, _remote_manifest_path())
+    return _ssh.upload_file_ssh(device, payload, _remote_manifest_path())
 
 
 def _fetch_remote_manifest_s(session: _ssh.SshSession) -> tuple[bool, dict[str, Any], str]:
@@ -203,7 +203,7 @@ def check_sync_status(device: Device, add_log) -> tuple[bool, dict[str, Any] | s
     """Compare local and remote manifests without mutating local state."""
     local_manifest = load_manifest(device.name)
 
-    ok_remote, remote_manifest, status_msg = _fetch_remote_manifest(device.ip, device.password)
+    ok_remote, remote_manifest, status_msg = _fetch_remote_manifest(device)
     if not ok_remote:
         return False, status_msg
 
@@ -237,7 +237,7 @@ def fetch_and_init_templates(
         with suppress(FileNotFoundError):
             os.remove(manifest_path)
 
-    ok, payload = _tpl.list_remote_custom_templates(device.ip, device.password)
+    ok, payload = _tpl.list_remote_custom_templates(device)
     if not ok:
         return False, f"list_remote_templates_failed: {payload}"
     if not isinstance(payload, list):
@@ -246,21 +246,21 @@ def fetch_and_init_templates(
     imported = 0
     for remote_uuid in payload:
         metadata_bytes, meta_err = _ssh.download_file_ssh(
-            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
+            device, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.metadata"
         )
         if metadata_bytes is None:
             _tpl.logger.warning("Skipping %s: metadata download failed (%s)", remote_uuid, meta_err)
             continue
 
         template_bytes, tpl_err = _ssh.download_file_ssh(
-            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
+            device, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.template"
         )
         if template_bytes is None:
             _tpl.logger.warning("Skipping %s: template download failed (%s)", remote_uuid, tpl_err)
             continue
 
         content_bytes, content_err = _ssh.download_file_ssh(
-            device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.content"
+            device, f"{REMOTE_XOCHITL_DATA_DIR}/{remote_uuid}.content"
         )
         if content_bytes is None:
             _tpl.logger.info(
@@ -301,7 +301,7 @@ def fetch_and_init_templates(
         imported += 1
 
     ok_manifest_upload, manifest_upload_msg = _push_remote_manifest(
-        device.ip, device.password, load_manifest(device.name)
+        device, load_manifest(device.name)
     )
     if not ok_manifest_upload:
         return False, f"upload_remote_manifest_failed: {manifest_upload_msg}"
@@ -319,19 +319,19 @@ def fetch_single_template_from_device(
     it imports that one template without touching anything else.
     """
     metadata_bytes, meta_err = _ssh.download_file_ssh(
-        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.metadata"
+        device, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.metadata"
     )
     if metadata_bytes is None:
         return False, f"metadata_download_failed: {meta_err}"
 
     template_bytes, tpl_err = _ssh.download_file_ssh(
-        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.template"
+        device, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.template"
     )
     if template_bytes is None:
         return False, f"template_download_failed: {tpl_err}"
 
     content_bytes, content_err = _ssh.download_file_ssh(
-        device.ip, device.password, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.content"
+        device, f"{REMOTE_XOCHITL_DATA_DIR}/{template_uuid}.content"
     )
     if content_bytes is None:
         _tpl.logger.info(
@@ -384,13 +384,10 @@ def sync_templates_to_device(
     restart_xochitl: bool = True,
 ) -> bool:
     """Synchronize local templates to device using manifest comparison."""
-    ip = device.ip
-    pw = device.password or ""
-
     local_manifest = load_manifest(selected_name)
 
     try:
-        with _ssh.ssh_session(ip, pw) as s:
+        with _ssh.ssh_session(device) as s:
             ok_remote, remote_manifest, remote_state = _fetch_remote_manifest_s(s)
             if not ok_remote:
                 add_log(f"Sync templates — fetch remote manifest: {remote_state}")
@@ -457,7 +454,7 @@ def sync_templates_to_device(
                     add_log(f"Sync templates — restart xochitl: {err.strip()}")
                     return False
 
-    except RuntimeError as exc:
+    except Exception as exc:
         add_log(f"Sync templates — SSH session failed: {exc}")
         return False
 

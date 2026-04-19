@@ -2,17 +2,22 @@
 
 from unittest.mock import MagicMock, patch
 
-# noinspection PyProtectedMember
+import pytest
+
+from src.models import Device
 from src.ssh import (
-    _ensure_rw,
+    SshSession,
     detect_device_info,
     download_file_ssh,
+    run_detection,
     run_ssh_cmd,
+    ssh_session,
     upload_file_ssh,
 )
 
 IP = "192.168.1.42"
 PW = "secret"
+DEVICE = Device(name="test", ip=IP, password=PW)
 
 
 # ---------------------------------------------------------------------------
@@ -46,135 +51,30 @@ def _patched_client(instance: MagicMock):
 
 
 # ---------------------------------------------------------------------------
-# _ensure_rw
-# ---------------------------------------------------------------------------
-
-
-class TestEnsureRw:
-    def test_already_rw(self):
-        client = MagicMock()
-        client.exec_command.side_effect = _make_exec((b"writable", b""))
-        ok, msg = _ensure_rw(client)
-        assert ok is True
-        assert msg == "already_rw"
-
-    def test_readonly_remounts_successfully(self):
-        client = MagicMock()
-        client.exec_command.side_effect = _make_exec(
-            (b"readonly", b""),  # check → not writable
-            (b"", b""),  # remount → no error
-        )
-        ok, msg = _ensure_rw(client)
-        assert ok is True
-        assert msg == "remounted"
-
-    def test_readonly_remount_has_stderr(self):
-        """Remount with stderr warning should still succeed."""
-        client = MagicMock()
-        client.exec_command.side_effect = _make_exec(
-            (b"readonly", b""),
-            (b"", b"some warning"),
-        )
-        ok, msg = _ensure_rw(client)
-        assert ok is True
-        assert msg == "remounted"
-
-    def test_rw_check_exception_triggers_remount(self):
-        """If exec_command raises during the check, assume readonly and try remount."""
-        client = MagicMock()
-        call_count = [0]
-
-        def _exec(cmd, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise OSError("pipe broken")
-            return _exec_response(b"", b"")
-
-        client.exec_command.side_effect = _exec
-        ok, msg = _ensure_rw(client)
-        assert ok is True
-        assert msg == "remounted"
-
-    def test_remount_exception_returns_false(self):
-        client = MagicMock()
-        call_count = [0]
-
-        def _exec(cmd, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return _exec_response(b"readonly", b"")
-            raise OSError("remount failed hard")
-
-        client.exec_command.side_effect = _exec
-        ok, msg = _ensure_rw(client)
-        assert ok is False
-        assert "remount failed hard" in msg
-
-
-# ---------------------------------------------------------------------------
 # run_ssh_cmd
 # ---------------------------------------------------------------------------
 
 
 class TestRunSshCmd:
-    def test_happy_path_already_rw(self):
+    def test_happy_path(self):
         inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec(
-            (b"writable", b""),  # _ensure_rw check
-            (b"hello\n", b""),  # actual command
-        )
+        inst.exec_command.side_effect = _make_exec((b"hello\n", b""))
         with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, ["echo hello"])
+            out, err = run_ssh_cmd(DEVICE, ["echo hello"])
         assert out == "hello\n"
         assert err == ""
 
-    def test_remount_then_exec(self):
-        inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec(
-            (b"readonly", b""),  # _ensure_rw → trigger remount
-            (b"", b""),  # remount
-            (b"ok", b""),  # actual command
-        )
-        with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, ["ls"])
-        assert out == "ok"
-
     def test_empty_commands_returns_empty(self):
         inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec((b"writable", b""))
         with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, [])
+            out, err = run_ssh_cmd(DEVICE, [])
         assert out == "" and err == ""
-
-    def test_remount_failure_short_circuits(self):
-        inst = MagicMock()
-        call_count = [0]
-
-        def _exec(cmd, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return _exec_response(b"readonly", b"")
-            raise OSError("cannot remount")
-
-        inst.exec_command.side_effect = _exec
-        with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, ["ls"])
-        assert out == ""
-        assert "remount failed" in err
 
     def test_exec_command_exception(self):
         inst = MagicMock()
-        call_count = [0]
-
-        def _exec(cmd, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return _exec_response(b"writable", b"")
-            raise OSError("exec error")
-
-        inst.exec_command.side_effect = _exec
+        inst.exec_command.side_effect = OSError("exec error")
         with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, ["bad cmd"])
+            out, err = run_ssh_cmd(DEVICE, ["bad cmd"])
         assert out == ""
         assert "exec error" in err
 
@@ -182,7 +82,7 @@ class TestRunSshCmd:
         inst = MagicMock()
         inst.connect.side_effect = OSError("timeout")
         with _patched_client(inst):
-            out, err = run_ssh_cmd(IP, PW, ["ls"])
+            out, err = run_ssh_cmd(DEVICE, ["ls"])
         assert out == ""
         assert "timeout" in err
 
@@ -193,12 +93,12 @@ class TestRunSshCmd:
 
         def _exec(cmd, **kwargs):
             captured.append(cmd)
-            return _exec_response(b"writable" if not captured[1:] else b"done", b"")
+            return _exec_response(b"done", b"")
 
         inst.exec_command.side_effect = _exec
         with _patched_client(inst):
-            run_ssh_cmd(IP, PW, ["cmd1", "cmd2"])
-        assert captured[1] == "cmd1 && cmd2"
+            run_ssh_cmd(DEVICE, ["cmd1", "cmd2"])
+        assert captured[0] == "cmd1 && cmd2"
 
 
 # ---------------------------------------------------------------------------
@@ -215,38 +115,20 @@ class TestUploadFileSsh:
 
     def test_happy_path(self):
         inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec((b"writable", b""))
         sftp = self._make_sftp()
         inst.open_sftp.return_value = sftp
         with _patched_client(inst):
-            ok, msg = upload_file_ssh(IP, PW, b"data", "/remote/path")
+            ok, msg = upload_file_ssh(DEVICE, b"data", "/remote/path")
         assert ok is True
         assert msg == "OK"
 
-    def test_remount_failure(self):
-        inst = MagicMock()
-        call_count = [0]
-
-        def _exec(cmd):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return _exec_response(b"readonly", b"")
-            raise OSError("remount error")
-
-        inst.exec_command.side_effect = _exec
-        with _patched_client(inst):
-            ok, msg = upload_file_ssh(IP, PW, b"data", "/remote/path")
-        assert ok is False
-        assert "remount failed" in msg
-
     def test_sftp_write_error(self):
         inst = MagicMock()
-        inst.exec_command.side_effect = _make_exec((b"writable", b""))
         sftp = MagicMock()
         sftp.file.side_effect = OSError("disk full")
         inst.open_sftp.return_value = sftp
         with _patched_client(inst):
-            ok, msg = upload_file_ssh(IP, PW, b"data", "/remote/path")
+            ok, msg = upload_file_ssh(DEVICE, b"data", "/remote/path")
         assert ok is False
         assert "disk full" in msg
 
@@ -254,7 +136,7 @@ class TestUploadFileSsh:
         inst = MagicMock()
         inst.connect.side_effect = OSError("no route")
         with _patched_client(inst):
-            ok, msg = upload_file_ssh(IP, PW, b"data", "/remote/path")
+            ok, msg = upload_file_ssh(DEVICE, b"data", "/remote/path")
         assert ok is False
         assert "no route" in msg
 
@@ -275,7 +157,7 @@ class TestDownloadFileSsh:
         sftp.file.return_value = fake_file
         inst.open_sftp.return_value = sftp
         with _patched_client(inst):
-            data, err = download_file_ssh(IP, PW, "/remote/file")
+            data, err = download_file_ssh(DEVICE, "/remote/file")
         assert data == b"file content"
         assert err == ""
 
@@ -283,7 +165,7 @@ class TestDownloadFileSsh:
         inst = MagicMock()
         inst.connect.side_effect = OSError("timeout")
         with _patched_client(inst):
-            data, err = download_file_ssh(IP, PW, "/remote/file")
+            data, err = download_file_ssh(DEVICE, "/remote/file")
         assert data is None
         assert "timeout" in err
 
@@ -303,7 +185,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is True
         assert device_type == "reMarkable 2"
         assert fw == "3.5.2.1896"
@@ -319,7 +201,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is True
         assert device_type == "reMarkable 1"
         assert fw == "2.15.0.999"
@@ -333,7 +215,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is True
         assert device_type == "reMarkable Paper Pro"
 
@@ -346,7 +228,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is True
         assert device_type == "reMarkable Paper Pro Move"
 
@@ -359,7 +241,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, _, fw, _, _ = detect_device_info(IP, PW)
+            ok, _, fw, _, _ = detect_device_info(DEVICE)
         assert ok is True
         assert fw == "3.5.2.1896"
 
@@ -372,7 +254,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is False
         assert device_type == ""
         assert sleep is False
@@ -387,7 +269,7 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is True
         assert device_type == "reMarkable 2"
         assert fw == ""
@@ -397,7 +279,7 @@ class TestDetectDeviceInfo:
         inst = MagicMock()
         inst.connect.side_effect = OSError("Connection refused")
         with _patched_client(inst):
-            ok, device_type, fw, sleep, err = detect_device_info(IP, PW)
+            ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
         assert ok is False
         assert device_type == ""
         assert fw == ""
@@ -413,7 +295,7 @@ class TestDetectDeviceInfo:
             (b"yes", b""),
         )
         with _patched_client(inst):
-            ok, _, _, sleep, _ = detect_device_info(IP, PW)
+            ok, _, _, sleep, _ = detect_device_info(DEVICE)
         assert ok is True
         assert sleep is True
 
@@ -426,6 +308,145 @@ class TestDetectDeviceInfo:
             (b"no", b""),
         )
         with _patched_client(inst):
-            ok, _, _, sleep, _ = detect_device_info(IP, PW)
+            ok, _, _, sleep, _ = detect_device_info(DEVICE)
         assert ok is True
         assert sleep is False
+
+
+# ---------------------------------------------------------------------------
+# run_detection
+# ---------------------------------------------------------------------------
+
+
+class TestRunDetection:
+    def test_success(self):
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"rm2", b""),
+            (b"IMG_VERSION=3.5.2", b""),
+            (b"yes", b""),
+        )
+        with _patched_client(inst):
+            result = run_detection(DEVICE)
+        assert result["ok"] is True
+        assert result["device_type"] == "reMarkable 2"
+        assert result["firmware_version"] == "3.5.2"
+        assert result["sleep_screen_enabled"] is True
+        assert result["error"] == ""
+
+    def test_failure_zeroes_out_fields(self):
+        inst = MagicMock()
+        inst.connect.side_effect = OSError("refused")
+        with _patched_client(inst):
+            result = run_detection(DEVICE)
+        assert result["ok"] is False
+        assert result["device_type"] == ""
+        assert result["firmware_version"] == ""
+        assert result["sleep_screen_enabled"] is False
+        assert "refused" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# SshSession
+# ---------------------------------------------------------------------------
+
+
+class TestSshSession:
+    def test_run_happy_path(self):
+        client = MagicMock()
+        client.exec_command.side_effect = _make_exec((b"output", b"err"))
+        out, err = SshSession(client).run(["ls"])
+        assert out == "output"
+        assert err == "err"
+
+    def test_run_empty_commands(self):
+        client = MagicMock()
+        out, err = SshSession(client).run([])
+        assert out == "" and err == ""
+        client.exec_command.assert_not_called()
+
+    def test_run_exception(self):
+        client = MagicMock()
+        client.exec_command.side_effect = OSError("broken pipe")
+        out, err = SshSession(client).run(["ls"])
+        assert out == ""
+        assert "broken pipe" in err
+
+    def test_upload_happy_path(self):
+        client = MagicMock()
+        client.open_sftp.return_value = MagicMock()
+        ok, msg = SshSession(client).upload(b"data", "/path/file")
+        assert ok is True
+        assert msg == "OK"
+
+    def test_upload_error(self):
+        client = MagicMock()
+        sftp = MagicMock()
+        sftp.file.side_effect = OSError("disk full")
+        client.open_sftp.return_value = sftp
+        ok, msg = SshSession(client).upload(b"data", "/path/file")
+        assert ok is False
+        assert "disk full" in msg
+
+    def test_download_happy_path(self):
+        client = MagicMock()
+        sftp = MagicMock()
+        fake_file = MagicMock()
+        fake_file.__enter__ = lambda s: s
+        fake_file.__exit__ = MagicMock(return_value=False)
+        fake_file.read.return_value = b"content"
+        sftp.file.return_value = fake_file
+        client.open_sftp.return_value = sftp
+        data, err = SshSession(client).download("/path/file")
+        assert data == b"content"
+        assert err == ""
+
+    def test_download_error(self):
+        client = MagicMock()
+        sftp = MagicMock()
+        sftp.file.side_effect = OSError("not found")
+        client.open_sftp.return_value = sftp
+        data, err = SshSession(client).download("/path/file")
+        assert data is None
+        assert "not found" in err
+
+    def test_sftp_channel_is_lazy(self):
+        """open_sftp is called only once even across multiple operations."""
+        client = MagicMock()
+        client.open_sftp.return_value = MagicMock()
+        session = SshSession(client)
+        session._sftp_channel()
+        session._sftp_channel()
+        client.open_sftp.assert_called_once()
+
+    def test_close_closes_sftp(self):
+        client = MagicMock()
+        sftp = MagicMock()
+        client.open_sftp.return_value = sftp
+        session = SshSession(client)
+        session._sftp_channel()
+        session.close()
+        sftp.close.assert_called_once()
+        assert session._sftp is None
+
+    def test_close_without_sftp_is_noop(self):
+        session = SshSession(MagicMock())
+        session.close()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# ssh_session context manager
+# ---------------------------------------------------------------------------
+
+
+class TestSshSessionContextManager:
+    def test_yields_session(self):
+        inst = MagicMock()
+        with _patched_client(inst), ssh_session(DEVICE) as s:
+            assert isinstance(s, SshSession)
+
+    def test_connect_error_raises(self):
+        inst = MagicMock()
+        inst.connect.side_effect = OSError("refused")
+        with _patched_client(inst), pytest.raises(OSError, match="refused"), ssh_session(DEVICE):
+            pass

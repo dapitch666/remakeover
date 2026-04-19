@@ -282,9 +282,7 @@ with col_dl:
     st.subheader(_("Get current image"), divider="rainbow")
 
     def _on_import_from_device():
-        image_data, err = _ssh.download_file_ssh(
-            current_device.ip, current_device.password, SUSPENDED_PNG_PATH
-        )
+        image_data, err = _ssh.download_file_ssh(current_device, SUSPENDED_PNG_PATH)
         if image_data is None:
             st.session_state["_import_img_error"] = err
             add_log_fn(f"Error downloading suspended.png from '{current_device.name}': {err}")

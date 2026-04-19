@@ -13,6 +13,7 @@ from src.config import (
     save_config,
 )
 from src.i18n import _
+from src.models import Device
 from src.ssh import run_detection
 from src.ui_common import deferred_toast
 
@@ -75,7 +76,7 @@ def render_config_panel(config: dict, selected_name: str | None, add_log) -> Non
                 st.session_state.pop("connection_test_result", None)
                 st.session_state["_test_feedback_error"] = _("Enter an IP address before testing.")
             else:
-                result = run_detection(ip_stripped, password)
+                result = run_detection(Device(name="", ip=ip_stripped, password=password))
                 st.session_state["connection_test_result"] = {
                     **result,
                     "ip": ip_stripped,

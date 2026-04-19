@@ -90,7 +90,7 @@ def _patch_session(fake: _FakeSession):
     """Return a context-manager patch that injects *fake* as the SSH session."""
 
     @contextmanager
-    def _cm(_ip, _pw):
+    def _cm(_device):
         yield fake
 
     return patch("src.template_sync._ssh.ssh_session", _cm)
@@ -424,6 +424,23 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
     assert any("permission denied" in msg for msg in logs)
 
 
+def test_sync_ssh_connection_error_returns_false_and_logs(tmp_path):
+    """OSError from ssh_session (e.g. unreachable host) must not bubble up."""
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    @contextmanager
+    def _failing_session(_device):
+        raise OSError("Connection refused")
+        yield  # noqa: unreachable
+
+    with patch("src.template_sync._ssh.ssh_session", _failing_session):
+        ok = sync_templates_to_device("D1", _device(), add_log)
+
+    assert ok is False
+    assert any("Connection refused" in msg for msg in logs)
+
+
 def test_fetch_single_template_from_device_downloads_and_saves(tmp_path):
     _set_data_dir(tmp_path)
 
@@ -435,7 +452,7 @@ def test_fetch_single_template_from_device_downloads_and_saves(tmp_path):
     }
     payload = {"name": "My Remote Template", "categories": ["Perso"]}
 
-    def _download(_ip, _pw, remote_path):
+    def _download(_device, remote_path):
         if remote_path.endswith(".metadata"):
             return json.dumps(metadata).encode("utf-8"), ""
         if remote_path.endswith(".template"):
@@ -484,7 +501,7 @@ def test_fetch_single_template_rejects_non_template_type(tmp_path):
     metadata = {"type": "DocumentType", "visibleName": "Not A Template"}
     payload = {"name": "Not A Template"}
 
-    def _download(_ip, _pw, remote_path):
+    def _download(_device, remote_path):
         if remote_path.endswith(".metadata"):
             return json.dumps(metadata).encode("utf-8"), ""
         if remote_path.endswith(".template"):

@@ -317,7 +317,7 @@ def _device_selector(config: dict) -> str | None:
                     def _on_ssh_test():
                         from src.ssh import run_detection
 
-                        result = run_detection(_device.ip, _device.password or "")
+                        result = run_detection(_device)
                         st.session_state["_ssh_test_result"] = {**result, "device": selected_name}
                         if result["ok"]:
                             _apply_detected_metadata(

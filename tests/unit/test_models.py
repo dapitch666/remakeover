@@ -47,6 +47,11 @@ class TestDeviceFromDict:
         dev = Device.from_dict("T", {"ip": "1.2.3.4"})
         assert dev.firmware_version == ""
 
+    def test_null_password_coerced_to_empty_string(self):
+        """JSON null for password must not propagate as None — paramiko would silently switch to key auth."""
+        dev = Device.from_dict("T", {"ip": "1.2.3.4", "password": None})
+        assert dev.password == ""
+
 
 class TestDeviceResolveType:
     def test_known_type_returned(self):
