@@ -40,12 +40,18 @@ def _render_image_card(img_name, device, add_log, config):
                 if new_name in _images.list_device_images(device.name):
                     st.session_state["img_pending_rename"] = (old, new_name)
                     return
-                _images.rename_device_image(device.name, old, new_name)
-                add_log(f"Renamed image '{old}' to '{new_name}' for '{device.name}'")
-                deferred_toast(
-                    _("Image renamed from '{o}' to {n}").format(o=old, n=new_name),
-                    ":material/task_alt:",
-                )
+                try:
+                    _images.rename_device_image(device.name, old, new_name)
+                    add_log(f"Renamed image '{old}' to '{new_name}' for '{device.name}'")
+                    deferred_toast(
+                        _("Image renamed from '{o}' to {n}").format(o=old, n=new_name),
+                        ":material/task_alt:",
+                    )
+                except OSError as _err:
+                    add_log(f"Error renaming image '{old}' for '{device.name}': {_err}")
+                    deferred_toast(
+                        _("Error renaming image '{o}'").format(o=old), ":material/error:"
+                    )
 
         with st.form(key=f"img_rename_form_{img_name}", border=False):
             col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
@@ -94,12 +100,16 @@ def _render_image_card(img_name, device, add_log, config):
         )
 
         def _do_rename_img() -> None:
-            _images.rename_device_image(device.name, _old_r, _new_r)
-            add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{device.name}'")
-            deferred_toast(
-                _("Image renamed from '{o}' to {n}").format(o=_old_r, n=_new_r),
-                ":material/task_alt:",
-            )
+            try:
+                _images.rename_device_image(device.name, _old_r, _new_r)
+                add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{device.name}'")
+                deferred_toast(
+                    _("Image renamed from '{o}' to {n}").format(o=_old_r, n=_new_r),
+                    ":material/task_alt:",
+                )
+            except OSError as _err:
+                add_log(f"Error renaming image '{_old_r}' for '{device.name}': {_err}")
+                deferred_toast(_("Error renaming image '{o}'").format(o=_old_r), ":material/error:")
 
         handle_rename_confirmation(
             "confirm_rename_img", "img_pending_rename", "img_renaming", _do_rename_img
@@ -114,9 +124,17 @@ def _render_image_card(img_name, device, add_log, config):
         )
         result = st.session_state.get("confirm_del_img")
         if result is True:
-            _images.delete_device_image(device.name, img_name)
-            add_log(f"Deleted {img_name} from '{device.name}'")
-            deferred_toast(_("{img_name} deleted").format(img_name=img_name), ":material/delete:")
+            try:
+                _images.delete_device_image(device.name, img_name)
+                add_log(f"Deleted {img_name} from '{device.name}'")
+                deferred_toast(
+                    _("{img_name} deleted").format(img_name=img_name), ":material/delete:"
+                )
+            except OSError as e:
+                add_log(f"Error deleting {img_name} from '{device.name}': {e}")
+                deferred_toast(
+                    _("Error deleting {img_name}").format(img_name=img_name), ":material/error:"
+                )
             st.session_state.pop("confirm_del_img", None)
             st.session_state["img_pending_delete"] = None
             st.rerun()

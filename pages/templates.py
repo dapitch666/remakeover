@@ -110,6 +110,7 @@ def _render_sync_name_line(
     device: Device | None = None,
     is_device_only: bool = False,
     row_key: str = "",
+    add_log,
 ) -> None:
     if not uuids:
         st.caption(f"{label}: {empty_message}")
@@ -187,6 +188,9 @@ def _render_sync_name_line(
                 _load_template_into_editor(device.name, pending_uuid)
                 _set_selected_template_uuid(pending_uuid)
             else:
+                add_log(
+                    f"Error recovering template '{template_name}' from '{device.name}': {import_msg}"
+                )
                 deferred_toast(
                     _("Import failed: {msg}").format(msg=import_msg),
                     ":material/error:",
@@ -413,10 +417,16 @@ def _show_delete_dialog(template_uuid: str, device: Device, add_log) -> None:
             type="primary",
             width="stretch",
         ):
-            delete_device_template(device.name, template_uuid)
-            remove_template_entry(device.name, template_uuid)
-            add_log(f"Template '{ui_name}' deleted locally from '{device.name}'")
-            deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
+            try:
+                delete_device_template(device.name, template_uuid)
+                remove_template_entry(device.name, template_uuid)
+                add_log(f"Template '{ui_name}' deleted locally from '{device.name}'")
+                deferred_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
+            except OSError as e:
+                add_log(f"Error deleting template '{ui_name}' from '{device.name}': {e}")
+                deferred_toast(
+                    _("Error deleting '{name}'").format(name=ui_name), ":material/error:"
+                )
             _get_template_icon_svg.clear()
             _set_selected_template_uuid(None)
             _set_loaded_template_uuid(None)
@@ -561,6 +571,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                 else:
                     add_log(f"Error initializing templates for '{device.name}' : {_msg}")
                     st.session_state["_tpl_sync_init_error"] = _msg
+                    deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
 
             st.button(
                 _("Initialize from device"),
@@ -585,9 +596,9 @@ def _render_left_panel(device: Device, add_log) -> None:
                     if isinstance(payload, dict):
                         payload["last_remote_check_at"] = payload.get("checked_at")
                     st.session_state[_sync_status_key(device.name)] = payload
-                    st.toast(_(":green[Sync status checked]"), icon=":material/task_alt:")
+                    deferred_toast(_("Sync status checked"), ":material/task_alt:")
                 else:
-                    st.toast(_(":red[Sync check error]"), icon=":material/error:")
+                    deferred_toast(_("Sync check error"), ":material/error:")
 
             st.button(
                 _("Check sync"),
@@ -650,7 +661,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                         _set_selected_template_uuid(None)
                         _set_loaded_template_uuid(None)
                 else:
-                    deferred_toast(_("Sync error"), ":material/error:")
+                    deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
 
             st.button(
                 _("Reset & reinitialize"),
@@ -691,6 +702,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                     device=device,
                     is_device_only=False,
                     row_key="added",
+                    add_log=add_log,
                 )
                 _render_sync_name_line(
                     _("Modified locally (upload)"),
@@ -700,6 +712,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                     device=device,
                     is_device_only=False,
                     row_key="modified",
+                    add_log=add_log,
                 )
                 _render_sync_name_line(
                     _("Remote-only (delete on sync)"),
@@ -709,6 +722,7 @@ def _render_left_panel(device: Device, add_log) -> None:
                     device=device,
                     is_device_only=True,
                     row_key="remote_only",
+                    add_log=add_log,
                 )
 
     st.divider()
@@ -972,6 +986,9 @@ def _render_editor_panel(device: Device, add_log) -> None:
                     st.session_state["tpl_meta_icon_data"] = _new_b64
                     st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
                     st.session_state["_icon_b64_prev"] = _new_b64
+                    add_log(
+                        f"Icon '{_svg_upload.name}' uploaded for template editor (device: '{device.name}')"
+                    )
                     st.rerun()
         with _ico2:
             st.html(
@@ -1100,6 +1117,10 @@ def _render_editor_panel(device: Device, add_log) -> None:
             if enabled
             else "template.template"
         )
+
+        def _on_tpl_export():
+            add_log(f"Exported template '{_dl_name}' for '{device.name}'")
+
         st.download_button(
             _("Export"),
             data=_full_json_str.encode("utf-8"),
@@ -1109,6 +1130,7 @@ def _render_editor_panel(device: Device, add_log) -> None:
             disabled=not enabled,
             width="stretch",
             help=_("Download the .template file to your computer"),
+            on_click=_on_tpl_export,
         )
 
     with col_duplicate:

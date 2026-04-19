@@ -6,6 +6,7 @@ SSH connectivity result display.
 
 import json
 import os
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
@@ -51,8 +52,8 @@ def test_pending_selected_device_is_applied_to_sidebar(tmp_path):
     assert "pending_selected_device" not in at.session_state
 
 
-def test_ssh_test_success_shows_sidebar_success(tmp_path):
-    """Clicking the SSH test button stores a success result shown in the sidebar."""
+def test_ssh_test_success_colors_button_green(tmp_path):
+    """Clicking the SSH test button on success: result stored, no success widget, button stays secondary."""
     cfg_path = with_device(tmp_path)
     with (
         patch.dict(os.environ, make_env(tmp_path, cfg_path)),
@@ -69,11 +70,12 @@ def test_ssh_test_success_shows_sidebar_success(tmp_path):
     assert result["ok"] is True
     assert result["device"] == "D1"
     assert result["error"] == ""
-    assert any("SSH connection OK" in s.body for s in at.success)
+    assert "tested_at" in result
+    assert not at.success
 
 
-def test_ssh_test_failure_shows_sidebar_error(tmp_path):
-    """Clicking the SSH test button stores a failure result shown in the sidebar."""
+def test_ssh_test_failure_colors_button_red(tmp_path):
+    """Clicking the SSH test button on failure: result stored, no error widget, button becomes primary."""
     cfg_path = with_device(tmp_path)
     with (
         patch.dict(os.environ, make_env(tmp_path, cfg_path)),
@@ -87,7 +89,29 @@ def test_ssh_test_failure_shows_sidebar_error(tmp_path):
 
     assert not at.exception
     assert at.session_state["_ssh_test_result"]["ok"] is False
-    assert any("Connection refused" in e.body for e in at.error)
+    assert not at.error
+
+
+def test_ssh_stale_result_shows_neutral_button(tmp_path):
+    """A successful SSH result older than 5 minutes renders a neutral (non-green) button."""
+    cfg_path = with_device(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.session_state["_ssh_test_result"] = {
+            "ok": True,
+            "error": "",
+            "device": "D1",
+            "device_type": "",
+            "firmware_version": "",
+            "sleep_screen_enabled": False,
+            "tested_at": datetime.now() - timedelta(minutes=10),
+        }
+        at.run()
+
+    assert not at.exception
+    btn = at.button(key="sidebar_test_ssh")
+    assert "last checked" in btn.help.lower()
 
 
 def test_ssh_result_cleared_on_device_change(tmp_path):

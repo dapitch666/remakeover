@@ -14,6 +14,7 @@ _DEFERRED_TOAST_KEY = "_deferred_toast"
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
 _ICON_COLOR = {
     ":material/task_alt:": "green",
+    ":material/delete:": "green",
     ":material/error:": "red",
 }
 
