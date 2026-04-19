@@ -1285,3 +1285,127 @@ class TestImportDialog:
         at = _at_templates(tmp_path, cfg_path)
         assert not at.exception
         assert any(b.label == "Import" for b in at.button)
+
+    def test_import_dialog_has_multi_file_uploader(self, tmp_path):
+        """Clicking Import opens a dialog with a multi-file .template uploader."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            next(b for b in at.button if b.label == "Import").click().run()
+        assert not at.exception
+        fu = next((f for f in at.file_uploader if ".template" in (f.allowed_type or [])), None)
+        assert fu is not None
+        assert fu.accept_multiple_files is True
+
+    def test_import_dialog_save_disabled_before_upload(self, tmp_path):
+        """Save button in the import dialog is disabled before any file is uploaded."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            next(b for b in at.button if b.label == "Import").click().run()
+        assert not at.exception
+        save = next((b for b in at.button if b.key and b.key.startswith("ui_tpl_save_")), None)
+        assert save is not None
+        assert save.disabled
+
+
+# ---------------------------------------------------------------------------
+# TestReplaceFileDialog — replace-file uploader (existing template)
+# ---------------------------------------------------------------------------
+
+
+class TestReplaceFileDialog:
+    def test_replace_file_dialog_has_single_file_uploader(self, tmp_path):
+        """Clicking 'Replace file' opens a dialog with a single .template file uploader."""
+        cfg_path = with_device(tmp_path, "D1")
+        template_uuid = _make_template(tmp_path, "D1", "replace_me.template")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_editor_textarea"] = _FULL_JSON
+            at.switch_page("pages/templates.py").run()
+            next(b for b in at.button if b.label == "Replace file").click().run()
+        assert not at.exception
+        fu = next(
+            (f for f in at.file_uploader if f.key and f.key.startswith("tpl_reload_file_")), None
+        )
+        assert fu is not None
+        assert fu.accept_multiple_files is False
+
+    def test_replace_file_dialog_save_disabled_before_upload(self, tmp_path):
+        """Save button in the replace-file dialog is disabled before any file is uploaded."""
+        cfg_path = with_device(tmp_path, "D1")
+        template_uuid = _make_template(tmp_path, "D1", "replace_me.template")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_editor_textarea"] = _FULL_JSON
+            at.switch_page("pages/templates.py").run()
+            next(b for b in at.button if b.label == "Replace file").click().run()
+        assert not at.exception
+        save = next((b for b in at.button if b.key and b.key.startswith("tpl_reload_save_")), None)
+        assert save is not None
+        assert save.disabled
+
+
+# ---------------------------------------------------------------------------
+# TestSvgUploader — SVG file upload in the Advanced / Icon expander
+# ---------------------------------------------------------------------------
+
+
+class TestSvgUploader:
+    def test_svg_upload_valid_updates_icon_data(self, tmp_path):
+        """Uploading a valid 150×200 SVG file updates tpl_meta_icon_data in session state.
+
+        st.rerun() is patched to a no-op because the upload handler calls it immediately
+        to reset the uploader widget — without the patch AppTest would loop until timeout.
+        """
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env), patch("streamlit.rerun"):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.switch_page("pages/templates.py").run()
+            fu = next((f for f in at.file_uploader if f.key == "tpl_meta_icon_upload"), None)
+            assert fu is not None
+            fu.set_value(("icon.svg", _SVG_150x200.encode(), "image/svg+xml")).run()
+        assert not at.exception
+        stored = at.session_state["tpl_meta_icon_data"]
+        decoded = base64.b64decode(stored).decode("utf-8")
+        assert 'width="150"' in decoded
+        assert 'height="200"' in decoded
+
+    def test_svg_upload_wrong_size_shows_error(self, tmp_path):
+        """Uploading an SVG with wrong dimensions shows an error and leaves icon_data unchanged."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.switch_page("pages/templates.py").run()
+            original_b64 = at.session_state["tpl_meta_icon_data"]
+            fu = next(f for f in at.file_uploader if f.key == "tpl_meta_icon_upload")
+            fu.set_value(("bad.svg", _SVG_WRONG_SIZE.encode(), "image/svg+xml")).run()
+        assert not at.exception
+        assert any(at.error)
+        assert at.session_state["tpl_meta_icon_data"] == original_b64

@@ -8,7 +8,6 @@ Covers: empty warning, image grid, rename mode, delete flow, import from device,
 import json
 import os
 from contextlib import ExitStack
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
@@ -575,29 +574,38 @@ class TestRollbackPaths:
 
 
 class TestUploadConfirmation:
-    @staticmethod
-    def _fake_uploaded_file(name: str = "upload.png"):
-        """Minimal stand-in for a Streamlit UploadedFile (truthy, has .name).
+    def test_upload_saves_image_locally(self, tmp_path):
+        """Uploading a file via the native file_uploader saves it locally.
 
-        MagicMock.name is a property on NonCallableMock, so it cannot be shadowed
-        by a simple attribute assignment. SimpleNamespace avoids that entirely.
+        Uses AppTest.file_uploader.set_value() (available since Streamlit 1.56)
+        to inject real bytes — no streamlit.file_uploader patch needed.
         """
-        return SimpleNamespace(name=name)
+        cfg_path = with_device(tmp_path, "D1", sleep_screen_enabled=True)
+        env = make_env(tmp_path, cfg_path)
+        saved: list = []
+        with (
+            patch.dict(os.environ, env),
+            patch("src.images.list_device_images", return_value=[]),
+            patch("src.images.process_image", return_value=PNG_BYTES),
+            patch(
+                "src.images.save_device_image",
+                side_effect=lambda _n, _d, f: saved.append(f),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/images.py").run()
+            at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
+        assert not at.exception
+        assert "upload.png" in saved
 
     def test_upload_confirm_true_sends_image(self, tmp_path):
-        """When img_send_confirm is True, send_suspended_png is called with the saved data.
-
-        file_uploader is patched to return a truthy fake so _render_upload_section's
-        early-return guard is bypassed. process_image is mocked so Pillow never touches
-        the fake object. The auto-save block then sets img_send_data_D1, and the
-        pre-set img_send_confirm_D1=True triggers the send branch.
-        """
+        """Uploading a file and confirming send calls send_suspended_png."""
         cfg_path = with_device(tmp_path, "D1", sleep_screen_enabled=True)
         env = make_env(tmp_path, cfg_path)
         sent: list = []
         with (
             patch.dict(os.environ, env),
-            patch("streamlit.file_uploader", return_value=self._fake_uploaded_file()),
             patch("src.images.list_device_images", return_value=[]),
             patch("src.images.process_image", return_value=PNG_BYTES),
             patch("src.images.save_device_image"),
@@ -608,19 +616,20 @@ class TestUploadConfirmation:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["img_send_confirm_D1"] = True
             at.switch_page("pages/images.py").run()
+            at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
+            at.session_state["img_send_confirm_D1"] = True
+            at.run()
         assert not at.exception
         assert "upload.png" in sent
 
     def test_upload_confirm_false_clears_state_without_sending(self, tmp_path):
-        """When img_send_confirm is False, send is skipped and confirmation state is cleared."""
+        """Declining the send dialog clears confirmation state without sending."""
         cfg_path = with_device(tmp_path, "D1", sleep_screen_enabled=True)
         env = make_env(tmp_path, cfg_path)
         sent: list = []
         with (
             patch.dict(os.environ, env),
-            patch("streamlit.file_uploader", return_value=self._fake_uploaded_file()),
             patch("src.images.list_device_images", return_value=[]),
             patch("src.images.process_image", return_value=PNG_BYTES),
             patch("src.images.save_device_image"),
@@ -631,8 +640,10 @@ class TestUploadConfirmation:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["img_send_confirm_D1"] = False
             at.switch_page("pages/images.py").run()
+            at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
+            at.session_state["img_send_confirm_D1"] = False
+            at.run()
         assert not at.exception
         assert not sent
         assert "img_send_confirm_D1" not in at.session_state
