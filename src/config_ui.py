@@ -225,17 +225,29 @@ def render_config_panel(config: dict, selected_name: str | None, add_log) -> Non
         )
         if st.session_state.get(f"del_device_{device_name}") is True:
             device_data_dir = get_device_data_dir_path(device_name)
+            _data_dir_error = None
             if os.path.exists(device_data_dir):
                 try:
                     shutil.rmtree(device_data_dir)
                     add_log(f"Device data directory removed for '{device_name}'")
                 except OSError as e:
+                    _data_dir_error = str(e)
                     add_log(f"Could not fully remove data dir for '{device_name}': {e}")
             if device_name in config.get("devices", {}):
                 del config["devices"][device_name]
                 save_config(config)
             add_log(f"Configuration deleted for '{device_name}'")
-            deferred_toast(_("'{name}' deleted").format(name=device_name), ":material/task_alt:")
+            if _data_dir_error:
+                deferred_toast(
+                    _("'{name}' deleted, but local data could not be fully removed").format(
+                        name=device_name, err=_data_dir_error
+                    ),
+                    ":material/error:",
+                )
+            else:
+                deferred_toast(
+                    _("'{name}' deleted").format(name=device_name), ":material/task_alt:"
+                )
             del st.session_state["pending_delete_device"]
             del st.session_state[f"del_device_{device_name}"]
             st.session_state["config_panel_open"] = False

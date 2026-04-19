@@ -2,7 +2,7 @@ import html as _pyhtml
 import json
 import os
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import streamlit as st
 
@@ -19,6 +19,7 @@ from src.ui_common import deferred_toast
 _LANG_FLAGS = {"en": ("🇬🇧", "English"), "fr": ("🇫🇷", "Français")}
 
 _NEW_DEVICE = "__new_device__"
+_SSH_RESULT_STALE_AFTER = timedelta(minutes=5)
 
 _CONFIG_INPUT_KEYS = (
     "config_device_name",
@@ -207,6 +208,10 @@ def _apply_detected_metadata(
         save_config(config)
     except OSError as exc:
         add_log(f"Detected metadata change for '{selected_name}' but failed to persist: {exc}")
+        deferred_toast(
+            _("Could not save detected metadata for '{name}'").format(name=selected_name),
+            ":material/error:",
+        )
         return
 
     details: list[str] = []
@@ -310,6 +315,11 @@ def _device_selector(config: dict) -> str | None:
                     else "secondary",
                     on_click=_toggle_config_panel,
                 )
+            _ssh_result = st.session_state.get("_ssh_test_result")
+            if _ssh_result and _ssh_result.get("device") != selected_name:
+                del st.session_state["_ssh_test_result"]
+                _ssh_result = None
+
             with col_btn_ssh:
                 if selected_name:
                     _device = _Device.from_dict(selected_name, devices[selected_name])
@@ -318,7 +328,11 @@ def _device_selector(config: dict) -> str | None:
                         from src.ssh import run_detection
 
                         result = run_detection(_device)
-                        st.session_state["_ssh_test_result"] = {**result, "device": selected_name}
+                        st.session_state["_ssh_test_result"] = {
+                            **result,
+                            "device": selected_name,
+                            "tested_at": datetime.now(),
+                        }
                         if result["ok"]:
                             _apply_detected_metadata(
                                 selected_name, devices, config, result, _add_log
@@ -329,25 +343,52 @@ def _device_selector(config: dict) -> str | None:
                                 f"SSH connection failed to '{selected_name}': {result['error']}"
                             )
 
+                    _is_stale = (
+                        _ssh_result is not None
+                        and _ssh_result.get("ok")
+                        and datetime.now() - _ssh_result.get("tested_at", datetime.min)
+                        > _SSH_RESULT_STALE_AFTER
+                    )
+                    if _ssh_result and _ssh_result["ok"] and not _is_stale:
+                        _status = "green"
+                        _btn_help = _("SSH connection OK")
+                        st.html(
+                            "<style>"
+                            "   .st-key-sidebar_test_ssh button {"
+                            "       background-color: rgb(37, 215, 93);"
+                            "       border-color: rgb(37, 215, 93);"
+                            "       color: white;"
+                            "   }"
+                            "   .st-key-sidebar_test_ssh button:hover, .st-key-sidebar_test_ssh button:focus-visible {"
+                            "       background-color: rgb(33, 195, 84);"
+                            "       border-color: rgb(33, 195, 84);"
+                            "   }"
+                            "</style>"
+                        )
+                    elif _is_stale:
+                        _status = "stale"
+                        _elapsed = int(
+                            (datetime.now() - _ssh_result["tested_at"]).total_seconds() / 60
+                        )
+                        _btn_help = _(
+                            "Connection status unknown (last checked {n} min ago)"
+                        ).format(n=_elapsed)
+                    elif _ssh_result and not _ssh_result["ok"]:
+                        _status = "red"
+                        _btn_help = _("SSH connection failed: {err}").format(
+                            err=_ssh_result["error"]
+                        )
+                    else:
+                        _status = "stale"
+                        _btn_help = _("Test SSH connection")
+
                     st.button(
                         ":material/wifi:",
                         key="sidebar_test_ssh",
                         width="stretch",
-                        help=_("Test SSH connection"),
+                        help=_btn_help,
                         on_click=_on_ssh_test,
-                    )
-
-            _ssh_result = st.session_state.get("_ssh_test_result")
-            if _ssh_result and _ssh_result.get("device") != selected_name:
-                del st.session_state["_ssh_test_result"]
-                _ssh_result = None
-            if _ssh_result:
-                if _ssh_result["ok"]:
-                    st.success(_("SSH connection OK"), icon=":material/task_alt:")
-                else:
-                    st.error(
-                        _("SSH connection failed: {err}").format(err=_ssh_result["error"]),
-                        icon=":material/error:",
+                        type="primary" if _status == "red" else "secondary",
                     )
 
             if st.session_state.get("config_panel_open", False):
