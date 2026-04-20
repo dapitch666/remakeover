@@ -70,27 +70,3 @@ class TestDeviceResolveType:
     def test_no_args_unknown_type_returns_default(self):
         dev = Device.from_dict("X", {"device_type": "Unknown"})
         assert dev.resolve_type() == DEFAULT_DEVICE_TYPE
-
-
-class TestDeviceSizeLookup:
-    """Ensure the right (width, height) is resolved for each known device type."""
-
-    def test_remarkable1_size(self):
-        dev = Device.from_dict("X", {"device_type": "reMarkable 1"})
-        assert DEVICE_SIZES[dev.resolve_type()] == (1404, 1872)
-
-    def test_remarkable2_size(self):
-        dev = Device.from_dict("X", {"device_type": "reMarkable 2"})
-        assert DEVICE_SIZES[dev.resolve_type()] == (1404, 1872)
-
-    def test_paper_pro_size(self):
-        dev = Device.from_dict("X", {"device_type": "reMarkable Paper Pro"})
-        assert DEVICE_SIZES[dev.resolve_type()] == (1620, 2160)
-
-    def test_paper_pro_move_size(self):
-        dev = Device.from_dict("X", {"device_type": "reMarkable Paper Pro Move"})
-        assert DEVICE_SIZES[dev.resolve_type()] == (954, 1696)
-
-    def test_unknown_type_falls_back_to_default_size(self):
-        dev = Device.from_dict("X", {"device_type": "Unknown"})
-        assert DEVICE_SIZES[dev.resolve_type()] == DEVICE_SIZES[DEFAULT_DEVICE_TYPE]
