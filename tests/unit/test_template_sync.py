@@ -424,6 +424,50 @@ def test_sync_thumbnail_cleanup_stderr_is_best_effort(tmp_path):
     assert any("permission denied" in msg for msg in logs)
 
 
+def test_sync_does_not_restart_xochitl_when_nothing_changed(tmp_path):
+    """When local and remote are already in sync, xochitl must NOT be restarted."""
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "already_synced.template"
+    save_json_template(
+        "D1", filename, json.dumps({"name": "Already Synced", "categories": ["Perso"]})
+    )
+    add_template_entry("D1", filename)
+
+    local_manifest = load_manifest("D1")
+    # Build a remote manifest that is identical to the local one
+    fake = _FakeSession(remote_manifest_bytes=json.dumps(local_manifest).encode())
+
+    with _patch_session(fake):
+        ok = sync_templates_to_device("D1", _device(), add_log)
+
+    assert ok is True
+    restart_calls = [cmds for cmds in fake.run_calls if any("restart xochitl" in c for c in cmds)]
+    assert not restart_calls, "xochitl should not be restarted when nothing changed"
+    assert any("xochitl_restarted=False" in msg for msg in logs)
+
+
+def test_sync_restarts_xochitl_when_templates_uploaded(tmp_path):
+    """When templates are uploaded to the device, xochitl must be restarted."""
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "new_one.template"
+    save_json_template("D1", filename, json.dumps({"name": "New One", "categories": ["Perso"]}))
+    add_template_entry("D1", filename)
+
+    fake = _FakeSession(remote_manifest_bytes=None)  # missing → upload needed
+
+    with _patch_session(fake):
+        ok = sync_templates_to_device("D1", _device(), add_log)
+
+    assert ok is True
+    restart_calls = [cmds for cmds in fake.run_calls if any("restart xochitl" in c for c in cmds)]
+    assert restart_calls, "xochitl should be restarted when templates were uploaded"
+    assert any("xochitl_restarted=True" in msg for msg in logs)
+
+
 def test_sync_ssh_connection_error_returns_false_and_logs(tmp_path):
     """OSError from ssh_session (e.g. unreachable host) must not bubble up."""
     _set_data_dir(tmp_path)

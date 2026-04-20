@@ -381,7 +381,6 @@ def sync_templates_to_device(
     selected_name: str,
     device,
     add_log,
-    restart_xochitl: bool = True,
 ) -> bool:
     """Synchronize local templates to device using manifest comparison."""
     local_manifest = load_manifest(selected_name)
@@ -448,7 +447,8 @@ def sync_templates_to_device(
                 add_log(f"Sync templates — upload remote manifest failed: {manifest_upload_msg}")
                 return False
 
-            if restart_xochitl:
+            device_changed = uploaded > 0 or deleted > 0
+            if device_changed:
                 _, err = s.run([CMD_RESTART_XOCHITL])
                 if err.strip():
                     add_log(f"Sync templates — restart xochitl: {err.strip()}")
@@ -461,6 +461,6 @@ def sync_templates_to_device(
     add_log(
         f"Templates synced on '{selected_name}' "
         f"(uploaded={uploaded}, deleted_remote={deleted}, unchanged={diff['in_sync_count']}, "
-        f"remote_manifest={remote_state})"
+        f"remote_manifest={remote_state}, xochitl_restarted={device_changed})"
     )
     return True

@@ -12,11 +12,6 @@ from src.i18n import _, get_language
 
 _DEFERRED_TOAST_KEY = "_deferred_toast"
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
-_ICON_COLOR = {
-    ":material/task_alt:": "green",
-    ":material/delete:": "green",
-    ":material/error:": "red",
-}
 
 
 def deferred_toast(msg: str, icon: str | None = None) -> None:
@@ -29,9 +24,7 @@ def show_deferred_toast() -> None:
     toast = st.session_state.pop(_DEFERRED_TOAST_KEY, None)
     if toast:
         msg, icon = toast["msg"], toast["icon"]
-        color = _ICON_COLOR.get(icon)
-        if color:
-            msg = f":{color}[{msg}]"
+        msg = f":red[{msg}]" if icon and icon == ":material/error:" else f":green[{msg}]"
         st.toast(msg, icon=icon)
 
 

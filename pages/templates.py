@@ -1,4 +1,4 @@
-"""Unified template library and editor page."""
+"""Template library and editor page."""
 
 import json
 import os
@@ -15,7 +15,7 @@ from src.constants import (
 )
 
 # noinspection PyProtectedMember
-from src.i18n import _
+from src.i18n import _, _n
 from src.manifest_templates import get_device_manifest_path, load_manifest
 from src.models import Device
 from src.template_renderer import render_template_json_str, svg_as_img_tag
@@ -57,8 +57,8 @@ from src.ui_common import (
 )
 
 _SENTINEL_NEW = "__new__"
-_SESSION_SELECTED_UUID_KEY = "tpl_unified_selected_uuid"
-_SESSION_LOADED_UUID_KEY = "tpl_unified_loaded_uuid"
+_SESSION_SELECTED_UUID_KEY = "tpl_selected_uuid"
+_SESSION_LOADED_UUID_KEY = "tpl_loaded_uuid"
 
 
 def _sync_status_key(selected_device: str) -> str:
@@ -676,16 +676,30 @@ def _render_left_panel(device: Device, add_log) -> None:
 
             check_result = _get_realtime_sync_status(device)
             if isinstance(check_result, dict):
+                _local_count = check_result.get("local_count", 0)
+                _remote_count = check_result.get("remote_count", 0)
+                _to_upload_count = len(check_result.get("to_upload", []))
+                _to_delete_count = len(check_result.get("to_delete_remote", []))
                 st.info(
-                    _("""Local templates: {local_count}  
-                         Remote templates: {remote_count}  
-                         To upload: {to_upload_count}  
-                         To delete on device: {to_delete_count}
-                         """).format(
-                        local_count=check_result.get("local_count", 0),
-                        remote_count=check_result.get("remote_count", 0),
-                        to_upload_count=len(check_result.get("to_upload", [])),
-                        to_delete_count=len(check_result.get("to_delete_remote", [])),
+                    "  \n".join(
+                        [
+                            _n("{n} local template", "{n} local templates", _local_count).format(
+                                n=_local_count
+                            ),
+                            _n("{n} remote template", "{n} remote templates", _remote_count).format(
+                                n=_remote_count
+                            ),
+                            _n(
+                                "{n} template to upload",
+                                "{n} templates to upload",
+                                _to_upload_count,
+                            ).format(n=_to_upload_count),
+                            _n(
+                                "{n} template to delete on device",
+                                "{n} templates to delete on device",
+                                _to_delete_count,
+                            ).format(n=_to_delete_count),
+                        ]
                     )
                 )
                 last_remote_check = check_result.get("last_remote_check_at")
@@ -790,7 +804,8 @@ def _render_left_panel(device: Device, add_log) -> None:
         st.caption(_("No templates match the filter."))
         return
 
-    st.caption(_("{n} template(s)").format(n=len(filtered)))
+    _n_filtered = len(filtered)
+    st.caption(_n("{n} template", "{n} templates", _n_filtered).format(n=_n_filtered))
 
     for entry in filtered:
         template_uuid = str(entry.get("uuid") or "")
@@ -799,7 +814,7 @@ def _render_left_panel(device: Device, add_log) -> None:
         icon_svg = _get_template_icon_svg(device.name, template_uuid)
 
         with st.container():
-            icon_col, name_col = st.columns([1, 3], gap="xxsmall", vertical_alignment="center")
+            icon_col, name_col = st.columns([1, 3], gap="xxsmall")
             with icon_col:
                 if icon_svg:
                     st.html(svg_as_img_tag(icon_svg, max_width=30, max_height=40))
@@ -832,10 +847,21 @@ def _render_editor_panel(device: Device, add_log) -> None:
     selected = _selected_template_uuid()
 
     if selected is None:
-        st.info(
-            _("Select a template from the list, or click 'New' to create one."),
-            icon=":material/arrow_left_alt:",
-        )
+        if not list_template_entries(device.name):
+            st.info(
+                _(
+                    "No templates yet. Click **:material/add: New** to create one, or **:material/upload_file: Import** to add "
+                    "from your computer."
+                ),
+                icon=":material/arrow_left_alt:",
+            )
+        else:
+            st.info(
+                _(
+                    "Select a template from the list, or click **:material/add: New** to create one."
+                ),
+                icon=":material/arrow_left_alt:",
+            )
         return
 
     is_new = selected == _SENTINEL_NEW
@@ -967,10 +993,11 @@ def _render_editor_panel(device: Device, add_log) -> None:
                     'border:1px dashed #aaa;display:inline-block;margin-bottom:4px;"></div>'
                 )
 
+            _icon_upload_gen = st.session_state.get("tpl_icon_upload_gen", 0)
             _svg_upload = st.file_uploader(
                 _("Upload SVG file"),
                 type=["svg"],
-                key="tpl_meta_icon_upload",
+                key=f"tpl_meta_icon_upload_{_icon_upload_gen}",
             )
             if _svg_upload is not None:
                 _upl_svg = _svg_upload.read().decode("utf-8")
@@ -986,6 +1013,7 @@ def _render_editor_panel(device: Device, add_log) -> None:
                     st.session_state["tpl_meta_icon_data"] = _new_b64
                     st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
                     st.session_state["_icon_b64_prev"] = _new_b64
+                    st.session_state["tpl_icon_upload_gen"] = _icon_upload_gen + 1
                     add_log(
                         f"Icon '{_svg_upload.name}' uploaded for template editor (device: '{device.name}')"
                     )
@@ -1196,8 +1224,8 @@ assert isinstance(selected_name, str)
 current_device = Device.from_dict(selected_name, DEVICES[selected_name])
 
 # Reset selection when device changes
-if st.session_state.get("tpl_unified_device") != current_device.name:
-    st.session_state["tpl_unified_device"] = current_device.name
+if st.session_state.get("tpl_device") != current_device.name:
+    st.session_state["tpl_device"] = current_device.name
     _set_selected_template_uuid(None)
     _set_loaded_template_uuid(None)
 
