@@ -14,7 +14,7 @@ if ! command -v "$PYBABEL" &>/dev/null; then
 fi
 
 echo "Extracting messages..."
-"$PYBABEL" extract -F "$ROOT_DIR/pyproject.toml" -o "$POT_FILE" "$ROOT_DIR"
+"$PYBABEL" extract -F "$ROOT_DIR/pyproject.toml" -k "_n:1,2" -o "$POT_FILE" "$ROOT_DIR"
 
 echo "Updating .po files..."
 "$PYBABEL" update -i "$POT_FILE" -d "$LOCALES_DIR" -D "$DOMAIN"

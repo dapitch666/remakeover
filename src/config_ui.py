@@ -240,7 +240,7 @@ def render_config_panel(config: dict, selected_name: str | None, add_log) -> Non
             if _data_dir_error:
                 deferred_toast(
                     _("'{name}' deleted, but local data could not be fully removed").format(
-                        name=device_name, err=_data_dir_error
+                        name=device_name
                     ),
                     ":material/error:",
                 )

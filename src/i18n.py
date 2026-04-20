@@ -48,3 +48,8 @@ def get_language() -> str:
 def _(text: str) -> str:
     """Translate *text* to the current session language."""
     return _get_catalog(get_language()).gettext(text)
+
+
+def _n(singular: str, plural: str, n: int) -> str:
+    """Translate with plural form based on *n*."""
+    return _get_catalog(get_language()).ngettext(singular, plural, n)

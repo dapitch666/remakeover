@@ -435,9 +435,9 @@ def main():
 
     # ── Navigation ────────────────────────────────────────────────────────
     pages = [
-        st.Page("pages/images.py", title="Images", icon=":material/image:"),
-        st.Page("pages/templates.py", title="Templates", icon=":material/description:"),
-        st.Page("pages/logs.py", title="Logs", icon=":material/list:"),
+        st.Page("pages/images.py", title=_("Sleep Screen"), icon=":material/image:"),
+        st.Page("pages/templates.py", title=_("Templates"), icon=":material/description:"),
+        st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"),
     ]
 
     pg = st.navigation(pages)

@@ -1,4 +1,4 @@
-"""Tests for pages/templates.py — unified template library + editor.
+"""Tests for pages/templates.py — template library + editor.
 
 Structure:
   TestTemplatesPageInit       – manifest init, empty-config warning
@@ -98,8 +98,8 @@ def _at_templates(
 ) -> AppTest:
     """Boot app.py and switch to templates page, applying optional session state.
 
-    If session_state sets ``tpl_unified_selected_uuid``, this helper automatically
-    pre-sets ``tpl_unified_device`` (unless already provided) so the
+    If session_state sets ``tpl_selected_uuid``, this helper automatically
+    pre-sets ``tpl_device`` (unless already provided) so the
     device-change guard inside the page does not reset the selection.
     """
     env = make_env(tmp_path, cfg_path)
@@ -107,11 +107,8 @@ def _at_templates(
         at = AppTest.from_file("app.py")
         at.run()
         if session_state:
-            if (
-                "tpl_unified_selected_uuid" in session_state
-                and "tpl_unified_device" not in session_state
-            ):
-                at.session_state["tpl_unified_device"] = device
+            if "tpl_selected_uuid" in session_state and "tpl_device" not in session_state:
+                at.session_state["tpl_device"] = device
             for k, v in session_state.items():
                 at.session_state[k] = v
         at.switch_page("pages/templates.py").run()
@@ -454,7 +451,7 @@ class TestTemplateList:
             assert any(f"t{i}" in b.label for b in at.button)
 
     def test_clicking_template_selects_it(self, tmp_path):
-        """Clicking a template list button sets tpl_unified_selected_uuid."""
+        """Clicking a template list button sets tpl_selected_uuid."""
         cfg_path = with_device(tmp_path, "D1")
         _make_template(tmp_path, "D1", "pick_me.template")
         env = make_env(tmp_path, cfg_path)
@@ -462,7 +459,7 @@ class TestTemplateList:
             at = AppTest.from_file("app.py")
             at.run()
             # Pre-set device tracking so no reset happens
-            at.session_state["tpl_unified_device"] = "D1"
+            at.session_state["tpl_device"] = "D1"
             at.switch_page("pages/templates.py").run()
             list_btn = next(
                 (b for b in at.button if b.key and b.key.startswith("tpl_list_btn_")), None
@@ -470,7 +467,7 @@ class TestTemplateList:
             assert list_btn is not None
             list_btn.click().run()
         assert not at.exception
-        assert at.session_state["tpl_unified_selected_uuid"] is not None
+        assert at.session_state["tpl_selected_uuid"] is not None
 
     def test_filter_text_input_is_present(self, tmp_path):
         """A filter text input is rendered in the left panel."""
@@ -542,7 +539,7 @@ class TestTemplateList:
         assert any("landscape" in lbl for lbl in labels)
 
     def test_selection_resets_on_device_change(self, tmp_path):
-        """When tpl_unified_device differs from the current device, selection is cleared."""
+        """When tpl_device differs from the current device, selection is cleared."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
@@ -550,11 +547,11 @@ class TestTemplateList:
             at = AppTest.from_file("app.py")
             at.run()
             # Simulate a stale device tracking value (e.g. previously D2 was selected)
-            at.session_state["tpl_unified_device"] = "STALE_DEVICE"
-            at.session_state["tpl_unified_selected_uuid"] = "11111111-1111-4111-8111-111111111111"
+            at.session_state["tpl_device"] = "STALE_DEVICE"
+            at.session_state["tpl_selected_uuid"] = "11111111-1111-4111-8111-111111111111"
             at.switch_page("pages/templates.py").run()
         assert not at.exception
-        assert at.session_state["tpl_unified_selected_uuid"] is None
+        assert at.session_state["tpl_selected_uuid"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +561,7 @@ class TestTemplateList:
 
 class TestEditorPanelEmpty:
     def test_empty_state_shown_when_no_template_selected(self, tmp_path):
-        """When tpl_unified_selected_uuid is None, editor shows a placeholder message."""
+        """When tpl_selected_uuid is None, editor shows a placeholder message."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         at = _at_templates(tmp_path, cfg_path)
@@ -582,7 +579,7 @@ class TestEditorPanelEmpty:
 
 
 # ---------------------------------------------------------------------------
-# TestEditorPanelNew — tpl_unified_selected_uuid = "__new__"
+# TestEditorPanelNew — tpl_selected_uuid = "__new__"
 # ---------------------------------------------------------------------------
 
 
@@ -606,7 +603,7 @@ class TestEditorPanelNew:
         """For a new template, the Name field defaults to empty."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         name = _name_input(at)
         assert name is not None
@@ -616,7 +613,7 @@ class TestEditorPanelNew:
         """Author field is empty on startup (defaults to rm-manager only on save)."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         author = _author_input(at)
         assert author is not None
@@ -626,7 +623,7 @@ class TestEditorPanelNew:
         """The JSON editor textarea is rendered for a new template."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert _json_area(at) is not None
 
@@ -634,7 +631,7 @@ class TestEditorPanelNew:
         """Categories and labels are rendered as multiselect widgets."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert _categories_multiselect(at) is not None
         assert _labels_multiselect(at) is not None
@@ -643,7 +640,7 @@ class TestEditorPanelNew:
         """The 'Preview' subheader is rendered in the editor panel."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert any("Preview" in s.value for s in at.subheader)
 
@@ -651,7 +648,7 @@ class TestEditorPanelNew:
         """A brand-new template shows a New caption instead of a header."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert any(c.value == "UUID: New" for c in at.caption)
 
@@ -659,7 +656,7 @@ class TestEditorPanelNew:
         """The Save button is rendered in the actions area."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert _save_btn(at) is not None
 
@@ -667,7 +664,7 @@ class TestEditorPanelNew:
         """Save button is disabled when name is empty."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         save = _save_btn(at)
         assert save is not None
@@ -681,7 +678,7 @@ class TestEditorPanelNew:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": "__new__",
+                "tpl_selected_uuid": "__new__",
                 "tpl_meta_name": "my-template",
                 "tpl_editor_textarea": _BODY_JSON,
             },
@@ -695,7 +692,7 @@ class TestEditorPanelNew:
         """Delete button is disabled for a new (unsaved) template."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         delete = _delete_btn(at)
         assert delete is not None
@@ -705,7 +702,7 @@ class TestEditorPanelNew:
         """'Replace file' button is disabled for a new template."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         replace_file = _replace_file_btn(at)
         assert replace_file is not None
@@ -719,8 +716,8 @@ class TestEditorPanelNew:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.switch_page("pages/templates.py").run()
             area = _json_area(at)
             assert area is not None
@@ -736,8 +733,8 @@ class TestEditorPanelNew:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "test"
             at.switch_page("pages/templates.py").run()
             area = _json_area(at)
@@ -752,7 +749,7 @@ class TestEditorPanelNew:
         """The icon SVG code textarea is rendered in the editor panel."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         assert _svg_area(at) is not None
 
@@ -760,7 +757,7 @@ class TestEditorPanelNew:
         """The icon SVG textarea contains decoded SVG markup, not base64."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
-        at = _at_templates(tmp_path, cfg_path, {"tpl_unified_selected_uuid": "__new__"})
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
         assert not at.exception
         area = _svg_area(at)
         assert area is not None
@@ -774,7 +771,7 @@ class TestEditorPanelNew:
         at = _at_templates(
             tmp_path,
             cfg_path,
-            {"tpl_unified_selected_uuid": "__new__", "tpl_meta_icon_data": b64},
+            {"tpl_selected_uuid": "__new__", "tpl_meta_icon_data": b64},
         )
         assert not at.exception
         assert not any("150" in w.value and "200" in w.value for w in at.warning)
@@ -788,7 +785,7 @@ class TestEditorPanelNew:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": "__new__",
+                "tpl_selected_uuid": "__new__",
                 "tpl_meta_orientation": "landscape",
                 "tpl_meta_icon_data": b64,
             },
@@ -804,7 +801,7 @@ class TestEditorPanelNew:
         at = _at_templates(
             tmp_path,
             cfg_path,
-            {"tpl_unified_selected_uuid": "__new__", "tpl_meta_icon_data": b64},
+            {"tpl_selected_uuid": "__new__", "tpl_meta_icon_data": b64},
         )
         assert not at.exception
         assert any("150" in w.value for w in at.warning)
@@ -818,7 +815,7 @@ class TestEditorPanelNew:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": "__new__",
+                "tpl_selected_uuid": "__new__",
                 "tpl_meta_orientation": "landscape",
                 "tpl_meta_icon_data": b64,
             },
@@ -834,8 +831,8 @@ class TestEditorPanelNew:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.switch_page("pages/templates.py").run()
             area = _svg_area(at)
             assert area is not None
@@ -854,8 +851,8 @@ class TestEditorPanelNew:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.switch_page("pages/templates.py").run()
             original_b64 = at.session_state["tpl_meta_icon_data"]
             area = _svg_area(at)
@@ -872,8 +869,8 @@ class TestEditorPanelNew:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_orientation"] = "landscape"
             at.switch_page("pages/templates.py").run()
             area = _svg_area(at)
@@ -893,7 +890,7 @@ class TestEditorPanelNew:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": "__new__",
+                "tpl_selected_uuid": "__new__",
                 "tpl_meta_orientation": "landscape",
             },
         )
@@ -917,7 +914,7 @@ class TestEditorPanelExisting:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": template_uuid,
+                "tpl_selected_uuid": template_uuid,
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -934,7 +931,7 @@ class TestEditorPanelExisting:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": template_uuid,
+                "tpl_selected_uuid": template_uuid,
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -949,7 +946,7 @@ class TestEditorPanelExisting:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": template_uuid,
+                "tpl_selected_uuid": template_uuid,
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -964,7 +961,7 @@ class TestEditorPanelExisting:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": template_uuid,
+                "tpl_selected_uuid": template_uuid,
                 "tpl_editor_textarea": _FULL_JSON,
             },
         )
@@ -983,8 +980,8 @@ class TestEditorPanelExisting:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_editor_textarea"] = _FULL_JSON
             at.switch_page("pages/templates.py").run()
 
@@ -993,7 +990,7 @@ class TestEditorPanelExisting:
             dup_btn.click().run()
 
         assert not at.exception
-        assert at.session_state["tpl_unified_selected_uuid"] == "__new__"
+        assert at.session_state["tpl_selected_uuid"] == "__new__"
         assert len(list(tdir.glob("*.template"))) == before_count
         name = _name_input(at)
         assert name is not None
@@ -1018,7 +1015,7 @@ class TestEditorPanelExisting:
             tmp_path,
             cfg_path,
             {
-                "tpl_unified_selected_uuid": template_uuid,
+                "tpl_selected_uuid": template_uuid,
                 "tpl_editor_textarea": tpl_content,
             },
         )
@@ -1036,8 +1033,8 @@ class TestEditorPanelExisting:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_editor_textarea"] = _FULL_JSON
             at.switch_page("pages/templates.py").run()
             del_btn = next((b for b in at.button if b.label == "Delete"), None)
@@ -1055,8 +1052,8 @@ class TestEditorPanelExisting:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_editor_textarea"] = _FULL_JSON
             at.switch_page("pages/templates.py").run()
             reload_btn = next((b for b in at.button if b.label == "Replace file"), None)
@@ -1081,8 +1078,8 @@ class TestEditorSave:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "save-test"
             at.session_state["tpl_editor_textarea"] = _BODY_JSON
             at.switch_page("pages/templates.py").run()
@@ -1102,8 +1099,8 @@ class TestEditorSave:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "author-test"
             at.session_state["tpl_meta_author"] = ""
             at.session_state["tpl_editor_textarea"] = _BODY_JSON
@@ -1129,8 +1126,8 @@ class TestEditorSave:
         ):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "multiselect-test"
             at.session_state["tpl_meta_categories"] = ["Lines", "Custom category"]
             at.session_state["tpl_meta_labels"] = ["alpha", "Custom label"]
@@ -1147,15 +1144,15 @@ class TestEditorSave:
         assert data.get("labels") == ["alpha", "Custom label"]
 
     def test_save_updates_selected_state(self, tmp_path):
-        """After saving, tpl_unified_selected_uuid stores a valid UUID."""
+        """After saving, tpl_selected_uuid stores a valid UUID."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "persist-name"
             at.session_state["tpl_editor_textarea"] = _BODY_JSON
             at.switch_page("pages/templates.py").run()
@@ -1163,7 +1160,7 @@ class TestEditorSave:
             assert save is not None
             save.click().run()
         assert not at.exception
-        selected = at.session_state["tpl_unified_selected_uuid"]
+        selected = at.session_state["tpl_selected_uuid"]
         assert isinstance(selected, str)
         uuid.UUID(selected)
 
@@ -1192,8 +1189,8 @@ class TestEditorSave:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_meta_name"] = "Blank"
             at.session_state["tpl_editor_textarea"] = _BODY_JSON
             at.switch_page("pages/templates.py").run()
@@ -1255,7 +1252,7 @@ class TestNewButtonFlow:
             assert new_btn is not None
             new_btn.click().run()
         assert not at.exception
-        assert at.session_state["tpl_unified_selected_uuid"] == "__new__"
+        assert at.session_state["tpl_selected_uuid"] == "__new__"
         assert _save_btn(at) is not None
 
     def test_new_button_sets_default_json(self, tmp_path):
@@ -1331,8 +1328,8 @@ class TestReplaceFileDialog:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_editor_textarea"] = _FULL_JSON
             at.switch_page("pages/templates.py").run()
             next(b for b in at.button if b.label == "Replace file").click().run()
@@ -1351,8 +1348,8 @@ class TestReplaceFileDialog:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = template_uuid
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
             at.session_state["tpl_editor_textarea"] = _FULL_JSON
             at.switch_page("pages/templates.py").run()
             next(b for b in at.button if b.label == "Replace file").click().run()
@@ -1369,21 +1366,24 @@ class TestReplaceFileDialog:
 
 class TestSvgUploader:
     def test_svg_upload_valid_updates_icon_data(self, tmp_path):
-        """Uploading a valid 150×200 SVG file updates tpl_meta_icon_data in session state.
-
-        st.rerun() is patched to a no-op because the upload handler calls it immediately
-        to reset the uploader widget — without the patch AppTest would loop until timeout.
-        """
+        """Uploading a valid 150×200 SVG file updates tpl_meta_icon_data in session state."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
-        with patch.dict(os.environ, env), patch("streamlit.rerun"):
+        with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.switch_page("pages/templates.py").run()
-            fu = next((f for f in at.file_uploader if f.key == "tpl_meta_icon_upload"), None)
+            fu = next(
+                (
+                    f
+                    for f in at.file_uploader
+                    if f.key and f.key.startswith("tpl_meta_icon_upload_")
+                ),
+                None,
+            )
             assert fu is not None
             fu.set_value(("icon.svg", _SVG_150x200.encode(), "image/svg+xml")).run()
         assert not at.exception
@@ -1400,11 +1400,13 @@ class TestSvgUploader:
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
             at.run()
-            at.session_state["tpl_unified_device"] = "D1"
-            at.session_state["tpl_unified_selected_uuid"] = "__new__"
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
             at.switch_page("pages/templates.py").run()
             original_b64 = at.session_state["tpl_meta_icon_data"]
-            fu = next(f for f in at.file_uploader if f.key == "tpl_meta_icon_upload")
+            fu = next(
+                f for f in at.file_uploader if f.key and f.key.startswith("tpl_meta_icon_upload_")
+            )
             fu.set_value(("bad.svg", _SVG_WRONG_SIZE.encode(), "image/svg+xml")).run()
         assert not at.exception
         assert any(at.error)
