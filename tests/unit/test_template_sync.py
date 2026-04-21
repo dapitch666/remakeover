@@ -12,6 +12,7 @@ from src.template_sync import (
     build_assumed_sync_status,
     check_sync_status,
     compute_sync_status_from_cached_remote,
+    fetch_and_init_templates,
     fetch_single_template_from_device,
     refresh_cached_sync_status,
     sync_templates_to_device,
@@ -63,7 +64,8 @@ class _FakeSession:
     """Lightweight stand-in for SshSession used in sync tests."""
 
     def __init__(self, remote_manifest_bytes=None, run_side_effect=None):
-        self.uploaded: list[str] = []  # remote paths passed to upload()
+        self.uploaded: list[str] = []  # remote paths passed to upload(), in call order
+        self.uploaded_content: dict[str, bytes] = {}  # path → bytes for content inspection
         self.run_calls: list[list[str]] = []  # command lists passed to run()
         self._remote_manifest_bytes = remote_manifest_bytes
         self._run_side_effect = run_side_effect  # callable(commands) -> (out, err)
@@ -75,8 +77,9 @@ class _FakeSession:
             return self._remote_manifest_bytes, ""
         return None, "missing"
 
-    def upload(self, _content: bytes, path: str):
+    def upload(self, content: bytes, path: str):
         self.uploaded.append(path)
+        self.uploaded_content[path] = content
         return True, "ok"
 
     def run(self, commands: list[str]):
@@ -127,6 +130,28 @@ def test_sync_uploads_template_and_manifest_when_remote_manifest_is_missing(tmp_
     assert isinstance(entry.get("uuid"), str)
     assert entry.get("sha256")
     assert any("Templates synced" in msg for msg in logs)
+
+    # --- payload content assertions ---
+    # The manifest entry's name field is the source of truth for what gets uploaded.
+    # Asserting against it (rather than a literal string) tests the invariant that
+    # the template JSON, metadata visibleName, and manifest are all consistent.
+    manifest_name = entry["name"]
+
+    # .template bytes must carry the name that the manifest records.
+    tpl_path = next(p for p in fake.uploaded if p.endswith(".template"))
+    uploaded_tpl = json.loads(fake.uploaded_content[tpl_path].decode("utf-8"))
+    assert uploaded_tpl["name"] == manifest_name
+
+    # .metadata bytes must carry the same visible name and the rmMethods type tag.
+    meta_path = next(p for p in fake.uploaded if p.endswith(".metadata"))
+    uploaded_meta = json.loads(fake.uploaded_content[meta_path].decode("utf-8"))
+    assert uploaded_meta["visibleName"] == manifest_name
+    assert uploaded_meta["type"] == "TemplateType"
+
+    # The manifest pushed to the device must list the template UUID.
+    manifest_path = next(p for p in fake.uploaded if p.endswith("/.manifest.json"))
+    pushed_manifest = json.loads(fake.uploaded_content[manifest_path].decode("utf-8"))
+    assert template_uuid in pushed_manifest.get("templates", {})
 
 
 def test_sync_deletes_remote_entries_absent_from_local_manifest(tmp_path):
@@ -315,34 +340,6 @@ def test_refresh_cached_sync_status_recomputes_from_snapshot(tmp_path):
         == "Remote Only"
     )
     assert refreshed["last_remote_manifest_state"] == "checked"
-
-
-def test_sync_removes_deleted_remote_uuid_triplet(tmp_path):
-    # Legacy behavior removed: keep this test name to preserve intent coverage,
-    # now validating that missing-local UUIDs are removed from device.
-    _set_data_dir(tmp_path)
-    logs, add_log = _logger_bucket()
-
-    remote_uuid = "11111111-aaaa-4bbb-8ccc-222222222222"
-    remote_manifest = {
-        "last_modified": "2026-04-04T10:00:00Z",
-        "templates": {
-            remote_uuid: {
-                "name": "Delete Me",
-                "created_at": "2026-04-04T09:00:00Z",
-                "sha256": "2222",
-            }
-        },
-    }
-
-    fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
-
-    with _patch_session(fake):
-        ok = sync_templates_to_device("D1", _device(), add_log)
-
-    assert ok is True
-    rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
-    assert any(remote_uuid in cmd for cmd in rm_calls)
 
 
 def test_sync_does_not_refresh_local_manifest(tmp_path):
@@ -592,3 +589,130 @@ def test_enrich_diff_preserves_both_uuids_for_same_template_name(tmp_path):
 
     assert set(added_uuids) == all_uuids, "both UUIDs must be present"
     assert all(name_map[u] == "Duplicate" for u in added_uuids), "both map to the same name"
+
+
+# ---------------------------------------------------------------------------
+# sync delete — precise UUID targeting
+# ---------------------------------------------------------------------------
+
+
+def test_sync_delete_targets_exact_uuid_paths_and_not_local_uuid(tmp_path):
+    """rm -f must target all three extensions of the ghost UUID and never touch the local UUID."""
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    # Create a local template so its UUID appears in the local manifest.
+    save_json_template("D1", "keeper.template", json.dumps({"name": "Keeper", "categories": []}))
+    add_template_entry("D1", "keeper.template")
+    local_manifest = load_manifest("D1")
+    local_uuid = next(iter(local_manifest["templates"]))
+
+    # Remote manifest: local template in sync (same sha256) + one ghost UUID to delete.
+    ghost_uuid = "deadbeef-dead-4bee-8fde-adbeefdeadbe"
+    remote_manifest = {
+        "last_modified": "2026-04-20T10:00:00Z",
+        "templates": {
+            local_uuid: local_manifest["templates"][local_uuid],
+            ghost_uuid: {"name": "Ghost", "created_at": "2026-04-20T09:00:00Z", "sha256": "old"},
+        },
+    }
+
+    fake = _FakeSession(remote_manifest_bytes=json.dumps(remote_manifest).encode())
+    with _patch_session(fake):
+        ok = sync_templates_to_device("D1", _device(), add_log)
+
+    assert ok is True
+
+    rm_calls = [cmds[0] for cmds in fake.run_calls if cmds and cmds[0].startswith("rm -f ")]
+    assert rm_calls, "expected at least one rm -f call"
+    rm_cmd = rm_calls[0]
+
+    from src.constants import REMOTE_XOCHITL_DATA_DIR
+
+    for ext in (".template", ".metadata", ".content"):
+        expected_quoted = shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{ghost_uuid}{ext}")
+        assert expected_quoted in rm_cmd, f"expected {expected_quoted} in rm command"
+
+    assert local_uuid not in rm_cmd, "local (in-sync) UUID must never appear in the delete command"
+
+
+# ---------------------------------------------------------------------------
+# fetch_and_init_templates — happy path and overwrite_backup
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_and_init_templates_saves_files_and_builds_manifest(tmp_path):
+    """Happy path: remote templates are downloaded, saved to disk, and manifest is populated."""
+    _set_data_dir(tmp_path)
+
+    remote_uuid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    metadata = {
+        "type": "TemplateType",
+        "visibleName": "Pulled Template",
+        "createdTime": "1712574000000",
+    }
+    template_payload = {"name": "Pulled Template", "categories": ["Lines"]}
+
+    def _download(_device, remote_path):
+        if remote_path.endswith(f"{remote_uuid}.metadata"):
+            return json.dumps(metadata).encode("utf-8"), ""
+        if remote_path.endswith(f"{remote_uuid}.template"):
+            return json.dumps(template_payload).encode("utf-8"), ""
+        if remote_path.endswith(f"{remote_uuid}.content"):
+            return b"{}", ""
+        return None, "missing"
+
+    with (
+        patch("src.templates.list_remote_custom_templates", return_value=(True, [remote_uuid])),
+        patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
+        patch("src.template_sync._ssh.upload_file_ssh", return_value=(True, "ok")),
+    ):
+        ok, msg = fetch_and_init_templates(_device())
+
+    assert ok is True
+    assert "1 template" in msg
+
+    from src.manifest_templates import get_manifest_entry
+    from src.templates import triplet_paths
+
+    paths = triplet_paths("D1", remote_uuid)
+    assert os.path.exists(paths["template"]), ".template file must exist on disk"
+    assert os.path.exists(paths["metadata"]), ".metadata file must exist on disk"
+
+    with open(paths["template"], encoding="utf-8") as f:
+        saved_payload = json.loads(f.read())
+    assert saved_payload["name"] == "Pulled Template"
+
+    entry = get_manifest_entry("D1", remote_uuid)
+    assert entry is not None
+    assert entry["name"] == "Pulled Template"
+    assert entry["sha256"], "sha256 must be computed and stored"
+
+
+def test_fetch_and_init_templates_overwrite_backup_clears_existing_files(tmp_path):
+    """overwrite_backup=True must delete pre-existing local template files before pulling."""
+    _set_data_dir(tmp_path)
+
+    # Write a local template that should be wiped.
+    save_json_template("D1", "stale.template", json.dumps({"name": "Stale"}))
+    add_template_entry("D1", "stale.template")
+    stale_manifest = load_manifest("D1")
+    stale_uuid = next(iter(stale_manifest["templates"]))
+
+    from src.templates import triplet_paths
+
+    stale_paths = triplet_paths("D1", stale_uuid)
+    assert os.path.exists(stale_paths["template"]), "pre-condition: stale file must exist"
+
+    # Remote returns nothing so we can focus purely on the wipe.
+    with (
+        patch("src.templates.list_remote_custom_templates", return_value=(True, [])),
+        patch("src.template_sync._ssh.upload_file_ssh", return_value=(True, "ok")),
+    ):
+        ok, msg = fetch_and_init_templates(_device(), overwrite_backup=True)
+
+    assert ok is True
+    assert not os.path.exists(stale_paths["template"]), "stale .template must be deleted"
+    assert not load_manifest("D1").get("templates"), (
+        "manifest must be empty after wipe with no remote templates"
+    )

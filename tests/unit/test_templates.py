@@ -1,10 +1,12 @@
 import json
 import os
+import uuid as _uuid_mod
 
 import src.templates as tpl
 from src.manifest_templates import (
     get_manifest_entry,
     load_manifest,
+    save_manifest,
 )
 
 
@@ -207,3 +209,149 @@ def test_remove_template_entry_deletes_manifest_entry(tmp_path):
     assert len(load_manifest("D1").get("templates", {})) == 1
     tpl.remove_template_entry("D1", "rem.template")
     assert len(load_manifest("D1").get("templates", {})) == 0
+
+
+# ---------------------------------------------------------------------------
+# refresh_local_manifest
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshLocalManifest:
+    def test_non_uuid_file_minted_to_uuid_and_renamed(self, tmp_path):
+        """A plain-name .template file is assigned a fresh UUID, renamed, and manifest entry created."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+
+        with open(os.path.join(tdir, "my_template.template"), "w", encoding="utf-8") as f:
+            json.dump({"name": "My Template"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        templates = load_manifest("D1").get("templates", {})
+        assert len(templates) == 1
+        template_uuid = next(iter(templates))
+        _uuid_mod.UUID(template_uuid)  # must be a valid UUID
+        assert templates[template_uuid]["name"] == "my_template"  # stem wins over payload name
+        assert os.path.exists(os.path.join(tdir, f"{template_uuid}.template"))
+        assert not os.path.exists(os.path.join(tdir, "my_template.template"))
+
+    def test_non_uuid_file_reuses_existing_uuid_from_manifest(self, tmp_path):
+        """A plain-name file whose stem matches an existing manifest entry reuses the known UUID."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+        fixed_uuid = str(_uuid_mod.uuid4())
+
+        save_manifest("D1", {"templates": {fixed_uuid: {"name": "my_template", "sha256": "old"}}})
+        with open(os.path.join(tdir, "my_template.template"), "w", encoding="utf-8") as f:
+            json.dump({"name": "my_template"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        templates = load_manifest("D1").get("templates", {})
+        assert fixed_uuid in templates, "Existing UUID must be reused, not minted fresh"
+        assert len(templates) == 1
+
+    def test_metadata_visible_name_takes_priority_over_payload_name(self, tmp_path):
+        """metadata.visibleName wins over the JSON payload name and overwrites the .template file."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+        fixed_uuid = str(_uuid_mod.uuid4())
+
+        tpl_path = os.path.join(tdir, f"{fixed_uuid}.template")
+        meta_path = os.path.join(tdir, f"{fixed_uuid}.metadata")
+        with open(tpl_path, "w", encoding="utf-8") as f:
+            json.dump({"name": "Old Payload Name"}, f)
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"visibleName": "Metadata Name", "type": "TemplateType"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        templates = load_manifest("D1").get("templates", {})
+        assert templates[fixed_uuid]["name"] == "Metadata Name"
+        with open(tpl_path, encoding="utf-8") as f:
+            rewritten = json.loads(f.read())
+        assert rewritten["name"] == "Metadata Name"
+
+    def test_manifest_name_wins_when_no_metadata(self, tmp_path):
+        """Existing manifest entry name wins over payload name when no metadata file is present."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+        fixed_uuid = str(_uuid_mod.uuid4())
+
+        save_manifest(
+            "D1",
+            {
+                "templates": {
+                    fixed_uuid: {
+                        "name": "Manifest Name",
+                        "sha256": "old",
+                        "created_at": "2024-01-01T00:00:00Z",
+                    }
+                }
+            },
+        )
+        tpl_path = os.path.join(tdir, f"{fixed_uuid}.template")
+        with open(tpl_path, "w", encoding="utf-8") as f:
+            json.dump({"name": "Payload Name"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        templates = load_manifest("D1").get("templates", {})
+        assert templates[fixed_uuid]["name"] == "Manifest Name"
+        with open(tpl_path, encoding="utf-8") as f:
+            rewritten = json.loads(f.read())
+        assert rewritten["name"] == "Manifest Name"
+
+    def test_created_at_preserved_and_sha256_updated(self, tmp_path):
+        """created_at from existing manifest entry is preserved; sha256 is recomputed."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+        fixed_uuid = str(_uuid_mod.uuid4())
+        original_created_at = "2023-06-15T10:00:00Z"
+
+        save_manifest(
+            "D1",
+            {
+                "templates": {
+                    fixed_uuid: {
+                        "name": "Stable",
+                        "sha256": "stale_hash",
+                        "created_at": original_created_at,
+                    }
+                }
+            },
+        )
+        with open(os.path.join(tdir, f"{fixed_uuid}.template"), "w", encoding="utf-8") as f:
+            json.dump({"name": "Stable"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        entry = load_manifest("D1")["templates"][fixed_uuid]
+        assert entry["created_at"] == original_created_at
+        assert entry["sha256"] != "stale_hash"
+        assert entry["sha256"]
+
+    def test_orphan_manifest_entries_removed(self, tmp_path):
+        """Manifest entries with no corresponding .template file on disk are pruned."""
+        _set_data_dir(tmp_path)
+        tdir = tpl.get_device_templates_dir("D1")
+        real_uuid = str(_uuid_mod.uuid4())
+        ghost_uuid = str(_uuid_mod.uuid4())
+
+        save_manifest(
+            "D1",
+            {
+                "templates": {
+                    real_uuid: {"name": "Real", "sha256": "x"},
+                    ghost_uuid: {"name": "Ghost", "sha256": "y"},
+                }
+            },
+        )
+        with open(os.path.join(tdir, f"{real_uuid}.template"), "w", encoding="utf-8") as f:
+            json.dump({"name": "Real"}, f)
+
+        tpl.refresh_local_manifest("D1")
+
+        templates = load_manifest("D1").get("templates", {})
+        assert real_uuid in templates
+        assert ghost_uuid not in templates, "Orphan manifest entry must be removed"

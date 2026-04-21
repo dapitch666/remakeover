@@ -1071,9 +1071,10 @@ class TestEditorPanelExisting:
 
 class TestEditorSave:
     def test_save_writes_template_file(self, tmp_path):
-        """Clicking Save stores a .template file in the device templates dir."""
+        """Clicking Save writes the canonical {uuid}.template with correct merged JSON content."""
         cfg_path = with_device(tmp_path, "D1")
-        tdir = backup_dir(tmp_path, "D1") / "templates"
+        d = backup_dir(tmp_path, "D1")
+        tdir = d / "templates"
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
             at = AppTest.from_file("app.py")
@@ -1081,6 +1082,7 @@ class TestEditorSave:
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
             at.session_state["tpl_meta_name"] = "save-test"
+            at.session_state["tpl_meta_categories"] = ["Perso"]
             at.session_state["tpl_editor_textarea"] = _BODY_JSON
             at.switch_page("pages/templates.py").run()
             save = _save_btn(at)
@@ -1088,8 +1090,28 @@ class TestEditorSave:
             assert not save.disabled
             save.click().run()
         assert not at.exception
-        saved = list(tdir.glob("*.template"))
-        assert len(saved) >= 1
+
+        # add_template_entry stores the UUID in session state after save.
+        saved_uuid = at.session_state["tpl_selected_uuid"]
+        assert isinstance(saved_uuid, str)
+        uuid.UUID(saved_uuid)  # must be a valid UUID
+
+        # The canonical {uuid}.template must exist and contain merged JSON.
+        tpl_file = tdir / f"{saved_uuid}.template"
+        assert tpl_file.exists(), f"{saved_uuid}.template not found in templates dir"
+        data = json.loads(tpl_file.read_text(encoding="utf-8"))
+
+        assert data["name"] == "save-test"  # preferred_name written through
+        assert data["author"] == "rm-manager"  # default author applied by build_full_json
+        assert data["categories"] == ["Perso"]  # meta field merged from session state
+        assert "constants" in data  # body fields from _BODY_JSON preserved
+        assert "items" in data
+
+        # Manifest entry must record the same name and a real sha256.
+        manifest = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        entry = manifest["templates"][saved_uuid]
+        assert entry["name"] == "save-test"
+        assert entry["sha256"]  # non-empty: sha256 was computed and stored
 
     def test_save_applies_rm_manager_author_default(self, tmp_path):
         """Saving with empty author field applies 'rm-manager' to the saved JSON."""
@@ -1109,10 +1131,11 @@ class TestEditorSave:
             assert save is not None
             save.click().run()
         assert not at.exception
-        saved = list(tdir.glob("*.template"))
-        assert len(saved) >= 1
-        data = json.loads(saved[0].read_text(encoding="utf-8"))
-        assert data.get("author") == "rm-manager"
+        saved_uuid = at.session_state["tpl_selected_uuid"]
+        tpl_file = tdir / f"{saved_uuid}.template"
+        assert tpl_file.exists()
+        data = json.loads(tpl_file.read_text(encoding="utf-8"))
+        assert data["author"] == "rm-manager"
 
     def test_save_accepts_custom_categories_and_labels(self, tmp_path):
         """Saving preserves newly entered categories and labels from the multiselects."""
@@ -1137,11 +1160,12 @@ class TestEditorSave:
             assert save is not None
             save.click().run()
         assert not at.exception
-        saved = list(tdir.glob("*.template"))
-        assert len(saved) >= 1
-        data = json.loads(saved[0].read_text(encoding="utf-8"))
-        assert data.get("categories") == ["Lines", "Custom category"]
-        assert data.get("labels") == ["alpha", "Custom label"]
+        saved_uuid = at.session_state["tpl_selected_uuid"]
+        tpl_file = tdir / f"{saved_uuid}.template"
+        assert tpl_file.exists()
+        data = json.loads(tpl_file.read_text(encoding="utf-8"))
+        assert data["categories"] == ["Lines", "Custom category"]
+        assert data["labels"] == ["alpha", "Custom label"]
 
     def test_save_updates_selected_state(self, tmp_path):
         """After saving, tpl_selected_uuid stores a valid UUID."""
@@ -1165,7 +1189,7 @@ class TestEditorSave:
         uuid.UUID(selected)
 
     def test_save_existing_template_preserves_manifest_entry(self, tmp_path):
-        """Editing and re-saving an existing template updates the manifest without error."""
+        """Re-saving an existing template updates the sha256 and preserves the name."""
         cfg_path = with_device(tmp_path, "D1")
         d = backup_dir(tmp_path, "D1")
         template_uuid = "11111111-2222-4333-8444-555555555555"
@@ -1177,7 +1201,7 @@ class TestEditorSave:
                         template_uuid: {
                             "name": "Blank",
                             "created_at": "2026-04-01T10:00:00Z",
-                            "sha256": "abc123",
+                            "sha256": "abc123",  # sentinel: must be replaced after save
                         }
                     },
                 }
@@ -1198,8 +1222,19 @@ class TestEditorSave:
             assert save is not None
             save.click().run()
         assert not at.exception
+
+        # Manifest entry must survive and carry updated metadata.
         manifest = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
-        assert template_uuid in manifest["templates"]
+        entry = manifest["templates"][template_uuid]
+        assert entry["name"] == "Blank"  # name preserved from preferred_name
+        assert entry["sha256"] != "abc123"  # sha256 recomputed, not the fixture sentinel
+        assert entry["sha256"]  # non-empty real hash
+
+        # The template file itself must contain the merged content.
+        tpl_file = d / "templates" / f"{template_uuid}.template"
+        data = json.loads(tpl_file.read_text(encoding="utf-8"))
+        assert data["name"] == "Blank"
+        assert "constants" in data  # body from _BODY_JSON preserved
 
 
 # ---------------------------------------------------------------------------

@@ -16,17 +16,6 @@ from tests.pages.helpers import (
 )
 
 
-def test_logs_page_renders_empty(tmp_path):
-    """Logs page renders without exception and shows 'No logs' info when empty."""
-    with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
-        at.run()
-        at.switch_page("pages/logs.py").run()
-
-    assert not at.exception
-    assert any("No logs" in i.value for i in at.info)
-
-
 class TestLogsPage:
     def test_no_logs_shows_info(self, tmp_path):
         """Logs page shows info banner when session has no logs."""

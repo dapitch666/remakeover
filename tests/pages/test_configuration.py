@@ -141,7 +141,7 @@ def test_configuration_edit_mode_has_no_device_type_selectbox(tmp_path):
 
 
 def test_saving_new_device_sets_pending_selected_device(tmp_path):
-    """Saving a new device causes the sidebar to select it."""
+    """Saving a new device writes all fields to config and selects it in the sidebar."""
     cfg_path = empty_cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file("app.py")
@@ -166,6 +166,14 @@ def test_saving_new_device_sets_pending_selected_device(tmp_path):
     assert at.session_state["device"] == "NewDevice"
     assert "pending_selected_device" not in at.session_state
     assert at.session_state["config_panel_open"] is False
+
+    saved = json.loads((tmp_path / "config.json").read_text())
+    entry = saved["devices"]["NewDevice"]
+    assert entry["ip"] == "192.168.1.1"
+    assert entry["password"] == "pw"
+    assert entry["device_type"] == "reMarkable 2"
+    assert entry["firmware_version"] == "3.5.0"
+    assert entry["sleep_screen_enabled"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +451,11 @@ def test_renaming_existing_device_renames_data_dir(tmp_path):
     assert "Renamed Device" in saved["devices"]
     assert not (tmp_path / "D1").exists()
     assert (tmp_path / "Renamed_Device").exists()
+
+    renamed = saved["devices"]["Renamed Device"]
+    assert renamed["ip"] == "10.0.0.11"
+    assert renamed["password"] == "pw"
+    assert renamed["firmware_version"] == "3.10.0"
 
 
 # ---------------------------------------------------------------------------
