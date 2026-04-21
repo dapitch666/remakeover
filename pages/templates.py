@@ -308,7 +308,7 @@ def _meta_from_session() -> dict:
             )
         ),
         "formatVersion": fmt_ver,
-        "categories": cats if cats else ["Perso"],
+        "categories": cats,
         "orientation": str(
             st.session_state.get("tpl_meta_orientation", META_DEFAULTS["tpl_meta_orientation"])
         ),
@@ -554,190 +554,157 @@ def _render_left_panel(device: Device, add_log) -> None:
 
     # Sync section (collapsed)
     with st.expander(_(":material/sync: Sync"), expanded=False):
-        manifest_json_path = get_device_manifest_path(device.name)
-        if not os.path.exists(manifest_json_path):
-            st.warning(_("Not initialized yet."), icon=":material/backup:")
+        local_manifest = load_manifest(device.name)
+        if local_manifest.get("last_modified"):
+            date, time = format_datetime_for_ui(local_manifest["last_modified"])
+            st.caption(_("Last modified on {date} at {time}").format(date=date, time=time))
 
-            def _on_sync_init_from_device():
-                _ok, _msg = fetch_and_init_templates(device, overwrite_backup=False)
-                if _ok:
-                    add_log(f"Templates initialized for '{device.name}' : {_msg}")
-                    _refresh_sync_snapshot_after_remote_change(
-                        device,
-                        add_log,
-                        "initialized_from_device",
-                    )
-                    deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
-                else:
-                    add_log(f"Error initializing templates for '{device.name}' : {_msg}")
-                    st.session_state["_tpl_sync_init_error"] = _msg
-                    deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
+        def _on_check_sync():
+            ok_check, payload = check_sync_status(device, add_log)
+            if ok_check:
+                if isinstance(payload, dict):
+                    payload["last_remote_check_at"] = payload.get("checked_at")
+                st.session_state[_sync_status_key(device.name)] = payload
+                deferred_toast(_("Sync status checked"), ":material/task_alt:")
+            else:
+                deferred_toast(_("Sync check error"), ":material/error:")
 
-            st.button(
-                _("Initialize from device"),
-                key=f"tpl_fetch_init_{device.name}",
-                type="primary",
-                icon=":material/download:",
-                width="stretch",
-                on_click=_on_sync_init_from_device,
-            )
-            _sync_init_error = st.session_state.pop("_tpl_sync_init_error", None)
-            if _sync_init_error:
-                st.error(_("Error: {msg}").format(msg=_sync_init_error), icon=":material/error:")
-        else:
-            local_manifest = load_manifest(device.name)
-            if local_manifest.get("last_modified"):
-                date, time = format_datetime_for_ui(local_manifest["last_modified"])
-                st.caption(_("Last modified on {date} at {time}").format(date=date, time=time))
+        st.button(
+            _("Check sync"),
+            key=f"tpl_check_status_{device.name}",
+            icon=":material/compare:",
+            help=_(
+                "Connect to the device and check if templates are in sync (does not change anything)"
+            ),
+            width="stretch",
+            on_click=_on_check_sync,
+        )
 
-            def _on_check_sync():
-                ok_check, payload = check_sync_status(device, add_log)
-                if ok_check:
-                    if isinstance(payload, dict):
-                        payload["last_remote_check_at"] = payload.get("checked_at")
-                    st.session_state[_sync_status_key(device.name)] = payload
-                    deferred_toast(_("Sync status checked"), ":material/task_alt:")
-                else:
-                    deferred_toast(_("Sync check error"), ":material/error:")
-
-            st.button(
-                _("Check sync"),
-                key=f"tpl_check_status_{device.name}",
-                icon=":material/compare:",
-                help=_(
-                    "Connect to the device and check if templates are in sync (does not change anything)"
-                ),
-                width="stretch",
-                on_click=_on_check_sync,
-            )
-
-            def _on_sync_now():
-                _ok = sync_templates_to_device(device.name, device, add_log)
-                if _ok:
-                    _refresh_sync_snapshot_after_remote_change(
-                        device,
-                        add_log,
-                        "assumed_after_sync",
-                    )
-                    deferred_toast(_("Templates synced"), ":material/task_alt:")
-                    _current = _selected_template_uuid()
-                    if _current and _current != _SENTINEL_NEW:
-                        _load_template_into_editor(device.name, str(_current))
-                    st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
-                else:
-                    deferred_toast(_("Sync error"), ":material/error:")
-
-            st.button(
-                _("Sync now"),
-                key=f"tpl_check_sync_{device.name}",
-                icon=":material/sync:",
-                help=_(
-                    "Sync templates between this manager and the device (uploads new/modified templates, deletes remote-only templates)"
-                ),
-                width="stretch",
-                on_click=_on_sync_now,
-            )
-
-            def _on_reset_reinit():
-                _ok, _msg = fetch_and_init_templates(device, overwrite_backup=True)
-                if _ok:
-                    _refresh_sync_snapshot_after_remote_change(
-                        device,
-                        add_log,
-                        "assumed_after_reinitialize",
-                    )
-                    deferred_toast(_("Templates synced"), ":material/task_alt:")
-                    _current = _selected_template_uuid()
-                    if (
-                        _current
-                        and _current != _SENTINEL_NEW
-                        and any(
-                            entry.get("uuid") == _current
-                            for entry in list_template_entries(device.name)
-                        )
-                    ):
-                        _load_template_into_editor(device.name, str(_current))
-                    else:
-                        _set_selected_template_uuid(None)
-                        _set_loaded_template_uuid(None)
-                else:
-                    deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
-
-            st.button(
-                _("Reset & reinitialize"),
-                key=f"tpl_reset_reinit_{device.name}",
-                icon=":material/settings_backup_restore:",
-                help=_(
-                    "Delete all local templates and re-fetch from the device (use if you think the local state is corrupted)"
-                ),
-                width="stretch",
-                on_click=_on_reset_reinit,
-            )
-
-            check_result = _get_realtime_sync_status(device)
-            if isinstance(check_result, dict):
-                _local_count = check_result.get("local_count", 0)
-                _remote_count = check_result.get("remote_count", 0)
-                _to_upload_count = len(check_result.get("to_upload", []))
-                _to_delete_count = len(check_result.get("to_delete_remote", []))
-                st.info(
-                    "  \n".join(
-                        [
-                            _n("{n} local template", "{n} local templates", _local_count).format(
-                                n=_local_count
-                            ),
-                            _n("{n} remote template", "{n} remote templates", _remote_count).format(
-                                n=_remote_count
-                            ),
-                            _n(
-                                "{n} template to upload",
-                                "{n} templates to upload",
-                                _to_upload_count,
-                            ).format(n=_to_upload_count),
-                            _n(
-                                "{n} template to delete on device",
-                                "{n} templates to delete on device",
-                                _to_delete_count,
-                            ).format(n=_to_delete_count),
-                        ]
-                    )
+        def _on_sync_now():
+            _ok = sync_templates_to_device(device.name, device, add_log)
+            if _ok:
+                _refresh_sync_snapshot_after_remote_change(
+                    device,
+                    add_log,
+                    "assumed_after_sync",
                 )
-                last_remote_check = check_result.get("last_remote_check_at")
-                if last_remote_check:
-                    date, time = format_datetime_for_ui(last_remote_check)
-                    st.caption(
-                        _("Last remote check on {date} at {time}").format(date=date, time=time)
+                deferred_toast(_("Templates synced"), ":material/task_alt:")
+                _current = _selected_template_uuid()
+                if _current and _current != _SENTINEL_NEW:
+                    _load_template_into_editor(device.name, str(_current))
+                st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
+            else:
+                deferred_toast(_("Sync error"), ":material/error:")
+
+        st.button(
+            _("Sync now"),
+            key=f"tpl_check_sync_{device.name}",
+            icon=":material/sync:",
+            help=_(
+                "Sync templates between this manager and the device (uploads new/modified templates, deletes remote-only templates)"
+            ),
+            width="stretch",
+            on_click=_on_sync_now,
+        )
+
+        def _on_reset_reinit():
+            _ok, _msg = fetch_and_init_templates(device, overwrite_backup=True)
+            if _ok:
+                _refresh_sync_snapshot_after_remote_change(
+                    device,
+                    add_log,
+                    "assumed_after_reinitialize",
+                )
+                deferred_toast(_("Templates synced"), ":material/task_alt:")
+                _current = _selected_template_uuid()
+                if (
+                    _current
+                    and _current != _SENTINEL_NEW
+                    and any(
+                        entry.get("uuid") == _current
+                        for entry in list_template_entries(device.name)
                     )
-                _render_sync_name_line(
-                    _("Added locally (upload)"),
-                    list(check_result.get("to_upload_added_uuids", [])),
-                    _("none"),
-                    name_by_uuid=check_result.get("to_upload_added_name_by_uuid", {}),
-                    device=device,
-                    is_device_only=False,
-                    row_key="added",
-                    add_log=add_log,
+                ):
+                    _load_template_into_editor(device.name, str(_current))
+                else:
+                    _set_selected_template_uuid(None)
+                    _set_loaded_template_uuid(None)
+            else:
+                deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
+
+        st.button(
+            _("Reset & reinitialize"),
+            key=f"tpl_reset_reinit_{device.name}",
+            icon=":material/settings_backup_restore:",
+            help=_(
+                "Delete all local templates and re-fetch from the device (use if you think the local state is corrupted)"
+            ),
+            width="stretch",
+            on_click=_on_reset_reinit,
+        )
+
+        check_result = _get_realtime_sync_status(device)
+        if isinstance(check_result, dict):
+            _local_count = check_result.get("local_count", 0)
+            _remote_count = check_result.get("remote_count", 0)
+            _to_upload_count = len(check_result.get("to_upload", []))
+            _to_delete_count = len(check_result.get("to_delete_remote", []))
+            st.info(
+                "  \n".join(
+                    [
+                        _n("{n} local template", "{n} local templates", _local_count).format(
+                            n=_local_count
+                        ),
+                        _n("{n} remote template", "{n} remote templates", _remote_count).format(
+                            n=_remote_count
+                        ),
+                        _n(
+                            "{n} template to upload",
+                            "{n} templates to upload",
+                            _to_upload_count,
+                        ).format(n=_to_upload_count),
+                        _n(
+                            "{n} template to delete on device",
+                            "{n} templates to delete on device",
+                            _to_delete_count,
+                        ).format(n=_to_delete_count),
+                    ]
                 )
-                _render_sync_name_line(
-                    _("Modified locally (upload)"),
-                    list(check_result.get("to_upload_modified_uuids", [])),
-                    _("none"),
-                    name_by_uuid=check_result.get("to_upload_modified_name_by_uuid", {}),
-                    device=device,
-                    is_device_only=False,
-                    row_key="modified",
-                    add_log=add_log,
-                )
-                _render_sync_name_line(
-                    _("Remote-only (delete on sync)"),
-                    list(check_result.get("to_delete_remote_uuids", [])),
-                    _("none"),
-                    name_by_uuid=check_result.get("to_delete_remote_name_by_uuid", {}),
-                    device=device,
-                    is_device_only=True,
-                    row_key="remote_only",
-                    add_log=add_log,
-                )
+            )
+            last_remote_check = check_result.get("last_remote_check_at")
+            if last_remote_check:
+                date, time = format_datetime_for_ui(last_remote_check)
+                st.caption(_("Last remote check on {date} at {time}").format(date=date, time=time))
+            _render_sync_name_line(
+                _("Added locally (upload)"),
+                list(check_result.get("to_upload_added_uuids", [])),
+                _("none"),
+                name_by_uuid=check_result.get("to_upload_added_name_by_uuid", {}),
+                device=device,
+                is_device_only=False,
+                row_key="added",
+                add_log=add_log,
+            )
+            _render_sync_name_line(
+                _("Modified locally (upload)"),
+                list(check_result.get("to_upload_modified_uuids", [])),
+                _("none"),
+                name_by_uuid=check_result.get("to_upload_modified_name_by_uuid", {}),
+                device=device,
+                is_device_only=False,
+                row_key="modified",
+                add_log=add_log,
+            )
+            _render_sync_name_line(
+                _("Remote-only (delete on sync)"),
+                list(check_result.get("to_delete_remote_uuids", [])),
+                _("none"),
+                name_by_uuid=check_result.get("to_delete_remote_name_by_uuid", {}),
+                device=device,
+                is_device_only=True,
+                row_key="remote_only",
+                add_log=add_log,
+            )
 
     st.divider()
 

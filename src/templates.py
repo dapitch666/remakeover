@@ -255,9 +255,7 @@ def save_device_template(device_name: str, content: bytes, filename: str) -> str
 
 def delete_device_template(device_name: str, filename: str) -> None:
     """Delete local UUID triplet files for a template reference."""
-    template_uuid = _resolve_template_uuid(device_name, filename) or (
-        _stem(filename) if _is_uuid_stem(_stem(filename)) else None
-    )
+    template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
         paths = triplet_paths(device_name, template_uuid)
         for path in paths.values():
@@ -304,11 +302,6 @@ def _resolve_template_uuid(device_name: str, template_ref: str) -> str | None:
     if _is_uuid_stem(stem):
         return stem
     return _find_template_uuid_by_name(device_name, stem)
-
-
-def resolve_template_ref(device_name: str, template_ref: str) -> str | None:
-    """Resolve a template reference (UUID, UUID.template or unique name) to a UUID."""
-    return _resolve_template_uuid(device_name, template_ref)
 
 
 def triplet_paths(device_name: str, template_uuid: str) -> dict[str, str]:
@@ -543,8 +536,6 @@ def add_template_entry(
     if not template_uuid:
         template_uuid = _resolve_template_uuid(device_name, filename)
     stem = _stem(filename)
-    if not template_uuid and _is_uuid_stem(stem):
-        template_uuid = stem
     if not template_uuid:
         template_uuid = str(uuid.uuid4())
 
@@ -659,7 +650,7 @@ def remove_remote_custom_templates(
 
 def load_json_template(device_name: str, filename: str) -> str:
     """Read and return a JSON template source file by UUID/name reference."""
-    template_uuid = resolve_template_ref(device_name, filename)
+    template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
         path = triplet_paths(device_name, template_uuid)["template"]
     else:
@@ -670,7 +661,7 @@ def load_json_template(device_name: str, filename: str) -> str:
 
 def save_json_template(device_name: str, filename: str, content: str) -> None:
     """Write *content* to local storage, resolving UUID references when available."""
-    template_uuid = resolve_template_ref(device_name, filename)
+    template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
         path = triplet_paths(device_name, template_uuid)["template"]
     else:

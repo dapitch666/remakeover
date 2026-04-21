@@ -104,13 +104,9 @@ def handle_rename_confirmation(
     the user accepts; does nothing extra when they cancel.
     """
     result = st.session_state.get(confirm_key)
-    if result is True:
-        on_confirm()
-        st.session_state.pop(confirm_key, None)
-        st.session_state[pending_key] = None
-        st.session_state[renaming_key] = None
-        st.rerun()
-    elif result is False:
+    if result in (True, False):
+        if result is True:
+            on_confirm()
         st.session_state.pop(confirm_key, None)
         st.session_state[pending_key] = None
         st.session_state[renaming_key] = None

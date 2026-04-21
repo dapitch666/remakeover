@@ -197,7 +197,7 @@ def render_config_panel(config: dict, selected_name: str | None, add_log) -> Non
                 help=_("Delete this device and its local images and templates"),
                 on_click=_on_delete_click,
             )
-        elif is_new and devices:
+        elif devices:
 
             def _on_cancel():
                 _clear_input_keys()

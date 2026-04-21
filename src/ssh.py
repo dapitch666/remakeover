@@ -53,7 +53,7 @@ def run_ssh_cmd(device: Device, commands) -> tuple[str, str]:
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
     try:
         with _ssh_client(ip, device.password) as client:
-            full_cmd = " && ".join(commands) if commands else ""
+            full_cmd = " && ".join(commands)
             if not full_cmd:
                 return "", ""
 

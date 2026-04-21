@@ -729,7 +729,7 @@ class TestInlineRename:
             at.run()
             at.session_state["img_renaming"] = "pic.png"
             at.switch_page("pages/images.py").run()
-            # "other" normalises to "other.png", which already exists
+            # "other" normalizes to "other.png", which already exists
             at.text_input[0].set_value("other")
             submit = next((b for b in at.button if ":material/check:" in b.label), None)
             assert submit is not None

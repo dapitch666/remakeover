@@ -160,7 +160,7 @@ def delete_manifest_template(device_name: str, template_uuid: str) -> bool:
     templates = data.get("templates", {})
     if not isinstance(templates, dict) or template_uuid not in templates:
         return False
-    templates.pop(template_uuid, None)
+    del templates[template_uuid]
     data["last_modified"] = utc_now_iso()
     save_manifest(device_name, data)
     return True
