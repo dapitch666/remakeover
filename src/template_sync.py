@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
@@ -30,41 +31,44 @@ def _is_missing_remote_manifest_error(err: str) -> bool:
     return "no such file" in lowered or "not found" in lowered
 
 
-def _fetch_remote_manifest(device: Device) -> tuple[bool, dict[str, Any], str]:
-    content, err = _ssh.download_file_ssh(device, _remote_manifest_path())
+def _parse_remote_manifest_bytes(
+    content: bytes | None, err: str
+) -> tuple[bool, dict[str, Any], str]:
+    """Parse a downloaded manifest blob into a normalised result triple.
+
+    Returns ``(True, manifest, "missing")`` when the file did not exist,
+    ``(True, manifest, "ok")`` on success, or ``(False, default, error)`` on failure.
+    """
     if content is None:
         if _is_missing_remote_manifest_error(err):
             return True, default_manifest(), "missing"
         return False, default_manifest(), err
-
     try:
         parsed = json.loads(content.decode("utf-8"))
     except Exception as exc:
         return False, default_manifest(), f"invalid_remote_manifest: {exc}"
     return True, normalize_manifest(parsed), "ok"
+
+
+def _serialise_manifest(manifest: dict[str, Any]) -> bytes:
+    """Encode *manifest* to the canonical wire format used by all push operations."""
+    return json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
+
+
+def _fetch_remote_manifest(device: Device) -> tuple[bool, dict[str, Any], str]:
+    return _parse_remote_manifest_bytes(*_ssh.download_file_ssh(device, _remote_manifest_path()))
 
 
 def _push_remote_manifest(device: Device, manifest: dict[str, Any]) -> tuple[bool, str]:
-    payload = json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
-    return _ssh.upload_file_ssh(device, payload, _remote_manifest_path())
+    return _ssh.upload_file_ssh(device, _serialise_manifest(manifest), _remote_manifest_path())
 
 
 def _fetch_remote_manifest_s(session: _ssh.SshSession) -> tuple[bool, dict[str, Any], str]:
-    content, err = session.download(_remote_manifest_path())
-    if content is None:
-        if _is_missing_remote_manifest_error(err):
-            return True, default_manifest(), "missing"
-        return False, default_manifest(), err
-    try:
-        parsed = json.loads(content.decode("utf-8"))
-    except Exception as exc:
-        return False, default_manifest(), f"invalid_remote_manifest: {exc}"
-    return True, normalize_manifest(parsed), "ok"
+    return _parse_remote_manifest_bytes(*session.download(_remote_manifest_path()))
 
 
 def _push_remote_manifest_s(session: _ssh.SshSession, manifest: dict[str, Any]) -> tuple[bool, str]:
-    payload = json.dumps(normalize_manifest(manifest), indent=2, ensure_ascii=True).encode("utf-8")
-    return session.upload(payload, _remote_manifest_path())
+    return session.upload(_serialise_manifest(manifest), _remote_manifest_path())
 
 
 def _compare_manifests(
@@ -199,7 +203,9 @@ def refresh_cached_sync_status(
     return refreshed
 
 
-def check_sync_status(device: Device, add_log) -> tuple[bool, dict[str, Any] | str]:
+def check_sync_status(
+    device: Device, add_log: Callable[[str], None]
+) -> tuple[bool, dict[str, Any] | str]:
     """Compare local and remote manifests without mutating local state."""
     local_manifest = load_manifest(device.name)
 
@@ -380,7 +386,7 @@ def fetch_single_template_from_device(
 def sync_templates_to_device(
     selected_name: str,
     device,
-    add_log,
+    add_log: Callable[[str], None],
 ) -> bool:
     """Synchronize local templates to device using manifest comparison."""
     local_manifest = load_manifest(selected_name)

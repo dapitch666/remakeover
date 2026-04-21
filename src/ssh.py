@@ -47,13 +47,13 @@ def _ssh_client(ip: str, password: str) -> Generator[paramiko.SSHClient, None, N
             client.close()
 
 
-def run_ssh_cmd(device: Device, commands) -> tuple[str, str]:
+def run_ssh_cmd(device: Device, commands: list[str]) -> tuple[str, str]:
     """Execute commands over SSH."""
     ip = device.ip
     logger.info("SSH connect to %s (commands=%d)", ip, len(commands))
     try:
         with _ssh_client(ip, device.password) as client:
-            full_cmd = " && ".join(commands) if commands else ""
+            full_cmd = " && ".join(commands)
             if not full_cmd:
                 return "", ""
 
@@ -157,7 +157,7 @@ def upload_file_ssh(device: Device, file_content: bytes, remote_path: str) -> tu
                 logger.info(
                     "SFTP upload OK to %s:%s (bytes=%d)", ip, remote_path, len(file_content)
                 )
-                return True, "OK"
+                return True, ""
             except Exception as e:
                 logger.error("SFTP upload error to %s:%s: %s", ip, remote_path, e)
                 return False, str(e)
@@ -233,7 +233,7 @@ class SshSession:
             with sftp.file(remote_path, "wb") as f:
                 f.write(content)
             logger.info("SshSession upload OK → %s (%d bytes)", remote_path, len(content))
-            return True, "OK"
+            return True, ""
         except Exception as e:
             logger.error("SshSession upload error → %s: %s", remote_path, e)
             return False, str(e)

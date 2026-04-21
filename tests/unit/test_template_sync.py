@@ -7,7 +7,10 @@ from unittest.mock import patch
 
 from src.manifest_templates import get_manifest_entry, load_manifest
 from src.models import Device
+
+# noinspection PyProtectedMember
 from src.template_sync import (
+    _parse_remote_manifest_bytes,
     _sort_pairs_by_name,
     build_assumed_sync_status,
     check_sync_status,
@@ -97,6 +100,25 @@ def _patch_session(fake: _FakeSession):
         yield fake
 
     return patch("src.template_sync._ssh.ssh_session", _cm)
+
+
+# ---------------------------------------------------------------------------
+# _parse_remote_manifest_bytes — unit tests for the extracted helper
+# ---------------------------------------------------------------------------
+
+
+def test_parse_remote_manifest_bytes_returns_error_on_invalid_json():
+    ok, manifest, status = _parse_remote_manifest_bytes(b"not valid json", "")
+    assert ok is False
+    assert manifest == {"last_modified": None, "templates": {}}
+    assert status.startswith("invalid_remote_manifest:")
+
+
+def test_parse_remote_manifest_bytes_returns_false_on_non_missing_error():
+    ok, manifest, status = _parse_remote_manifest_bytes(None, "permission denied")
+    assert ok is False
+    assert manifest == {"last_modified": None, "templates": {}}
+    assert status == "permission denied"
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +255,18 @@ def test_sync_check_reports_manifest_diff(tmp_path):
         payload["to_delete_remote_name_by_uuid"].get("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
         == "remote_only"
     )
+
+
+def test_check_sync_status_returns_false_when_remote_fetch_fails():
+    with patch(
+        "src.template_sync._ssh.download_file_ssh",
+        return_value=(None, "connection refused"),
+    ):
+        ok, payload = check_sync_status(_device(), lambda msg: None)
+
+    assert ok is False
+    assert isinstance(payload, str)
+    assert "connection refused" in payload
 
 
 def test_compute_sync_status_from_cached_remote_reports_added_and_deleted_names(tmp_path):
@@ -465,6 +499,30 @@ def test_sync_restarts_xochitl_when_templates_uploaded(tmp_path):
     assert any("xochitl_restarted=True" in msg for msg in logs)
 
 
+def test_sync_manifest_push_failure_returns_false_after_successful_uploads(tmp_path):
+    """Manifest push failure after all uploads succeed must return False and log the error."""
+    _set_data_dir(tmp_path)
+    logs, add_log = _logger_bucket()
+
+    filename = "push_fail.template"
+    save_json_template("D1", filename, json.dumps({"name": "Push Fail", "categories": ["Perso"]}))
+    add_template_entry("D1", filename)
+
+    class _FailManifestUploadSession(_FakeSession):
+        def upload(self, content: bytes, path: str):
+            if path.endswith(".manifest.json"):
+                return False, "disk full"
+            return super().upload(content, path)
+
+    fake = _FailManifestUploadSession(remote_manifest_bytes=None)
+
+    with _patch_session(fake):
+        ok = sync_templates_to_device("D1", _device(), add_log)
+
+    assert ok is False
+    assert any("upload remote manifest failed" in msg for msg in logs)
+
+
 def test_sync_ssh_connection_error_returns_false_and_logs(tmp_path):
     """OSError from ssh_session (e.g. unreachable host) must not bubble up."""
     _set_data_dir(tmp_path)
@@ -473,7 +531,8 @@ def test_sync_ssh_connection_error_returns_false_and_logs(tmp_path):
     @contextmanager
     def _failing_session(_device):
         raise OSError("Connection refused")
-        yield  # noqa: unreachable
+        # noinspection PyUnreachableCode
+        yield
 
     with patch("src.template_sync._ssh.ssh_session", _failing_session):
         ok = sync_templates_to_device("D1", _device(), add_log)

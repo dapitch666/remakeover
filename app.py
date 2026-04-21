@@ -1,6 +1,7 @@
 import html as _pyhtml
 import json
 import os
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime, timedelta
 
@@ -52,10 +53,6 @@ def _normalize_lang_value(raw: str | None) -> str | None:
     if lowered in SUPPORTED_LANGUAGES:
         return lowered
 
-    for code, (flag, name) in _LANG_FLAGS.items():
-        if lowered in {name.lower(), f"{flag} {name}".lower()}:
-            return code
-
     return None
 
 
@@ -63,8 +60,7 @@ def _init_language() -> None:
     """Set ``st.session_state["lang"]`` on the first visit when no URL param is present.
 
     A canonical short value (``en``/``fr``) is always kept in URL params,
-    session state and the language selector state. Legacy URL values containing
-    full labels (with flags) are normalized to short codes.
+    session state and the language selector state.
     """
     query_lang = _normalize_lang_value(st.query_params.get("lang"))
     if query_lang:
@@ -180,7 +176,7 @@ def _debug_overlay():
 
 
 def _apply_detected_metadata(
-    selected_name: str, devices: dict, config: dict, result: dict, add_log
+    selected_name: str, devices: dict, config: dict, result: dict, add_log: Callable[[str], None]
 ) -> None:
     """Update device config in-place with newly detected metadata and persist if changed."""
     old_type = devices[selected_name].get("device_type", "")
@@ -190,18 +186,26 @@ def _apply_detected_metadata(
     detected_fw = result["firmware_version"]
     sleep_screen_enabled = result["sleep_screen_enabled"]
 
-    changed_fields: list[str] = []
+    details: list[str] = []
     if detected_type and detected_type != old_type:
         devices[selected_name]["device_type"] = detected_type
-        changed_fields.append("device_type")
+        details.append(
+            _("model: {old} -> {new}").format(old=old_type or _("unknown"), new=detected_type)
+        )
     if detected_fw and detected_fw != old_fw:
         devices[selected_name]["firmware_version"] = detected_fw
-        changed_fields.append("firmware_version")
+        details.append(
+            _("firmware: {old} -> {new}").format(old=old_fw or _("unknown"), new=detected_fw)
+        )
     if sleep_screen_enabled != old_sleep:
         devices[selected_name]["sleep_screen_enabled"] = sleep_screen_enabled
-        changed_fields.append("sleep_screen_enabled")
+        details.append(
+            _("sleep screen now enabled")
+            if sleep_screen_enabled
+            else _("sleep screen now disabled")
+        )
 
-    if not changed_fields:
+    if not details:
         return
 
     try:
@@ -214,32 +218,13 @@ def _apply_detected_metadata(
         )
         return
 
-    details: list[str] = []
-    if "device_type" in changed_fields:
-        details.append(
-            _("model: {old} -> {new}").format(old=old_type or _("unknown"), new=detected_type)
-        )
-    if "firmware_version" in changed_fields:
-        details.append(
-            _("firmware: {old} -> {new}").format(old=old_fw or _("unknown"), new=detected_fw)
-        )
-    if "sleep_screen_enabled" in changed_fields:
-        details.append(
-            _("sleep screen now enabled")
-            if sleep_screen_enabled
-            else _("sleep screen now disabled")
-        )
     deferred_toast(
         _("Detected update for '{name}': {details}").format(
             name=selected_name, details=", ".join(details)
         ),
         ":material/task_alt:",
     )
-    add_log(
-        f"Updated detected metadata for '{selected_name}': "
-        f"device_type='{old_type}' -> '{detected_type}', "
-        f"firmware_version='{old_fw}' -> '{detected_fw}'"
-    )
+    add_log(f"Updated detected metadata for '{selected_name}': {', '.join(details)}")
 
 
 def _device_selector(config: dict) -> str | None:
@@ -350,7 +335,7 @@ def _device_selector(config: dict) -> str | None:
                         > _SSH_RESULT_STALE_AFTER
                     )
                     if _ssh_result and _ssh_result["ok"] and not _is_stale:
-                        _status = "green"
+                        is_error = False
                         _btn_help = _("SSH connection OK")
                         st.html(
                             "<style>"
@@ -366,7 +351,7 @@ def _device_selector(config: dict) -> str | None:
                             "</style>"
                         )
                     elif _is_stale:
-                        _status = "stale"
+                        is_error = False
                         _elapsed = int(
                             (datetime.now() - _ssh_result["tested_at"]).total_seconds() / 60
                         )
@@ -374,12 +359,12 @@ def _device_selector(config: dict) -> str | None:
                             "Connection status unknown (last checked {n} min ago)"
                         ).format(n=_elapsed)
                     elif _ssh_result and not _ssh_result["ok"]:
-                        _status = "red"
+                        is_error = True
                         _btn_help = _("SSH connection failed: {err}").format(
                             err=_ssh_result["error"]
                         )
                     else:
-                        _status = "stale"
+                        is_error = False
                         _btn_help = _("Test SSH connection")
 
                     st.button(
@@ -388,7 +373,7 @@ def _device_selector(config: dict) -> str | None:
                         width="stretch",
                         help=_btn_help,
                         on_click=_on_ssh_test,
-                        type="primary" if _status == "red" else "secondary",
+                        type="primary" if is_error else "secondary",
                     )
 
             if st.session_state.get("config_panel_open", False):
