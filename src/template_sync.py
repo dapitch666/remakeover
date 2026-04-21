@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
@@ -202,7 +203,9 @@ def refresh_cached_sync_status(
     return refreshed
 
 
-def check_sync_status(device: Device, add_log) -> tuple[bool, dict[str, Any] | str]:
+def check_sync_status(
+    device: Device, add_log: Callable[[str], None]
+) -> tuple[bool, dict[str, Any] | str]:
     """Compare local and remote manifests without mutating local state."""
     local_manifest = load_manifest(device.name)
 
@@ -383,7 +386,7 @@ def fetch_single_template_from_device(
 def sync_templates_to_device(
     selected_name: str,
     device,
-    add_log,
+    add_log: Callable[[str], None],
 ) -> bool:
     """Synchronize local templates to device using manifest comparison."""
     local_manifest = load_manifest(selected_name)

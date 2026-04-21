@@ -1,6 +1,7 @@
 import html as _pyhtml
 import json
 import os
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime, timedelta
 
@@ -59,8 +60,7 @@ def _init_language() -> None:
     """Set ``st.session_state["lang"]`` on the first visit when no URL param is present.
 
     A canonical short value (``en``/``fr``) is always kept in URL params,
-    session state and the language selector state. Legacy URL values containing
-    full labels (with flags) are normalized to short codes.
+    session state and the language selector state.
     """
     query_lang = _normalize_lang_value(st.query_params.get("lang"))
     if query_lang:
@@ -176,7 +176,7 @@ def _debug_overlay():
 
 
 def _apply_detected_metadata(
-    selected_name: str, devices: dict, config: dict, result: dict, add_log
+    selected_name: str, devices: dict, config: dict, result: dict, add_log: Callable[[str], None]
 ) -> None:
     """Update device config in-place with newly detected metadata and persist if changed."""
     old_type = devices[selected_name].get("device_type", "")

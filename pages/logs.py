@@ -31,10 +31,10 @@ else:
         result = st.session_state.get("clear_logs")
         if result is True:
             st.session_state["logs"] = []
-            del st.session_state["clear_logs"]
-            del st.session_state["pending_clear_logs"]
+            st.session_state.pop("clear_logs", None)
+            st.session_state.pop("pending_clear_logs", None)
             st.rerun()
         elif result is False:
-            del st.session_state["clear_logs"]
-            del st.session_state["pending_clear_logs"]
+            st.session_state.pop("clear_logs", None)
+            st.session_state.pop("pending_clear_logs", None)
             st.rerun()

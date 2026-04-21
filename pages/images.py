@@ -136,11 +136,11 @@ def _render_image_card(img_name, device, add_log, config):
                     _("Error deleting {img_name}").format(img_name=img_name), ":material/error:"
                 )
             st.session_state.pop("confirm_del_img", None)
-            st.session_state["img_pending_delete"] = None
+            st.session_state.pop("img_pending_delete", None)
             st.rerun()
         elif result is False:
             st.session_state.pop("confirm_del_img", None)
-            st.session_state["img_pending_delete"] = None
+            st.session_state.pop("img_pending_delete", None)
             st.rerun()
 
     # Segmented control
@@ -180,7 +180,7 @@ def _render_image_card(img_name, device, add_log, config):
     )
 
 
-def _render_upload_section(device, add_log):
+def _render_upload_section(device, add_log, config):
     """Render the 'add an image' column: auto-save on upload, then ask to send."""
     width, height = DEVICE_SIZES[device.resolve_type()]
 
@@ -222,32 +222,30 @@ def _render_upload_section(device, add_log):
 
     def _reset_uploader():
         """Bump the revision counter to remount the file_uploader as empty."""
-        rev_key = f"img_uploader_rev_{current_device.name}"
+        rev_key = f"img_uploader_rev_{device.name}"
         st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
         st.session_state.pop(upload_key, None)
 
-    result = st.session_state.get(f"img_send_confirm_{current_device.name}")
+    result = st.session_state.get(f"img_send_confirm_{device.name}")
     if result is True:
-        img_data, filename = st.session_state.get(
-            f"img_send_data_{current_device.name}", (None, None)
-        )
+        img_data, filename = st.session_state.get(f"img_send_data_{device.name}", (None, None))
         if img_data and filename:
             if send_suspended_png(device, img_data, filename, add_log):
-                config["devices"][current_device.name]["sleep_screen_enabled"] = True
+                config["devices"][device.name]["sleep_screen_enabled"] = True
                 save_config(config)
                 deferred_toast(
-                    _("{name} sent to {device}").format(name=filename, device=current_device.name),
+                    _("{name} sent to {device}").format(name=filename, device=device.name),
                     ":material/task_alt:",
                 )
             else:
                 deferred_toast(_("Error sending image."), ":material/error:")
-        st.session_state.pop(f"img_send_confirm_{current_device.name}", None)
-        st.session_state.pop(f"img_send_data_{current_device.name}", None)
+        st.session_state.pop(f"img_send_confirm_{device.name}", None)
+        st.session_state.pop(f"img_send_data_{device.name}", None)
         _reset_uploader()
         st.rerun()
     elif result is False:
-        st.session_state.pop(f"img_send_confirm_{current_device.name}", None)
-        st.session_state.pop(f"img_send_data_{current_device.name}", None)
+        st.session_state.pop(f"img_send_confirm_{device.name}", None)
+        st.session_state.pop(f"img_send_data_{device.name}", None)
         _reset_uploader()
         st.rerun()
 
@@ -384,4 +382,4 @@ with col_restore:
     )
 
 with col_add:
-    _render_upload_section(current_device, add_log_fn)
+    _render_upload_section(current_device, add_log_fn, config)

@@ -108,8 +108,8 @@ def handle_rename_confirmation(
         if result is True:
             on_confirm()
         st.session_state.pop(confirm_key, None)
-        st.session_state[pending_key] = None
-        st.session_state[renaming_key] = None
+        st.session_state.pop(pending_key, None)
+        st.session_state.pop(renaming_key, None)
         st.rerun()
 
 

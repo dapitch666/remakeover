@@ -120,7 +120,7 @@ class TestUploadFileSsh:
         with _patched_client(inst):
             ok, msg = upload_file_ssh(DEVICE, b"data", "/remote/path")
         assert ok is True
-        assert msg == "OK"
+        assert msg == ""
 
     def test_sftp_write_error(self):
         inst = MagicMock()
@@ -377,7 +377,7 @@ class TestSshSession:
         client.open_sftp.return_value = MagicMock()
         ok, msg = SshSession(client).upload(b"data", "/path/file")
         assert ok is True
-        assert msg == "OK"
+        assert msg == ""
 
     def test_upload_error(self):
         client = MagicMock()

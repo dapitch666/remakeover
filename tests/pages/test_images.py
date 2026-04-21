@@ -206,7 +206,7 @@ class TestImagesPage:
             at.session_state["confirm_del_img"] = False
             at.switch_page("pages/images.py").run()
         assert not at.exception
-        assert at.session_state["img_pending_delete"] is None
+        assert "img_pending_delete" not in at.session_state
 
     def test_import_from_device_saves_image(self, tmp_path):
         """Clicking 'Import from device' downloads and saves the image."""
@@ -300,8 +300,8 @@ class TestImagesPage:
             at.switch_page("pages/images.py").run()
         assert not at.exception
         assert ("old.png", "new.png") in renamed
-        assert at.session_state["img_pending_rename"] is None
-        assert at.session_state["img_renaming"] is None
+        assert "img_pending_rename" not in at.session_state
+        assert "img_renaming" not in at.session_state
 
     def test_rename_conflict_cancelled_clears_state(self, tmp_path):
         """When confirm_rename_img is False, state is cleared without renaming."""
@@ -324,8 +324,8 @@ class TestImagesPage:
             at.switch_page("pages/images.py").run()
         assert not at.exception
         assert not renamed
-        assert at.session_state["img_pending_rename"] is None
-        assert at.session_state["img_renaming"] is None
+        assert "img_pending_rename" not in at.session_state
+        assert "img_renaming" not in at.session_state
 
 
 # ---------------------------------------------------------------------------

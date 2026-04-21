@@ -1033,20 +1033,22 @@ def _render_editor_panel(device: Device, add_log) -> None:
             help=_("Enter your reMarkable template JSON here. The preview updates automatically."),
         )
 
+    _json_valid = True
+    _build_error = None
+    try:
+        _full_json_str = build_full_json(_meta_from_session(), json_str)
+    except ValueError:
+        _full_json_str = ""
+        _json_valid = False
+        _build_error = _("Invalid JSON body")
+
     with col_preview:
         st.subheader(_("Preview"), divider="rainbow")
-        try:
-            _full_json_preview = build_full_json(_meta_from_session(), json_str)
-            _build_error = None
-        except ValueError:
-            _full_json_preview = ""
-            _build_error = _("Invalid JSON body")
-
         if _build_error:
             st.error(_build_error, icon=":material/error:")
         else:
             svg, render_error = render_template_json_str(
-                _full_json_preview, canvas_portrait=(_portrait_w, _portrait_h)
+                _full_json_str, canvas_portrait=(_portrait_w, _portrait_h)
             )
             if render_error:
                 st.error(render_error, icon=":material/error:")
@@ -1055,13 +1057,6 @@ def _render_editor_panel(device: Device, add_log) -> None:
 
     # ── Actions ────────────────────────────────────────────────────────────
     st.subheader(_("Actions"), divider="rainbow")
-
-    _json_valid = True
-    try:
-        _full_json_str = build_full_json(_meta_from_session(), json_str)
-    except ValueError:
-        _full_json_str = ""
-        _json_valid = False
 
     _name_is_provided = bool(str(st.session_state.get("tpl_meta_name", "")).strip())
     _gen: int = st.session_state.get("tpl_editor_save_gen", 0)
@@ -1185,7 +1180,7 @@ st.title(_(":material/description: Templates"))
 rainbow_divider()
 
 config, selected_name, DEVICES = init_page()
-add_log_fn = st.session_state.get("add_log", lambda message: None)
+add_log_fn = st.session_state.get("add_log", lambda msg: None)
 assert isinstance(selected_name, str)
 
 current_device = Device.from_dict(selected_name, DEVICES[selected_name])

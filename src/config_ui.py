@@ -3,6 +3,7 @@
 import ipaddress
 import os
 import shutil
+from collections.abc import Callable
 
 import streamlit as st
 
@@ -27,7 +28,9 @@ def _clear_input_keys():
                 del st.session_state[key]
 
 
-def render_config_panel(config: dict, selected_name: str | None, add_log) -> None:
+def render_config_panel(
+    config: dict, selected_name: str | None, add_log: Callable[[str], None]
+) -> None:
     """Render the device configuration form inside the sidebar."""
     devices = config.get("devices", {})
 
@@ -248,13 +251,13 @@ def render_config_panel(config: dict, selected_name: str | None, add_log) -> Non
                 deferred_toast(
                     _("'{name}' deleted").format(name=device_name), ":material/task_alt:"
                 )
-            del st.session_state["pending_delete_device"]
-            del st.session_state[f"del_device_{device_name}"]
+            st.session_state.pop("pending_delete_device", None)
+            st.session_state.pop(f"del_device_{device_name}", None)
             st.session_state["config_panel_open"] = False
             st.rerun()
         elif st.session_state.get(f"del_device_{device_name}") is False:
-            del st.session_state[f"del_device_{device_name}"]
-            del st.session_state["pending_delete_device"]
+            st.session_state.pop(f"del_device_{device_name}", None)
+            st.session_state.pop("pending_delete_device", None)
             st.rerun()
 
     save_feedback_error = st.session_state.pop("_save_feedback_error", "")

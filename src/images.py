@@ -6,6 +6,7 @@ All images are stored as PNG files under ``data/{device}/images/``.
 import io
 import logging
 import os
+from collections.abc import Callable
 from contextlib import suppress
 
 from PIL import Image
@@ -110,7 +111,9 @@ def _ensure_sleep_screen_path(device) -> tuple[bool, str]:
     return False, stderr or "unexpected output from SleepScreenPath check"
 
 
-def send_suspended_png(device, img_data: bytes, img_name: str, add_log) -> bool:
+def send_suspended_png(
+    device, img_data: bytes, img_name: str, add_log: Callable[[str], None]
+) -> bool:
     """Upload *img_data* as the sleep screen and configure xochitl if needed.
 
     Restarts xochitl only on the first send (when SleepScreenPath is newly
@@ -131,7 +134,7 @@ def send_suspended_png(device, img_data: bytes, img_name: str, add_log) -> bool:
     return True
 
 
-def rollback_sleep_screen(device, add_log) -> bool:
+def rollback_sleep_screen(device, add_log: Callable[[str], None]) -> bool:
     """Remove the custom sleep screen from the device and restore the default.
 
     Deletes SleepScreenPath from xochitl.conf, removes the image file, and
