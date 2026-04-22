@@ -97,13 +97,12 @@ if not os.path.exists(manifest_path):
 refresh_local_manifest(current_device.name)
 
 st.markdown(
-    _("""Browse and manage templates for this device in the **left panel**.
-         Click a template to open it in the **editor** on the right, where you can update its
-         name, category, labels, icon, and body.
-         Use **:material/add: New template** to create one from scratch.
-         When you're done editing, click **:material/save: Save** to save locally, then
-         **:material/sync: Sync now** to push all changes to the device.
-    """)
+    _(
+        "Browse and manage templates for this device in the **left panel**.  \n"
+        "Click a template to open it in the **editor** on the right, where you can update its name, category, labels, icon, and body.  \n"
+        "Use **:material/add: New template** to create one from scratch.  \n"
+        "When you're done editing, click **:material/save: Save** to save locally, then **:material/sync: Sync now** to push all changes to the device."
+    )
 )
 st.divider()
 

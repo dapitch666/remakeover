@@ -9,7 +9,6 @@ from src.templates import meta_from_dict, meta_to_dict
 
 # ---------------------------------------------------------------------------
 # meta_to_dict — orientation normalization
-# (pages/templates.py:273–278)
 # ---------------------------------------------------------------------------
 
 
@@ -41,7 +40,6 @@ def test_meta_to_dict_orientation_key_takes_precedence_over_orientations():
 
 # ---------------------------------------------------------------------------
 # meta_to_dict — author stripping
-# (pages/templates.py:259)
 # ---------------------------------------------------------------------------
 
 
@@ -55,7 +53,6 @@ def test_meta_to_dict_all_whitespace_author_becomes_empty_string():
 
 # ---------------------------------------------------------------------------
 # meta_to_dict — categories and labels normalization
-# (pages/templates.py:272, 282)
 # ---------------------------------------------------------------------------
 
 
@@ -81,7 +78,6 @@ def test_meta_to_dict_filters_empty_label_entries():
 
 # ---------------------------------------------------------------------------
 # meta_from_dict — formatVersion coercion
-# (pages/templates.py:294–301)
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +106,6 @@ def test_meta_from_dict_none_format_version_falls_back_to_1():
 
 # ---------------------------------------------------------------------------
 # meta_from_dict — empty categories fallback
-# (pages/templates.py:289–290)
 # ---------------------------------------------------------------------------
 
 
@@ -126,8 +121,6 @@ def test_meta_from_dict_non_empty_categories_are_preserved():
 
 # ---------------------------------------------------------------------------
 # meta_from_dict — author passthrough (no injection here)
-# build_full_json injects "rm-manager" for empty author, not meta_from_dict
-# (pages/templates.py:304 vs src/templates.py:150–151)
 # ---------------------------------------------------------------------------
 
 

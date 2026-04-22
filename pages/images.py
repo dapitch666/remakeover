@@ -279,15 +279,14 @@ stored_images = _images.list_device_images(current_device.name)
 
 if stored_images:
     st.markdown(
-        _("""Below you will find all images saved for this device. 
-             Click the **name** of an image to rename it.  
-             The buttons under each image let you **:material/cloud_upload: send it as the suspended image** 
-             or **:material/delete: delete** it.  
-             At the bottom of the page you can **retrieve the sleep screen currently installed on the device**, 
-             **add a new image from your computer** — it will be automatically converted to the correct format and dimensions. 
-             — or **restore the default sleep screen** if you want to remove the custom one and go back to the 
-             factory default.
-        """)
+        _(
+            "Below you will find all images saved for this device.  \n"
+            "Click the **name** of an image to rename it.  \n"
+            "The buttons under each image let you **:material/cloud_upload: send** it as the suspended image or **:material/delete: delete** it.  \n"
+            "At the bottom of the page you can **add a new image** from your computer, **retrieve the sleep screen**"
+            " currently installed on the device, — it will be automatically converted to the correct format and dimensions"
+            " — or **restore the default sleep screen** if you want to remove the custom one and go back to the factory default."
+        )
     )
     st.divider()
 

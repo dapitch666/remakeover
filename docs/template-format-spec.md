@@ -29,7 +29,7 @@
 | `categories` | array of strings | yes      | One or more category tags (see below) |
 | `orientation` | string | yes      | `"portrait"` or `"landscape"` |
 | `iconData` | string | yes      | Base64-encoded SVG used as the template icon on the device. |
-| `labels` | array of strings | no       | Optional tags for filtering in rm-manager. Stored on the device but not displayed in the device UI. Defaults to `[]` if absent. |
+| `labels` | array of strings | no       | Optional tags for filtering in reMakeover. Stored on the device but not displayed in the device UI. Defaults to `[]` if absent. |
 | `constants` | array of objects | no       | Named values and expressions used throughout the template |
 | `items` | array of item objects | yes      | Top-level list of graphical elements |
 

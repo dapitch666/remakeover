@@ -17,7 +17,7 @@ Releases are fully automated via GitHub Actions. No local tagging or script exec
 6. The `Tag and publish` workflow fires on merge:
    - Verifies the tag does not already exist,
    - Creates and pushes the annotated tag `vX.Y.Z`,
-   - Builds and pushes `ghcr.io/<owner>/rm-manager:X.Y.Z`,
+   - Builds and pushes `ghcr.io/<owner>/remakeover:X.Y.Z`,
    - Also pushes `:latest` unless the version contains a `-` prerelease suffix.
 
 Prerelease images

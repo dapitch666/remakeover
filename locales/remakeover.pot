@@ -1,0 +1,865 @@
+# Translations template for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-04-22 19:10+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: app.py:181
+msgid "Sleep Screen"
+msgstr ""
+
+#: app.py:182
+msgid "Templates"
+msgstr ""
+
+#: app.py:183
+msgid "Logs"
+msgstr ""
+
+#: pages/images.py:47 pages/images.py:107
+#, python-brace-format
+msgid "Image renamed from '{o}' to {n}"
+msgstr ""
+
+#: pages/images.py:53 pages/images.py:112
+#, python-brace-format
+msgid "Error renaming image '{o}'"
+msgstr ""
+
+#: pages/images.py:60
+msgid "Rename image"
+msgstr ""
+
+#: pages/images.py:83
+msgid "Click to rename"
+msgstr ""
+
+#: pages/images.py:97
+msgid "Confirm replacement"
+msgstr ""
+
+#: pages/images.py:98
+#, python-brace-format
+msgid "'{new}' already exists. Replace this file?"
+msgstr ""
+
+#: pages/images.py:121 src/config_ui.py:244
+msgid "Confirm deletion"
+msgstr ""
+
+#: pages/images.py:122
+#, python-brace-format
+msgid "Confirm deletion of {name}?"
+msgstr ""
+
+#: pages/images.py:131
+#, python-brace-format
+msgid "{img_name} deleted"
+msgstr ""
+
+#: pages/images.py:136
+#, python-brace-format
+msgid "Error deleting {img_name}"
+msgstr ""
+
+#: pages/images.py:160 pages/images.py:237
+#, python-brace-format
+msgid "{name} sent to {device}"
+msgstr ""
+
+#: pages/images.py:164
+#, python-brace-format
+msgid "Error sending {name}"
+msgstr ""
+
+#: pages/images.py:187
+msgid "Add an image"
+msgstr ""
+
+#: pages/images.py:193
+#, python-brace-format
+msgid "Drag an image here (will be converted to PNG {w}x{h})"
+msgstr ""
+
+#: pages/images.py:208
+#, python-brace-format
+msgid "Image saved: {filename}"
+msgstr ""
+
+#: pages/images.py:213
+msgid "Send to device?"
+msgstr ""
+
+#: pages/images.py:214
+#, python-brace-format
+msgid ""
+"Image saved locally.\n"
+"Do you also want to send it to **{device}**?"
+msgstr ""
+
+#: pages/images.py:218
+msgid "No"
+msgstr ""
+
+#: pages/images.py:219
+msgid "Yes"
+msgstr ""
+
+#: pages/images.py:220
+msgid "You can still send it later from the image actions."
+msgstr ""
+
+#: pages/images.py:241
+msgid "Error sending image."
+msgstr ""
+
+#: pages/images.py:264
+msgid ":material/image: Images"
+msgstr ""
+
+#: pages/images.py:283
+msgid ""
+"Below you will find all images saved for this device.  \n"
+"Click the **name** of an image to rename it.  \n"
+"The buttons under each image let you **:material/cloud_upload: send** it "
+"as the suspended image or **:material/delete: delete** it.  \n"
+"At the bottom of the page you can **add a new image** from your computer,"
+" **retrieve the sleep screen** currently installed on the device, — it "
+"will be automatically converted to the correct format and dimensions — or"
+" **restore the default sleep screen** if you want to remove the custom "
+"one and go back to the factory default."
+msgstr ""
+
+#: pages/images.py:304
+msgid ""
+"No images saved for this device. Import the sleep screen currently "
+"installed on the device or add one from your computer below."
+msgstr ""
+
+#: pages/images.py:312
+msgid "Get current image"
+msgstr ""
+
+#: pages/images.py:324
+#, python-brace-format
+msgid "Image saved: {name}"
+msgstr ""
+
+#: pages/images.py:327
+msgid "Import from device"
+msgstr ""
+
+#: pages/images.py:332 pages/images.py:389
+msgid "No custom sleep screen is configured on this device"
+msgstr ""
+
+#: pages/images.py:334
+msgid "Download the current suspended image from the device"
+msgstr ""
+
+#: pages/images.py:341
+#, python-brace-format
+msgid "Error: {err}"
+msgstr ""
+
+#: pages/images.py:344 pages/images.py:384
+msgid "Restore default"
+msgstr ""
+
+#: pages/images.py:351
+msgid "Restore default sleep screen?"
+msgstr ""
+
+#: pages/images.py:353
+#, python-brace-format
+msgid ""
+"This will remove the custom sleep screen from **{device}** and restore "
+"the factory default."
+msgstr ""
+
+#: pages/images.py:357
+msgid "Restore"
+msgstr ""
+
+#: pages/images.py:365
+#, python-brace-format
+msgid "Sleep screen reset to default on {device}"
+msgstr ""
+
+#: pages/images.py:371
+msgid "Error resetting sleep screen."
+msgstr ""
+
+#: pages/images.py:391
+msgid ""
+"Remove the custom sleep screen from the device and restore the factory "
+"default"
+msgstr ""
+
+#: pages/logs.py:11
+msgid ":material/list: Session Logs"
+msgstr ""
+
+#: pages/logs.py:14
+msgid "No logs for this session."
+msgstr ""
+
+#: pages/logs.py:22
+msgid "Clear session logs"
+msgstr ""
+
+#: pages/logs.py:25
+msgid "Clear logs stored in the current session"
+msgstr ""
+
+#: pages/logs.py:30
+msgid "Clear logs"
+msgstr ""
+
+#: pages/logs.py:30
+msgid "Clear logs for this session?"
+msgstr ""
+
+#: pages/templates.py:43
+msgid ":material/description: Templates"
+msgstr ""
+
+#: pages/templates.py:64
+msgid ""
+"The template list for this device has not been imported yet. Turn on the "
+"device and click the button below to start."
+msgstr ""
+
+#: pages/templates.py:79
+msgid "Templates imported successfully"
+msgstr ""
+
+#: pages/templates.py:85
+msgid "Initialize templates from this device"
+msgstr ""
+
+#: pages/templates.py:89
+msgid "Import templates from this device and initialize local metadata"
+msgstr ""
+
+#: pages/templates.py:94 src/template_list_ui.py:370
+#, python-brace-format
+msgid "Error: {msg}"
+msgstr ""
+
+#: pages/templates.py:101
+msgid ""
+"Browse and manage templates for this device in the **left panel**.  \n"
+"Click a template to open it in the **editor** on the right, where you can"
+" update its name, category, labels, icon, and body.  \n"
+"Use **:material/add: New template** to create one from scratch.  \n"
+"When you're done editing, click **:material/save: Save** to save locally,"
+" then **:material/sync: Sync now** to push all changes to the device."
+msgstr ""
+
+#: src/config_ui.py:59
+#, python-brace-format
+msgid "Edit: {name}"
+msgstr ""
+
+#: src/config_ui.py:64
+msgid "Create a new device"
+msgstr ""
+
+#: src/config_ui.py:67
+msgid ""
+"💡 To find the IP address and root password of your reMarkable, enable "
+"developer mode if needed, go to Settings > Help > About > Copyrights and "
+"licenses, then scroll the right column if necessary."
+msgstr ""
+
+#: src/config_ui.py:77
+msgid "Device name"
+msgstr ""
+
+#: src/config_ui.py:79
+msgid "My reMarkable"
+msgstr ""
+
+#: src/config_ui.py:83
+msgid "IP Address"
+msgstr ""
+
+#: src/config_ui.py:90
+msgid "SSH Password"
+msgstr ""
+
+#: src/config_ui.py:101
+msgid "Enter an IP address before testing."
+msgstr ""
+
+#: src/config_ui.py:113
+msgid "Test Connection"
+msgstr ""
+
+#: src/config_ui.py:117
+msgid "Test SSH connection to the device and detect its type and firmware version"
+msgstr ""
+
+#: src/config_ui.py:142
+#, python-brace-format
+msgid "Detected: {dt}, Firmware: {fw}"
+msgstr ""
+
+#: src/config_ui.py:143 src/config_ui.py:144 src/config_ui.py:302
+#: src/config_ui.py:303 src/config_ui.py:329 src/config_ui.py:334
+msgid "unknown"
+msgstr ""
+
+#: src/config_ui.py:182
+#, python-brace-format
+msgid ""
+"A local data folder already exists for '{name}'. Choose another device "
+"name."
+msgstr ""
+
+#: src/config_ui.py:186
+#, python-brace-format
+msgid "Could not save configuration: {error}"
+msgstr ""
+
+#: src/config_ui.py:191
+#, python-brace-format
+msgid "Configuration of '{name}' saved"
+msgstr ""
+
+#: src/config_ui.py:200 src/template_editor_ui.py:188
+#: src/template_editor_ui.py:497 src/template_list_ui.py:228
+msgid "Save"
+msgstr ""
+
+#: src/config_ui.py:204
+msgid "Save device configuration"
+msgstr ""
+
+#: src/config_ui.py:216 src/template_editor_ui.py:151
+#: src/template_editor_ui.py:568
+msgid "Delete"
+msgstr ""
+
+#: src/config_ui.py:221
+msgid "Delete this device and its local images and templates"
+msgstr ""
+
+#: src/config_ui.py:234 src/dialog.py:25 src/template_editor_ui.py:147
+#: src/template_editor_ui.py:205 src/template_list_ui.py:252
+msgid "Cancel"
+msgstr ""
+
+#: src/config_ui.py:239
+msgid "Cancel editing this device"
+msgstr ""
+
+#: src/config_ui.py:246
+#, python-brace-format
+msgid ""
+"Confirm deletion of device '{name}'? This will also remove its local "
+"images and templates."
+msgstr ""
+
+#: src/config_ui.py:266
+#, python-brace-format
+msgid "'{name}' deleted, but local data could not be fully removed"
+msgstr ""
+
+#: src/config_ui.py:273 src/template_editor_ui.py:161
+#, python-brace-format
+msgid "'{name}' deleted"
+msgstr ""
+
+#: src/config_ui.py:293
+msgid ""
+"To save, fill all fields, turn the device on and run Test Connection to "
+"detect device model and firmware."
+msgstr ""
+
+#: src/config_ui.py:301
+#, python-brace-format
+msgid "Connected to {device_type} (firmware {firmware_version})"
+msgstr ""
+
+#: src/config_ui.py:309
+#, python-brace-format
+msgid "Connection failed: {error}"
+msgstr ""
+
+#: src/config_ui.py:329
+#, python-brace-format
+msgid "model: {old} -> {new}"
+msgstr ""
+
+#: src/config_ui.py:334
+#, python-brace-format
+msgid "firmware: {old} -> {new}"
+msgstr ""
+
+#: src/config_ui.py:339
+msgid "sleep screen now enabled"
+msgstr ""
+
+#: src/config_ui.py:341
+msgid "sleep screen now disabled"
+msgstr ""
+
+#: src/config_ui.py:352
+#, python-brace-format
+msgid "Could not save detected metadata for '{name}'"
+msgstr ""
+
+#: src/config_ui.py:358
+#, python-brace-format
+msgid "Detected update for '{name}': {details}"
+msgstr ""
+
+#: src/config_ui.py:406
+msgid "Device"
+msgstr ""
+
+#: src/config_ui.py:410
+msgid "─ New device ─"
+msgstr ""
+
+#: src/config_ui.py:428
+msgid "Device configuration"
+msgstr ""
+
+#: src/config_ui.py:469
+msgid "SSH connection OK"
+msgstr ""
+
+#: src/config_ui.py:489
+#, python-brace-format
+msgid "Connection status unknown (last checked {n} min ago)"
+msgstr ""
+
+#: src/config_ui.py:493
+#, python-brace-format
+msgid "SSH connection failed: {err}"
+msgstr ""
+
+#: src/config_ui.py:498
+msgid "Test SSH connection"
+msgstr ""
+
+#: src/dialog.py:26
+msgid "Confirm"
+msgstr ""
+
+#: src/template_editor_ui.py:75 src/template_list_ui.py:272
+msgid "New"
+msgstr ""
+
+#: src/template_editor_ui.py:131
+msgid "Template duplicated (not saved)"
+msgstr ""
+
+#: src/template_editor_ui.py:134
+msgid "Delete template"
+msgstr ""
+
+#: src/template_editor_ui.py:144
+#, python-brace-format
+msgid "Do you really want to delete {name}?"
+msgstr ""
+
+#: src/template_editor_ui.py:165
+#, python-brace-format
+msgid "Error deleting '{name}'"
+msgstr ""
+
+#: src/template_editor_ui.py:172
+msgid "Replace template file"
+msgstr ""
+
+#: src/template_editor_ui.py:181
+msgid "New .template file"
+msgstr ""
+
+#: src/template_editor_ui.py:199
+#, python-brace-format
+msgid "'{name}' updated locally"
+msgstr ""
+
+#: src/template_editor_ui.py:228
+msgid ""
+"No templates yet. Click **:material/add: New** to create one, or "
+"**:material/upload_file: Import** to add from your computer."
+msgstr ""
+
+#: src/template_editor_ui.py:236
+msgid ""
+"Select a template from the list, or click **:material/add: New** to "
+"create one."
+msgstr ""
+
+#: src/template_editor_ui.py:298
+msgid "Metadata"
+msgstr ""
+
+#: src/template_editor_ui.py:303
+msgid "Name"
+msgstr ""
+
+#: src/template_editor_ui.py:305
+msgid "Author"
+msgstr ""
+
+#: src/template_editor_ui.py:308 src/template_list_ui.py:480
+msgid "Orientation"
+msgstr ""
+
+#: src/template_editor_ui.py:316 src/template_list_ui.py:463
+msgid "Categories"
+msgstr ""
+
+#: src/template_editor_ui.py:320
+msgid "Select or add categories"
+msgstr ""
+
+#: src/template_editor_ui.py:321
+msgid "Categories are used on the device to filter templates."
+msgstr ""
+
+#: src/template_editor_ui.py:326 src/template_list_ui.py:473
+msgid "Labels"
+msgstr ""
+
+#: src/template_editor_ui.py:330
+msgid "Select or add labels"
+msgstr ""
+
+#: src/template_editor_ui.py:331
+msgid "Labels are only used here to filter templates."
+msgstr ""
+
+#: src/template_editor_ui.py:335
+msgid "Format version"
+msgstr ""
+
+#: src/template_editor_ui.py:338
+msgid "Integer format version (usually 1)"
+msgstr ""
+
+#: src/template_editor_ui.py:341
+msgid "Template version"
+msgstr ""
+
+#: src/template_editor_ui.py:343
+msgid ":material/grid_on: Icon"
+msgstr ""
+
+#: src/template_editor_ui.py:361
+msgid "Icon preview"
+msgstr ""
+
+#: src/template_editor_ui.py:372
+msgid "Upload SVG file"
+msgstr ""
+
+#: src/template_editor_ui.py:408
+#, python-brace-format
+msgid "Icon SVG code ({w}×{h} px)"
+msgstr ""
+
+#: src/template_editor_ui.py:412
+msgid "Raw SVG source — not base64. Must match the selected orientation."
+msgstr ""
+
+#: src/template_editor_ui.py:421
+msgid "JSON"
+msgstr ""
+
+#: src/template_editor_ui.py:436
+msgid "Template JSON"
+msgstr ""
+
+#: src/template_editor_ui.py:440
+msgid ""
+"Enter your reMarkable template JSON here. The preview updates "
+"automatically."
+msgstr ""
+
+#: src/template_editor_ui.py:450
+msgid "Invalid JSON body"
+msgstr ""
+
+#: src/template_editor_ui.py:453
+msgid "Preview"
+msgstr ""
+
+#: src/template_editor_ui.py:466
+msgid "Actions"
+msgstr ""
+
+#: src/template_editor_ui.py:489 src/template_list_ui.py:243
+#, python-brace-format
+msgid "Template {name} saved"
+msgstr ""
+
+#: src/template_editor_ui.py:503
+msgid "Save the .template file to the selected device's library."
+msgstr ""
+
+#: src/template_editor_ui.py:521
+msgid "Export"
+msgstr ""
+
+#: src/template_editor_ui.py:528
+msgid "Download the .template file to your computer"
+msgstr ""
+
+#: src/template_editor_ui.py:540
+msgid "Duplicate"
+msgstr ""
+
+#: src/template_editor_ui.py:545
+msgid "Create an unsaved copy in the editor"
+msgstr ""
+
+#: src/template_editor_ui.py:554
+msgid "Replace file"
+msgstr ""
+
+#: src/template_editor_ui.py:559
+msgid "Replace this template with a new .template file"
+msgstr ""
+
+#: src/template_editor_ui.py:573
+msgid "Delete this template"
+msgstr ""
+
+#: src/template_editor_ui.py:577
+msgid ":material/help: reMarkable JSON format documentation"
+msgstr ""
+
+#: src/template_list_ui.py:156
+#, python-brace-format
+msgid "'{name}' recovered from device"
+msgstr ""
+
+#: src/template_list_ui.py:165
+#, python-brace-format
+msgid "Import failed: {msg}"
+msgstr ""
+
+#: src/template_list_ui.py:175
+msgid "Recover template"
+msgstr ""
+
+#: src/template_list_ui.py:177
+#, python-brace-format
+msgid "'{name}' only exists on the device. Recover it to local storage?"
+msgstr ""
+
+#: src/template_list_ui.py:210
+msgid "Import templates"
+msgstr ""
+
+#: src/template_list_ui.py:215
+msgid "Drag one or more `.template` files here"
+msgstr ""
+
+#: src/template_list_ui.py:247
+#, python-brace-format
+msgid "{count} templates saved"
+msgstr ""
+
+#: src/template_list_ui.py:276
+msgid "Create a new template from scratch"
+msgstr ""
+
+#: src/template_list_ui.py:285
+msgid "Import"
+msgstr ""
+
+#: src/template_list_ui.py:289
+msgid "Import .template files from your computer"
+msgstr ""
+
+#: src/template_list_ui.py:294
+msgid ":material/sync: Sync"
+msgstr ""
+
+#: src/template_list_ui.py:298
+#, python-brace-format
+msgid "Last modified on {date} at {time}"
+msgstr ""
+
+#: src/template_list_ui.py:306
+msgid "Sync status checked"
+msgstr ""
+
+#: src/template_list_ui.py:308
+msgid "Sync check error"
+msgstr ""
+
+#: src/template_list_ui.py:311
+msgid "Check sync"
+msgstr ""
+
+#: src/template_list_ui.py:315
+msgid ""
+"Connect to the device and check if templates are in sync (does not change"
+" anything)"
+msgstr ""
+
+#: src/template_list_ui.py:329 src/template_list_ui.py:356
+msgid "Templates synced"
+msgstr ""
+
+#: src/template_list_ui.py:335
+msgid "Sync error"
+msgstr ""
+
+#: src/template_list_ui.py:338
+msgid "Sync now"
+msgstr ""
+
+#: src/template_list_ui.py:342
+msgid ""
+"Sync templates between this manager and the device (uploads new/modified "
+"templates, deletes remote-only templates)"
+msgstr ""
+
+#: src/template_list_ui.py:373
+msgid "Reset & reinitialize"
+msgstr ""
+
+#: src/template_list_ui.py:377
+msgid ""
+"Delete all local templates and re-fetch from the device (use if you think"
+" the local state is corrupted)"
+msgstr ""
+
+#: src/template_list_ui.py:392
+#, python-brace-format
+msgid "{n} local template"
+msgid_plural "{n} local templates"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/template_list_ui.py:395
+#, python-brace-format
+msgid "{n} remote template"
+msgid_plural "{n} remote templates"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/template_list_ui.py:399
+#, python-brace-format
+msgid "{n} template to upload"
+msgid_plural "{n} templates to upload"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/template_list_ui.py:404
+#, python-brace-format
+msgid "{n} template to delete on device"
+msgid_plural "{n} templates to delete on device"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/template_list_ui.py:414
+#, python-brace-format
+msgid "Last remote check on {date} at {time}"
+msgstr ""
+
+#: src/template_list_ui.py:416
+msgid "Added locally (upload)"
+msgstr ""
+
+#: src/template_list_ui.py:418 src/template_list_ui.py:429
+#: src/template_list_ui.py:440
+msgid "none"
+msgstr ""
+
+#: src/template_list_ui.py:427
+msgid "Modified locally (upload)"
+msgstr ""
+
+#: src/template_list_ui.py:438
+msgid "Remote-only (delete on sync)"
+msgstr ""
+
+#: src/template_list_ui.py:452
+msgid ":material/filter_list: Filters"
+msgstr ""
+
+#: src/template_list_ui.py:454
+msgid "Search"
+msgstr ""
+
+#: src/template_list_ui.py:456
+msgid "Filter by name…"
+msgstr ""
+
+#: src/template_list_ui.py:467
+msgid "Filter by category…"
+msgstr ""
+
+#: src/template_list_ui.py:477
+msgid "Filter by label…"
+msgstr ""
+
+#: src/template_list_ui.py:484
+msgid "All orientations"
+msgstr ""
+
+#: src/template_list_ui.py:507
+msgid "No templates yet. Click 'New' or 'Import'."
+msgstr ""
+
+#: src/template_list_ui.py:511
+msgid "No templates match the filter."
+msgstr ""
+
+#: src/template_list_ui.py:515
+#, python-brace-format
+msgid "{n} template"
+msgid_plural "{n} templates"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/templates.py:71
+msgid "No <svg> root element found."
+msgstr ""
+
+#: src/templates.py:76
+msgid "SVG must have an explicit width attribute."
+msgstr ""
+
+#: src/templates.py:78
+msgid "SVG must have an explicit height attribute."
+msgstr ""
+
+#: src/templates.py:83
+#, python-brace-format
+msgid "SVG must be {ew}×{eh} px (got {w}×{h})."
+msgstr ""
+
+#: src/ui_common.py:60
+msgid "No device configured. Add one in the sidebar."
+msgstr ""
+
+#: src/ui_common.py:64
+msgid "Select a device in the sidebar."
+msgstr ""
+

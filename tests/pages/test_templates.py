@@ -77,7 +77,7 @@ def _make_template(
     tdir = d / "templates"
     stem = name.removesuffix(".template")
     template_uuid = template_uuid or str(
-        uuid.uuid5(uuid.NAMESPACE_URL, f"rm-manager:{device}:{stem}")
+        uuid.uuid5(uuid.NAMESPACE_URL, f"remakeover:{device}:{stem}")
     )
     (tdir / f"{template_uuid}.template").write_text(content or _FULL_JSON, encoding="utf-8")
     manifest_path = d / "manifest.json"
@@ -641,7 +641,7 @@ class TestEditorPanelNew:
         assert name.value == ""
 
     def test_author_input_empty_for_new_template(self, tmp_path):
-        """Author field is empty on startup (defaults to rm-manager only on save)."""
+        """Author field is empty on startup (defaults to reMakeover only on save)."""
         cfg_path = with_device(tmp_path, "D1")
         backup_dir(tmp_path, "D1")
         at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
@@ -1133,7 +1133,7 @@ class TestEditorSave:
         data = json.loads(tpl_file.read_text(encoding="utf-8"))
 
         assert data["name"] == "save-test"  # preferred_name written through
-        assert data["author"] == "rm-manager"  # default author applied by build_full_json
+        assert data["author"] == "reMakeover"  # default author applied by build_full_json
         assert data["categories"] == ["Perso"]  # meta field merged from session state
         assert "constants" in data  # body fields from _BODY_JSON preserved
         assert "items" in data
@@ -1144,8 +1144,8 @@ class TestEditorSave:
         assert entry["name"] == "save-test"
         assert entry["sha256"]  # non-empty: sha256 was computed and stored
 
-    def test_save_applies_rm_manager_author_default(self, tmp_path):
-        """Saving with empty author field applies 'rm-manager' to the saved JSON."""
+    def test_save_applies_remakeover_author_default(self, tmp_path):
+        """Saving with empty author field applies 'reMakeover' to the saved JSON."""
         cfg_path = with_device(tmp_path, "D1")
         tdir = backup_dir(tmp_path, "D1") / "templates"
         env = make_env(tmp_path, cfg_path)
@@ -1166,7 +1166,7 @@ class TestEditorSave:
         tpl_file = tdir / f"{saved_uuid}.template"
         assert tpl_file.exists()
         data = json.loads(tpl_file.read_text(encoding="utf-8"))
-        assert data["author"] == "rm-manager"
+        assert data["author"] == "reMakeover"
 
     def test_save_accepts_custom_categories_and_labels(self, tmp_path):
         """Saving preserves newly entered categories and labels from the multiselects."""
