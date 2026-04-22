@@ -17,9 +17,7 @@ COPY src ./src
 COPY VERSION .
 
 # Compile translation catalogs (.po → .mo)
-RUN pip install --no-cache-dir babel && \
-    pybabel compile -d locales -D remakeover && \
-    pip uninstall -y babel
+RUN pybabel compile -d locales -D remakeover
 
 # Exposition du port Streamlit
 EXPOSE 8501
