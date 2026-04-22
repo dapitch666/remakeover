@@ -130,7 +130,7 @@ def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:
 
 
 def run_detection(device: Device) -> dict:
-    """Call detect_device_info and return a normalised result dict.
+    """Call detect_device_info and return a normalized result dict.
 
     Keys: ok, device_type, firmware_version, sleep_screen_enabled, error.
     """

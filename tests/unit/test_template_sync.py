@@ -722,7 +722,7 @@ def test_fetch_and_init_templates_saves_files_and_builds_manifest(tmp_path):
         return None, "missing"
 
     with (
-        patch("src.templates.list_remote_custom_templates", return_value=(True, [remote_uuid])),
+        patch("src.template_sync.list_remote_custom_templates", return_value=(True, [remote_uuid])),
         patch("src.template_sync._ssh.download_file_ssh", side_effect=_download),
         patch("src.template_sync._ssh.upload_file_ssh", return_value=(True, "ok")),
     ):
@@ -765,7 +765,7 @@ def test_fetch_and_init_templates_overwrite_backup_clears_existing_files(tmp_pat
 
     # Remote returns nothing so we can focus purely on the wipe.
     with (
-        patch("src.templates.list_remote_custom_templates", return_value=(True, [])),
+        patch("src.template_sync.list_remote_custom_templates", return_value=(True, [])),
         patch("src.template_sync._ssh.upload_file_ssh", return_value=(True, "ok")),
     ):
         ok, msg = fetch_and_init_templates(_device(), overwrite_backup=True)
