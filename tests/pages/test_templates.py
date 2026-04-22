@@ -93,21 +93,34 @@ def _make_template(
     return template_uuid
 
 
+_TEMPLATE_DEVICE_SCOPED = {
+    "tpl_selected_uuid",
+    "tpl_filter_text",
+    "tpl_filter_cats",
+    "tpl_filter_labels",
+    "tpl_filter_orientation",
+    "tpl_pill_expanded_rows",
+}
+
+
 def _at_templates(
     tmp_path, cfg_path, session_state: dict | None = None, device: str = "D1"
 ) -> AppTest:
     """Boot app.py and switch to templates page, applying optional session state.
 
-    If session_state sets ``tpl_selected_uuid``, this helper automatically
-    pre-sets ``tpl_device`` (unless already provided) so the
-    device-change guard inside the page does not reset the selection.
+    If session_state sets any device-scoped key (selection, filters, pill expansion),
+    this helper automatically pre-sets ``tpl_device`` (unless already provided) so
+    the device-change guard inside the page does not reset those keys.
     """
     env = make_env(tmp_path, cfg_path)
     with patch.dict(os.environ, env):
         at = AppTest.from_file("app.py")
         at.run()
         if session_state:
-            if "tpl_selected_uuid" in session_state and "tpl_device" not in session_state:
+            if (
+                any(k in _TEMPLATE_DEVICE_SCOPED for k in session_state)
+                and "tpl_device" not in session_state
+            ):
                 at.session_state["tpl_device"] = device
             for k, v in session_state.items():
                 at.session_state[k] = v
@@ -552,6 +565,24 @@ class TestTemplateList:
             at.switch_page("pages/templates.py").run()
         assert not at.exception
         assert at.session_state["tpl_selected_uuid"] is None
+
+    def test_filter_keys_reset_on_device_change(self, tmp_path):
+        """When tpl_device differs from the current device, filter state and pill expansion are cleared."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "STALE_DEVICE"
+            at.session_state["tpl_filter_text"] = "zzznomatch"
+            at.session_state["tpl_filter_orientation"] = "landscape"
+            at.session_state["tpl_pill_expanded_rows"] = {"added"}
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert at.session_state.tpl_filter_text == ""
+        assert at.session_state.tpl_filter_orientation == ""
+        assert "tpl_pill_expanded_rows" not in at.session_state
 
 
 # ---------------------------------------------------------------------------

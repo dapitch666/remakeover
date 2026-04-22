@@ -149,6 +149,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
             at.switch_page("pages/images.py").run()
         assert not at.exception
@@ -165,6 +166,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "image2.png"
             at.switch_page("pages/images.py").run()
         assert not at.exception
@@ -185,6 +187,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "image2.png"
             at.session_state["confirm_del_img"] = True
             at.switch_page("pages/images.py").run()
@@ -202,6 +205,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "keep.png"
             at.session_state["confirm_del_img"] = False
             at.switch_page("pages/images.py").run()
@@ -275,6 +279,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
             at.switch_page("pages/images.py").run()
         assert not at.exception
@@ -295,6 +300,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
             at.session_state["confirm_rename_img"] = True
             at.switch_page("pages/images.py").run()
@@ -319,6 +325,7 @@ class TestImagesPage:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
             at.session_state["confirm_rename_img"] = False
             at.switch_page("pages/images.py").run()
@@ -671,6 +678,7 @@ class TestInlineRename:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
             at.switch_page("pages/images.py").run()
             # Queue a new name in the text input, then submit the form
@@ -697,6 +705,7 @@ class TestInlineRename:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
             at.switch_page("pages/images.py").run()
             at.text_input[0].set_value("pic.png")
@@ -727,6 +736,7 @@ class TestInlineRename:
         ):
             at = AppTest.from_file("app.py")
             at.run()
+            at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
             at.switch_page("pages/images.py").run()
             # "other" normalizes to "other.png", which already exists
@@ -737,3 +747,29 @@ class TestInlineRename:
         assert not at.exception
         assert not renamed, "rename_device_image should not be called on conflict"
         assert at.session_state["img_pending_rename"] == ("pic.png", "other.png")
+
+
+# ---------------------------------------------------------------------------
+# Device switch guard
+# ---------------------------------------------------------------------------
+
+
+def test_img_state_resets_on_device_change(tmp_path):
+    """When img_device differs from the current device, non-scoped dialog/rename state is cleared."""
+    cfg_path = with_device(tmp_path, "D1")
+    env = make_env(tmp_path, cfg_path)
+    with (
+        patch.dict(os.environ, env),
+        patch("src.images.list_device_images", return_value=[]),
+    ):
+        at = AppTest.from_file("app.py")
+        at.run()
+        at.session_state["img_device"] = "STALE_DEVICE"
+        at.session_state["img_renaming"] = "foo.png"
+        at.session_state["img_pending_delete"] = "bar.png"
+        at.session_state["img_pending_rename"] = ("bar.png", "baz.png")
+        at.switch_page("pages/images.py").run()
+    assert not at.exception
+    assert "img_renaming" not in at.session_state
+    assert "img_pending_delete" not in at.session_state
+    assert "img_pending_rename" not in at.session_state
