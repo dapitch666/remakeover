@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOCALES_DIR="$ROOT_DIR/locales"
-DOMAIN="rmmanager"
+DOMAIN="remakeover"
 POT_FILE="$LOCALES_DIR/$DOMAIN.pot"
 
 PYBABEL="${PYBABEL:-pybabel}"
@@ -13,8 +13,10 @@ if ! command -v "$PYBABEL" &>/dev/null; then
   exit 1
 fi
 
+cd "$ROOT_DIR"
+
 echo "Extracting messages..."
-"$PYBABEL" extract -F "$ROOT_DIR/pyproject.toml" -k "_n:1,2" -o "$POT_FILE" "$ROOT_DIR"
+"$PYBABEL" extract -F pyproject.toml -k "_n:1,2" -o "$POT_FILE" .
 
 echo "Updating .po files..."
 "$PYBABEL" update -i "$POT_FILE" -d "$LOCALES_DIR" -D "$DOMAIN"

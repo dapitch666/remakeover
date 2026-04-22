@@ -1,7 +1,7 @@
 """Internationalisation helpers.
 
 English is the default / fallback language — msgids are English strings.
-French translations live in ``locales/fr/LC_MESSAGES/rmmanager.po`` (.mo).
+French translations live in ``locales/fr/LC_MESSAGES/remakeover.po`` (.mo).
 
 Usage in any Streamlit module::
 
@@ -18,7 +18,7 @@ from pathlib import Path
 import streamlit as st
 
 _LOCALES_DIR = Path(__file__).parent.parent / "locales"
-_DOMAIN = "rmmanager"
+_DOMAIN = "remakeover"
 SUPPORTED_LANGUAGES = ("en", "fr")
 
 # Cache compiled catalog objects (one per language, loaded on first use)

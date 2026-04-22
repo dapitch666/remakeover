@@ -302,7 +302,7 @@ def render_editor_panel(
     with _mf1:
         st.text_input(_("Name"), key="tpl_meta_name", placeholder="my template")
     with _mf2:
-        st.text_input(_("Author"), key="tpl_meta_author", placeholder="rm-manager")
+        st.text_input(_("Author"), key="tpl_meta_author", placeholder="reMakeover")
     with _mf3:
         st.radio(
             _("Orientation"),

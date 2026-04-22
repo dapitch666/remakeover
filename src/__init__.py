@@ -1,4 +1,4 @@
-"""Package for rm-manager core modules."""
+"""Package for reMakeover core modules."""
 
 __all__ = [
     "config",

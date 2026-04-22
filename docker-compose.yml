@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  rm-manager:
+  remakeover:
     build: .
-    container_name: rm-manager
+    container_name: remakeover
     ports:
       - "8501:8501"
     volumes:

@@ -144,7 +144,7 @@ def build_full_json(meta: dict[str, Any], body_str: str) -> str:
     Raises ValueError if body_str is not valid JSON or not a JSON object.
     """
     if not str(meta.get("author") or "").strip():
-        meta = {**meta, "author": "rm-manager"}
+        meta = {**meta, "author": "reMakeover"}
     try:
         body = json.loads(body_str)
     except JSONDecodeError as exc:

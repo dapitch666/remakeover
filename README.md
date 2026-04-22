@@ -1,8 +1,49 @@
-# reMarkable Manager
+# reMakeover
 
-Web application to manage multiple reMarkable tablets (Paper Pro, Paper Pro Move, reMarkable 2, etc.).
+Self-hosted web application to customize sleep-screen images and manage templates on reMarkable devices.
+- Compatible with reMarkable 2, Paper Pro, Paper Pro Move
+- Connects over SSH using the device’s root password — no SSH keys required
+- Writes changes to `/home/root`, so they persist across firmware updates
+- Requires no hacks or additional software on the device
 
-Connects over SSH using a password — no SSH keys required.
+
+## ⚡ Quick start
+
+```bash
+# Requires Docker Compose
+docker-compose up -d
+```
+
+Then open http://localhost:8501 in your browser and follow the instructions in the ⚙️ Configuration panel to add your device(s).
+
+---
+
+## 📌 Persistence across firmware updates
+
+Your custom sleep-screen image and templates are written to `/home/root` on the device.
+
+This directory is preserved across firmware updates, so your changes are **not lost when the device is updated**.
+
+
+## ⚠️ Prerequisites
+
+To use the application, your reMarkable device must allow SSH access over Wi-Fi.
+
+On the device:
+
+1. Enable developer mode  
+   https://support.remarkable.com/s/article/Developer-mode
+
+2. Enable **SSH over WLAN** (Wi-Fi)
+   Follow the instructions shown on the device:  
+   **Settings → Help → About → Copyrights and licenses**
+
+3. Note the **root password**  
+   It is displayed on the same screen and will be required by the application.
+
+> ⚠️ Without SSH over WLAN enabled, the application will not be able to connect to your device.
+
+---
 
 ## 🚀 Installation
 
@@ -35,20 +76,32 @@ The application will be available at http://localhost:8501
 
 ## 🐳 Docker installation (production)
 
+### Using the pre-built image (recommended)
+
+A Docker image is published automatically on every release to the GitHub Container Registry:
+
+To use it, replace `build: .` in `docker-compose.yml` with:
+
+```yaml
+image: ghcr.io/dapitch666/remakeover:latest
+```
+
+### Building from source
+
 ```bash
 # Build and start the container
 docker-compose up -d
 ```
 
-Open your browser at http://localhost:8501
+Open http://localhost:8501 in your browser 
 
 ---
 
 ## ⚙️ Configuration
 
 ### First-time setup
-1. Go to **⚙️ Configuration** (sidebar)
-2. The page shows an edit form for the currently selected device, or a creation form when no device is configured yet
+1. Open the **⚙️ Configuration** panel in the sidebar
+2. The sidebar shows an edit form for the currently selected device, or a creation form when no device is configured
 3. Fill in the fields:
    - **Name**: a free-form label to identify the device
    - **IP address**: the device's IP (USB or Wi-Fi)
@@ -82,40 +135,29 @@ data/
 
 ## 📝 Application pages
 
-### 🖼️ Images
+### 🖼️ Sleep Screen
 Manage sleep-screen images (`suspended.png`):
 - **Import** the image currently on the device
 - **Add** a new image from your computer (PNG, JPG, JPEG — resized automatically)
 - **Send** an image directly to the device
-- **Set a preferred image** (used first during a deployment)
 - **Rename** or **delete** local images
+- **Restore** the factory default sleep screen
 
 ### 📄 Templates
-Manage custom templates (`.template` JSON format):
+Manage and edit custom templates (`.template` JSON format) in a split-panel layout:
 - **Import** templates from the device (initial setup)
-- **Add** new `.template` files
-- **Edit categories and labels** for each template
+- **Browse and filter** the local template library
+- **Edit** categories, labels, icon, and SVG body in the integrated editor with a live preview
+- **Add** new templates from scratch
 - **Rename**, **delete**, or **reload** templates
 - **Check sync status** by comparing local and device manifests
-- **Sync** changes to the device (local manifest is applied to the device)
-
-### 🚀 Deployment
-Re-deploy your configuration after a firmware update (which resets all customizations):
-- Sends the preferred sleep-screen image (or a random one)
-- Syncs local `.template` files to rmMethods UUID triplets in xochitl
-- Disables the carousel (moves stock illustrations to a backup folder)
-- Restarts `xochitl` to apply the changes
-
-> **Note:** All SSH operations automatically remount the root filesystem read-write before executing, and restore the read-only state if it was changed.
-
-### ⚙️ Configuration
-Add, edit, or delete devices.
-
-### ✏️ Templates Editor
-Create and edit `.template` JSON-format files with a live SVG preview. Save results to the local device library for deployment from the Templates page.
+- **Sync** changes to the device (the local manifest is applied)
 
 ### 📋 Logs
 View the history of operations for the current session.
+
+### ⚙️ Configuration (sidebar)
+Add, edit, or delete devices. Accessible from the sidebar panel on every page.
 
 ---
 
@@ -142,105 +184,7 @@ cp -r data/ data.backup/
 
 ## 🧑‍💻 Contributing
 
-### Install development dependencies
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-This installs `ruff` (linter + formatter), `mypy` (type checker), `pytest-cov` (coverage), and `pre-commit`.
-
-### Code quality
-
-```bash
-# Lint — report issues
-ruff check src/ pages/ app.py
-
-# Lint — auto-fix everything possible
-ruff check src/ pages/ app.py --fix
-
-# Format — check only (no changes written)
-ruff format src/ pages/ app.py --check
-
-# Format — apply
-ruff format src/ pages/ app.py
-
-# Type check
-mypy src/ app.py --ignore-missing-imports
-```
-
-Run lint + format + types in one shot:
-
-```bash
-ruff check src/ pages/ app.py --fix && ruff format src/ pages/ app.py && mypy src/ app.py --ignore-missing-imports
-```
-
-### Tests and coverage
-
-```bash
-# Run tests (coverage report printed automatically)
-pytest
-
-# Generate an interactive HTML coverage report
-pytest --cov=src --cov=pages --cov=app --cov-report=html
-open htmlcov/index.html
-```
-
-The test suite enforces a minimum coverage threshold defined in `pytest.ini`. A failure means existing coverage regressed — add tests or update the threshold intentionally.
-
-### Pre-commit hooks
-
-Hooks run ruff and mypy automatically on every `git commit`:
-
-```bash
-# Install hooks (once, after cloning)
-pre-commit install
-
-# Run all hooks manually against every file
-pre-commit run --all-files
-```
-
-This is the most reliable way to verify that a commit will pass before pushing.
-
-### 🌐 Localization
-
-The app uses [gettext](https://docs.python.org/3/library/gettext.html) via [Babel](https://babel.pocoo.org/) for localization. English is the default language (msgids are plain English strings). Translations live in `locales/<lang>/LC_MESSAGES/rmmanager.po`.
-
-#### After modifying UI strings in source files
-
-Re-extract the message catalog and update existing `.po` files:
-
-```bash
-# Re-extract and update all .po files in one step
-scripts/update_locales.sh
-
-# Compile .po → .mo (required for non-English languages to take effect)
-pybabel compile -d locales -D rmmanager
-```
-
-The script reads the mapping configuration from `pyproject.toml` (`[tool.babel]`) and skips the `tests/` directory automatically.
-
-Review any entries marked `#, fuzzy` in the `.po` file — they were matched approximately and may need manual correction. Remove the `#, fuzzy` flag once the translation is verified.
-
-#### Adding a new language
-
-```bash
-# Initialize a new .po file for the language (e.g. German)
-pybabel init -i locales/rmmanager.pot -d locales -D rmmanager -l de
-
-# Edit the generated locales/de/LC_MESSAGES/rmmanager.po and fill in msgstr values
-
-# Compile
-pybabel compile -d locales -D rmmanager
-```
-
-Then add the new language code to `SUPPORTED_LANGUAGES` in [src/i18n.py](src/i18n.py) and its display name to the `format_func` dict in [app.py](app.py).
-
-#### Rules
-
-- Wrap all UI-visible strings with `_("...")`.
-- **Never** wrap log strings (`add_log(...)`, `log_fn(...)`) — logs are always in English.
-- The `.mo` files are compiled artifacts — do not commit them; compile locally or in CI.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code quality, tests, and localization.
 
 ---
 
@@ -273,6 +217,4 @@ Practical mitigations:
 
 ## 📌 Important notes
 
-- Configuration and data are persisted in `data/` — back up this folder
-- The SSH connection uses the device's root password, visible in **Settings > Help > About > Copyrights and licences**
-- Developer mode is not required on recent models
+- Configuration and data are persisted in `data/` — back up this folder regularly to avoid losing your custom images and templates

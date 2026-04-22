@@ -118,8 +118,8 @@ def _sidebar_version(version):
         return
     html = (
         f'<div style="position:fixed;left:20px;bottom:8px">'
-        f'  <a href="https://github.com/dapitch666/rm-manager" target="_blank">'
-        f"      rm-manager - version {version}"
+        f'  <a href="https://github.com/dapitch666/reMakeover" target="_blank">'
+        f"      reMakeover - version {version}"
         f"  </a>"
         f"</div>"
     )
@@ -155,7 +155,7 @@ def _debug_overlay():
 
 def main():
     st.set_page_config(
-        page_title="rM Manager",
+        page_title="reMakeover",
         page_icon="assets/favicon.svg",
         layout="wide",
         initial_sidebar_state="auto",

@@ -19,7 +19,7 @@ COPY VERSION .
 
 # Compile translation catalogs (.po → .mo)
 RUN pip install --no-cache-dir babel && \
-    pybabel compile -d locales -D rmmanager && \
+    pybabel compile -d locales -D remakeover && \
     pip uninstall -y babel
 
 # Exposition du port Streamlit
