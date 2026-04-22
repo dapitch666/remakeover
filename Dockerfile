@@ -14,7 +14,6 @@ COPY docs ./docs
 COPY locales ./locales
 COPY pages ./pages
 COPY src ./src
-COPY static ./static
 COPY VERSION .
 
 # Compile translation catalogs (.po → .mo)
