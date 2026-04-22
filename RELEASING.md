@@ -1,111 +1,79 @@
 RELEASING
 =========
 
-Overview
---------
-Quick procedure for tagging, publishing the Docker image via GitHub Actions, and versioning best practices.
+Release pipeline
+----------------
 
-Tagging and pushing
--------------------
+Releases are fully automated via GitHub Actions. No local tagging or script execution is needed.
 
-Create an annotated tag locally and push it:
+1. Go to **Actions → Release → Run workflow**.
+2. Choose `major`, `minor`, or `patch`.
+3. The workflow:
+   - Bumps `VERSION` on a `release/vX.Y.Z` branch,
+   - Opens a PR to `main` titled `Release: bump to vX.Y.Z`,
+   - Enables auto-merge (squash) on that PR.
+4. CI runs automatically on the PR. The CI job is a required check that gates the merge.
+5. Once CI is green, GitHub auto-merges the PR.
+6. The `Tag and publish` workflow fires on merge:
+   - Verifies the tag does not already exist,
+   - Creates and pushes the annotated tag `vX.Y.Z`,
+   - Builds and pushes `ghcr.io/<owner>/rm-manager:X.Y.Z`,
+   - Also pushes `:latest` unless the version contains a `-` prerelease suffix.
 
-```bash
-# create an annotated tag
-git tag -a v0.6.0 -m "Release v0.6.0"
-# push the tag to origin
-git push origin v0.6.0
-```
-
-Pushing the tag will trigger the `Build and publish Docker image` workflow, which:
-- determines the version (tag name without the `v` prefix),
-- builds the image via `docker/build-push-action`,
-- pushes `ghcr.io/<OWNER>/rm-manager:<version>` and `...:latest`.
-
-The workflow can also be triggered manually from GitHub Actions (`workflow_dispatch`) with an optional version override.
-
-Keeping `VERSION`
+Prerelease images
 -----------------
 
-- The `VERSION` file is for local use only. The workflow derives the version from the Git tag.
-- Optional: update `VERSION` before tagging for consistency:
-
-```bash
-echo "0.6.0" > VERSION
-git add VERSION
-git commit -m "Bump VERSION to 0.6.0"
-git tag -a v0.6.0 -m "Release v0.6.0"
-git push origin main --follow-tags
-```
+For a prerelease, edit `VERSION` manually (e.g. `1.7.0-rc.1`), commit it on a `release/`
+branch, open a PR, and merge. The `Tag and publish` workflow will create the tag and push
+the versioned image but will **not** update `:latest`.
 
 Publishing release notes
 ------------------------
 
-- After pushing the tag, create a Release on GitHub (UI) or via `gh` to add notes/CHANGELOG.
-
-Recommended publishing rules
------------------------------
-
-- Use SemVer (`vMAJOR.MINOR.PATCH`).
-- Publish Docker images only for release tags (`v*`).
-- Keep `latest` pointing to the last stable release.
-- A separate CI workflow (`.github/workflows/ci.yml`) runs on every push/PR and executes the tests without pushing any Docker image.
-
-Quick troubleshooting
----------------------
-
-- Check Actions → Runs to view workflow logs.
-- Verify that `packages: write` is granted (workflow permissions) and that the organization allows Actions to publish packages.
-- If the push to GHCR fails, consider using a temporary PAT (`write:packages`) to isolate the issue.
-
-FAQ
----
-
-- Q: “Do I need to update `VERSION`?” — Not strictly necessary if you tag, but helpful for local consistency.
-- Q: “Can I build from `main`?” — Yes, but keep nightly builds and releases separate (tag → publish).
-
-Versioning & CHANGELOG
------------------------
-
-- **SemVer**: follow `MAJOR.MINOR.PATCH`.
-  - **MAJOR**: breaking changes.
-  - **MINOR**: new backwards-compatible features.
-  - **PATCH**: bug fixes and small corrections.
-
-- **Pre-releases**: use suffixes `-rc.N`, `-beta.N` (e.g. `v1.2.0-rc.1`). Decide whether to publish images for these tags.
-
-- **CHANGELOG**: maintain `CHANGELOG.md` or generate it automatically via:
-  - `Release Drafter` (drafts release notes from PRs),
-  - `semantic-release` (generates changelog and publishes automatically, based on Conventional Commits),
-  - custom scripts (collects PR titles/labels).
-
-- **Recommended procedure**:
-  1. Update `CHANGELOG.md` and `VERSION` (optional).
-  2. Commit + annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
-  3. `git push origin vX.Y.Z` → Actions publishes the image.
-
-- **Publishing policy**:
-  - Publish only for official tags.
-  - Do not rewrite public tags (prefer a new version instead).
-  - For testing, use `snapshot-YYYYMMDD` tags rather than reusing `latest`.
-
-- **Automation**:
-  - Integrate `Release Drafter` for automatic Release drafts.
-  - Option: `semantic-release` to automate bump/versioning/changelog (requires Conventional Commits discipline).
-
-Example commands
-----------------
+After the tag is created, create a GitHub Release from the tag via the UI or:
 
 ```bash
-# Use the provided script (recommended)
-./scripts/bump_version.sh minor --commit --push
-
-# OR manually
-echo "1.2.3" > VERSION
-git add VERSION CHANGELOG.md
-git commit -m "Release: bump to 1.2.3"
-git tag -a v1.2.3 -m "Release v1.2.3"
-git push origin v1.2.3
+gh release create vX.Y.Z --generate-notes
 ```
 
-The `bump_version.sh` script accepts `major`, `minor`, or `patch` and automatically handles updating `VERSION`, committing, creating an annotated tag, and pushing (`--commit`, `--push`).
+Versioning
+----------
+
+Follow SemVer (`vMAJOR.MINOR.PATCH`):
+- **MAJOR**: breaking changes.
+- **MINOR**: new backwards-compatible features.
+- **PATCH**: bug fixes.
+
+The `VERSION` file at repo root is the single source of truth. The release workflow
+reads it after merge to determine the tag; do not rely on git tags alone.
+
+Required GitHub settings
+------------------------
+
+These must be configured once in the repository UI before the release pipeline works.
+
+**Settings → General → Pull Requests**
+- Allow auto-merge: enabled
+
+**Settings → Branches → Branch protection rule for `main`**
+- Require a pull request before merging
+- Require status checks to pass before merging
+  - Add the CI job as a required check. The check name follows the format
+    `<workflow name> / <job name>` as shown in the Actions run UI (e.g. `CI / test`).
+- Require branches to be up to date before merging
+- Do not allow bypassing the above settings
+
+**Settings → Actions → General → Workflow permissions**
+- Read and write permissions
+- Allow GitHub Actions to create and approve pull requests
+
+Troubleshooting
+---------------
+
+- **Auto-merge did not trigger**: confirm that auto-merge is enabled in Settings → General
+  → Pull Requests, and that the CI job appears as a required status check in the branch
+  protection rule for `main`.
+- **Tag already exists**: the `Tag and publish` workflow will fail with a clear error. Delete
+  the remote tag (`git push origin :vX.Y.Z`) before re-running, or cut a new version.
+- **Docker push fails**: verify that `packages: write` is granted and that the organization
+  allows Actions to publish packages.

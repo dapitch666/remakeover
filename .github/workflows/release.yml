@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'Version part to bump'
+        required: true
+        default: patch
+        type: choice
+        options: [major, minor, patch]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  open-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump VERSION
+        id: ver
+        run: |
+          VER=$(tr -d ' \n' < VERSION)
+          VER=${VER#v}
+          if [[ "$VER" == *-* ]]; then
+            echo "::error::VERSION ($VER) contains a prerelease suffix. Promote or reset VERSION to a stable MAJOR.MINOR.PATCH before running the release workflow."
+            exit 1
+          fi
+          IFS='.' read -r MAJ MIN PATCH <<< "$VER"
+          case "${{ inputs.part }}" in
+            major) MAJ=$((MAJ+1)); MIN=0; PATCH=0 ;;
+            minor) MIN=$((MIN+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          NEW_VERSION="${MAJ}.${MIN}.${PATCH}"
+          echo "$NEW_VERSION" > VERSION
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Push release branch
+        run: |
+          BRANCH="release/v${{ steps.ver.outputs.version }}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists on remote. Merge or close the existing release PR before starting a new release."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add VERSION
+          git commit -m "Bump version to v${{ steps.ver.outputs.version }}"
+          git push origin "$BRANCH"
+
+      - name: Open PR and enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr create \
+            --base main \
+            --head release/v${{ steps.ver.outputs.version }} \
+            --title "Release: bump to v${{ steps.ver.outputs.version }}" \
+            --body "Automated release bump. Auto-merges once CI is green.")
+          gh pr merge --auto --squash --delete-branch "$PR_URL"
