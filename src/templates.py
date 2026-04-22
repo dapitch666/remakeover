@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import time
 import uuid
 from collections.abc import Callable
@@ -18,12 +17,11 @@ from contextlib import suppress
 from json import JSONDecodeError
 from typing import Any
 
-import src.ssh as _ssh
 from src.config import get_device_data_dir
 from src.constants import (
     DEFAULT_ICON_DATA,
+    META_DEFAULTS,
     META_FIELDS,
-    REMOTE_XOCHITL_DATA_DIR,
 )
 from src.manifest_templates import (
     _stem,
@@ -36,8 +34,6 @@ from src.manifest_templates import (
     upsert_manifest_template,
     utc_now_iso,
 )
-from src.models import Device
-from src.ssh import run_ssh_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +161,69 @@ def build_full_json(meta: dict[str, Any], body_str: str) -> str:
         full[key] = val
     full.update(body)
     return json.dumps(full, indent=4, ensure_ascii=True)
+
+
+def meta_to_dict(meta: dict) -> dict[str, Any]:
+    """Normalize raw template JSON metadata into a dict of coerced values.
+
+    Only keys present in *meta* are included in the result, except for
+    ``orientation`` which is always resolved (defaulting to ``"portrait"``).
+    """
+    result: dict[str, Any] = {}
+
+    if "name" in meta:
+        result["name"] = str(meta["name"])
+    if "author" in meta:
+        result["author"] = str(meta["author"]).strip()
+    if "templateVersion" in meta:
+        version = str(meta["templateVersion"]).strip()
+        result["templateVersion"] = version or str(META_DEFAULTS["tpl_meta_template_version"])
+    if "formatVersion" in meta:
+        with suppress(Exception):
+            parsed = str(int(meta["formatVersion"]))
+            result["formatVersion"] = parsed or str(META_DEFAULTS["tpl_meta_format_version"])
+    if "categories" in meta:
+        result["categories"] = normalise_string_list(meta["categories"])
+    if "labels" in meta:
+        result["labels"] = normalise_string_list(meta["labels"])
+    if "iconData" in meta:
+        result["iconData"] = str(meta["iconData"])
+
+    raw = meta.get("orientation") or meta.get("orientations")
+    val = str(raw).lower() if raw is not None else ""
+    result["orientation"] = val if val in ("portrait", "landscape") else "portrait"
+
+    return result
+
+
+def meta_from_dict(flat: dict) -> dict[str, Any]:
+    """Assemble a complete template metadata dict from flat session-state values.
+
+    *flat* uses ``tpl_meta_*`` key names; missing keys fall back to META_DEFAULTS.
+    Returns the same structure as the template JSON metadata section.
+    """
+    cats = normalise_string_list(
+        flat.get("tpl_meta_categories", META_DEFAULTS["tpl_meta_categories"])
+    )
+    if not cats:
+        cats = ["Perso"]
+    labels = normalise_string_list(flat.get("tpl_meta_labels", META_DEFAULTS["tpl_meta_labels"]))
+    try:
+        fmt_ver = int(flat.get("tpl_meta_format_version", META_DEFAULTS["tpl_meta_format_version"]))
+    except (TypeError, ValueError):
+        fmt_ver = 1
+    return {
+        "name": str(flat.get("tpl_meta_name", META_DEFAULTS["tpl_meta_name"])),
+        "author": str(flat.get("tpl_meta_author", META_DEFAULTS["tpl_meta_author"])),
+        "templateVersion": str(
+            flat.get("tpl_meta_template_version", META_DEFAULTS["tpl_meta_template_version"])
+        ),
+        "formatVersion": fmt_ver,
+        "categories": cats,
+        "orientation": str(flat.get("tpl_meta_orientation", META_DEFAULTS["tpl_meta_orientation"])),
+        "labels": labels,
+        "iconData": str(flat.get("tpl_meta_icon_data", META_DEFAULTS["tpl_meta_icon_data"])),
+    }
 
 
 def _epoch_ms() -> str:
@@ -596,51 +655,6 @@ def remove_template_entry(device_name: str, filename: str) -> None:
     template_uuid = _resolve_template_uuid(device_name, filename)
     if template_uuid:
         delete_manifest_template(device_name, template_uuid)
-
-
-# ---------------------------------------------------------------------------
-# Remote helpers
-# ---------------------------------------------------------------------------
-
-
-def list_remote_custom_templates(device: Device) -> tuple[bool, list[str] | str]:
-    """Return remote templates UUID values currently present."""
-    cmd = (
-        f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.template; do "
-        '[ -f "$file" ] || continue; '
-        'basename "$file" .template; '
-        "done"
-    )
-    out, err = run_ssh_cmd(device, [cmd])
-    if err.strip():
-        return False, err.strip()
-    uuids = sorted({line.strip() for line in out.splitlines() if line.strip()})
-    return True, uuids
-
-
-def remove_remote_custom_templates(
-    session: "_ssh.SshSession",
-    uuids: set[str],
-) -> tuple[bool, str]:
-    """Remove rmMethods UUID triplets from *uuids* on the device."""
-    if not uuids:
-        return True, "ok"
-
-    rm_args = []
-    for template_uuid in sorted(uuids):
-        stem = _stem(template_uuid)
-        if not _is_uuid_stem(stem):
-            continue
-        for ext in (".template", ".metadata", ".content"):
-            rm_args.append(shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{stem}{ext}"))
-
-    if not rm_args:
-        return True, "ok"
-
-    _, err = session.run([f"rm -f {' '.join(rm_args)}"])
-    if err.strip():
-        return False, err.strip()
-    return True, "ok"
 
 
 # ---------------------------------------------------------------------------

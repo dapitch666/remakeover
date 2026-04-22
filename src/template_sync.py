@@ -34,7 +34,7 @@ def _is_missing_remote_manifest_error(err: str) -> bool:
 def _parse_remote_manifest_bytes(
     content: bytes | None, err: str
 ) -> tuple[bool, dict[str, Any], str]:
-    """Parse a downloaded manifest blob into a normalised result triple.
+    """Parse a downloaded manifest blob into a normalized result triple.
 
     Returns ``(True, manifest, "missing")`` when the file did not exist,
     ``(True, manifest, "ok")`` on success, or ``(False, default, error)`` on failure.
@@ -227,6 +227,46 @@ def check_sync_status(
     return True, result
 
 
+def list_remote_custom_templates(device: Device) -> tuple[bool, list[str] | str]:
+    """Return UUID values of rmMethods templates currently present on the device."""
+    cmd = (
+        f"for file in {shlex.quote(REMOTE_XOCHITL_DATA_DIR)}/*.template; do "
+        '[ -f "$file" ] || continue; '
+        'basename "$file" .template; '
+        "done"
+    )
+    out, err = _ssh.run_ssh_cmd(device, [cmd])
+    if err.strip():
+        return False, err.strip()
+    uuids = sorted({line.strip() for line in out.splitlines() if line.strip()})
+    return True, uuids
+
+
+def remove_remote_custom_templates(
+    session: _ssh.SshSession,
+    uuids: set[str],
+) -> tuple[bool, str]:
+    """Remove rmMethods UUID triplets from *uuids* on the device."""
+    if not uuids:
+        return True, "ok"
+
+    rm_args = []
+    for template_uuid in sorted(uuids):
+        stem = _tpl._stem(template_uuid)
+        if not _tpl._is_uuid_stem(stem):
+            continue
+        for ext in (".template", ".metadata", ".content"):
+            rm_args.append(shlex.quote(f"{REMOTE_XOCHITL_DATA_DIR}/{stem}{ext}"))
+
+    if not rm_args:
+        return True, "ok"
+
+    _, err = session.run([f"rm -f {' '.join(rm_args)}"])
+    if err.strip():
+        return False, err.strip()
+    return True, "ok"
+
+
 def fetch_and_init_templates(
     device: Device,
     overwrite_backup: bool = False,
@@ -243,7 +283,7 @@ def fetch_and_init_templates(
         with suppress(FileNotFoundError):
             os.remove(manifest_path)
 
-    ok, payload = _tpl.list_remote_custom_templates(device)
+    ok, payload = list_remote_custom_templates(device)
     if not ok:
         return False, f"list_remote_templates_failed: {payload}"
     if not isinstance(payload, list):
@@ -442,7 +482,7 @@ def sync_templates_to_device(
             deleted = 0
             to_delete = set(diff["to_delete_remote"])
             if to_delete:
-                ok_delete, delete_msg = _tpl.remove_remote_custom_templates(s, to_delete)
+                ok_delete, delete_msg = remove_remote_custom_templates(s, to_delete)
                 if not ok_delete:
                     add_log(f"Sync templates — delete remote entries: {delete_msg}")
                     return False

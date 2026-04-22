@@ -195,7 +195,7 @@ class TestTemplatesPageInit:
             patch.dict(os.environ, env),
             patch("src.template_sync.fetch_and_init_templates", return_value=(True, "3 templates")),
             patch(
-                "src.template_sync.check_sync_status",
+                "src.template_list_ui.check_sync_status",
                 return_value=(
                     True,
                     {
@@ -290,10 +290,10 @@ class TestTemplatesSync:
 
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.get_all_categories", return_value=[]),
+            patch("src.template_editor_ui.get_all_categories", return_value=[]),
             patch("src.template_sync._ssh.ssh_session", _fake_session),
             patch(
-                "src.template_sync.check_sync_status",
+                "src.template_list_ui.check_sync_status",
                 return_value=(
                     True,
                     {
@@ -321,13 +321,13 @@ class TestTemplatesSync:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.get_all_categories", return_value=[]),
+            patch("src.template_editor_ui.get_all_categories", return_value=[]),
             patch(
-                "src.template_sync.fetch_and_init_templates",
+                "src.template_list_ui.fetch_and_init_templates",
                 return_value=(True, "reset ok"),
             ),
             patch(
-                "src.template_sync.check_sync_status",
+                "src.template_list_ui.check_sync_status",
                 return_value=(
                     True,
                     {
@@ -365,7 +365,7 @@ class TestTemplatesSync:
 
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.get_all_categories", return_value=[]),
+            patch("src.template_editor_ui.get_all_categories", return_value=[]),
             patch("src.template_sync._ssh.ssh_session", _fake_session),
         ):
             at = AppTest.from_file("app.py")
@@ -384,7 +384,7 @@ class TestTemplatesSync:
         with (
             patch.dict(os.environ, env),
             patch(
-                "src.template_sync.check_sync_status",
+                "src.template_list_ui.check_sync_status",
                 return_value=(
                     True,
                     {
@@ -1144,8 +1144,8 @@ class TestEditorSave:
         env = make_env(tmp_path, cfg_path)
         with (
             patch.dict(os.environ, env),
-            patch("src.templates.get_all_categories", return_value=["Lines", "Grids"]),
-            patch("src.templates.get_all_labels", return_value=["alpha", "beta"]),
+            patch("src.template_editor_ui.get_all_categories", return_value=["Lines", "Grids"]),
+            patch("src.template_editor_ui.get_all_labels", return_value=["alpha", "beta"]),
         ):
             at = AppTest.from_file("app.py")
             at.run()
