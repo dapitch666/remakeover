@@ -24,7 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PAT }}
+          persist-credentials: true
 
       - name: Bump VERSION
         id: ver
@@ -61,7 +62,7 @@ jobs:
 
       - name: Open PR and enable auto-merge
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
         run: |
           PR_URL=$(gh pr create \
             --base main \
