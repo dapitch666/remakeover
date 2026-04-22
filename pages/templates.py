@@ -20,6 +20,13 @@ from src.ui_common import deferred_toast, init_page, rainbow_divider
 
 _SENTINEL_NEW = "__new__"
 _SESSION_SELECTED_UUID_KEY = "tpl_selected_uuid"
+_TEMPLATE_DEVICE_SCOPED_KEYS = (
+    "tpl_filter_text",
+    "tpl_filter_cats",
+    "tpl_filter_labels",
+    "tpl_filter_orientation",
+    "tpl_pill_expanded_rows",
+)
 
 
 def _selected_template_uuid() -> str | None:
@@ -42,10 +49,12 @@ assert isinstance(selected_name, str)
 
 current_device = Device.from_dict(selected_name, DEVICES[selected_name])
 
-# Reset selection when device changes
+# Reset selection and filter state when device changes
 if st.session_state.get("tpl_device") != current_device.name:
     st.session_state["tpl_device"] = current_device.name
     _set_selected_template_uuid(None)
+    for _k in _TEMPLATE_DEVICE_SCOPED_KEYS:
+        st.session_state.pop(_k, None)
 
 # Guard: not initialized yet → show init screen, not the split layout
 manifest_path = get_device_manifest_path(current_device.name)

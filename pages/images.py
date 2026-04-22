@@ -250,6 +250,15 @@ def _render_upload_section(device, add_log, config):
         st.rerun()
 
 
+_IMAGE_DEVICE_SCOPED_KEYS = (
+    "img_renaming",
+    "img_pending_rename",
+    "img_pending_delete",
+    "confirm_del_img",
+    "confirm_rename_img",
+)
+
+
 # ── Page ─────────────────────────────────────────────────────────────────────
 
 st.title(_(":material/image: Images"))
@@ -260,6 +269,12 @@ add_log_fn = st.session_state.get("add_log", lambda msg: None)
 assert isinstance(selected_name, str)
 
 current_device = Device.from_dict(selected_name, DEVICES[selected_name])
+
+if st.session_state.get("img_device") != current_device.name:
+    st.session_state["img_device"] = current_device.name
+    for _k in _IMAGE_DEVICE_SCOPED_KEYS:
+        st.session_state.pop(_k, None)
+
 stored_images = _images.list_device_images(current_device.name)
 
 if stored_images:
