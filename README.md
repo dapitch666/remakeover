@@ -1,29 +1,21 @@
 # reMakeover
 
-Self-hosted web application to customize sleep-screen images and manage templates on reMarkable devices.
+A self-hosted web application to customize sleep-screen images and manage templates on reMarkable devices.
 - Compatible with reMarkable 2, Paper Pro, Paper Pro Move
 - Connects over SSH using the device’s root password — no SSH keys required
 - Writes changes to `/home/root`, so they persist across firmware updates
 - Requires no hacks or additional software on the device
 
+---
 
 ## ⚡ Quick start
 
 ```bash
-# Requires Docker Compose
-docker-compose up -d
+# Requires Docker with Compose v2
+docker compose up -d
 ```
 
 Then open http://localhost:8501 in your browser and follow the instructions in the ⚙️ Configuration panel to add your device(s).
-
----
-
-## 📌 Persistence across firmware updates
-
-Your custom sleep-screen image and templates are written to `/home/root` on the device.
-
-This directory is preserved across firmware updates, so your changes are **not lost when the device is updated**.
-
 
 ## ⚠️ Prerequisites
 
@@ -31,7 +23,7 @@ To use the application, your reMarkable device must allow SSH access over Wi-Fi.
 
 On the device:
 
-1. Enable developer mode  
+1. Enable developer mode (Paper Pro and Paper Pro Move only)
    https://support.remarkable.com/s/article/Developer-mode
 
 2. Enable **SSH over WLAN** (Wi-Fi)
@@ -53,7 +45,7 @@ On the device:
 
 ---
 
-## 🛠️ Local development (without Docker)
+### 🛠️ Local development (without Docker)
 
 ```bash
 # Create and activate a virtual environment
@@ -70,27 +62,22 @@ streamlit run app.py
 
 The application will be available at http://localhost:8501
 
-**In local mode, all files are stored in `./data/` next to your code.**
 
----
+### 🐳 Docker installation (production)
 
-## 🐳 Docker installation (production)
+#### Using the pre-built image (recommended)
 
-### Using the pre-built image (recommended)
-
-A Docker image is published automatically on every release to the GitHub Container Registry:
-
-To use it, replace `build: .` in `docker-compose.yml` with:
+A Docker image is published automatically on every release to the GitHub Container Registry. To use it, replace `build: .` in `docker-compose.yml` with:
 
 ```yaml
 image: ghcr.io/dapitch666/remakeover:latest
 ```
 
-### Building from source
+#### Building from source
 
 ```bash
 # Build and start the container
-docker-compose up -d
+docker compose up -d
 ```
 
 Open http://localhost:8501 in your browser 
@@ -105,11 +92,27 @@ Open http://localhost:8501 in your browser
 3. Fill in the fields:
    - **Name**: a free-form label to identify the device
    - **IP address**: the device's IP (USB or Wi-Fi)
-   - **SSH password**: the device's root password (visible in Settings > Help > About > Copyrights and licences)
+   - **SSH password**: the device's root password (visible in Settings > Help > About > Copyrights and licenses)
 4. Click **Test Connection** to verify access and detect the device type/firmware automatically 
 5. Click **Save**
+6. The device is now registered and ready to use. You can add multiple devices by repeating the process.
 
-### Supported models and sleep-screen dimensions
+---
+
+## 📝 Application pages
+
+### ⚙️ Configuration (sidebar)
+Add, edit, or delete devices. Accessible from the sidebar panel on every page.
+
+### 🖼️ Sleep Screen
+Manage sleep-screen images (`suspended.png`):
+- **Send** an image directly to the device
+- **Rename** or **delete** local images
+- **Add** a new image from your computer (PNG, JPG, JPEG — resized automatically)
+- **Import** the custom image currently on the device
+- **Restore** the factory default sleep screen
+
+#### Supported models and sleep-screen dimensions
 
 | Model | Resolution |
 |---|---|
@@ -119,7 +122,27 @@ Open http://localhost:8501 in your browser
 
 Imported images are automatically converted and resized to the correct format.
 
+### 📄 Templates
+Template customization uses the rM Methods approach (`.template` JSON format, not PDF) so that templates survive firmware updates.  
+Manage and edit custom templates in a split-panel layout:
+- **Import** templates from the device (initial setup)
+- **Browse and filter** the local template library
+- **Edit** categories, labels, icon, and SVG body in the integrated editor with a live preview
+- **Add** new templates from scratch
+- **Rename**, **delete**, or **reload** templates
+- **Check sync status** by comparing local and device manifests
+- **Sync** changes to the device (the local manifest is applied)
+
+On the device, custom templates are available in the rM Methods tab of the template picker.
+
+### 📋 Logs
+View the history of operations for the current session.
+
+---
+
 ### Data structure
+
+Configuration and data are persisted in `data/` — back up this folder regularly to avoid losing your custom images and templates.
 
 ```
 data/
@@ -130,63 +153,6 @@ data/
 │   └── manifest.json       # Local template manifest (last_modified + templates keyed by UUID)
 └── ...
 ```
-
----
-
-## 📝 Application pages
-
-### 🖼️ Sleep Screen
-Manage sleep-screen images (`suspended.png`):
-- **Import** the image currently on the device
-- **Add** a new image from your computer (PNG, JPG, JPEG — resized automatically)
-- **Send** an image directly to the device
-- **Rename** or **delete** local images
-- **Restore** the factory default sleep screen
-
-### 📄 Templates
-Manage and edit custom templates (`.template` JSON format) in a split-panel layout:
-- **Import** templates from the device (initial setup)
-- **Browse and filter** the local template library
-- **Edit** categories, labels, icon, and SVG body in the integrated editor with a live preview
-- **Add** new templates from scratch
-- **Rename**, **delete**, or **reload** templates
-- **Check sync status** by comparing local and device manifests
-- **Sync** changes to the device (the local manifest is applied)
-
-### 📋 Logs
-View the history of operations for the current session.
-
-### ⚙️ Configuration (sidebar)
-Add, edit, or delete devices. Accessible from the sidebar panel on every page.
-
----
-
-## 🔧 Useful commands
-
-```bash
-# Stop the application
-docker-compose down
-
-# View container logs
-docker-compose logs -f
-
-# Rebuild after code changes
-docker-compose up -d --build
-
-# Run the tests
-pytest
-
-# Back up your data
-cp -r data/ data.backup/
-```
-
----
-
-## 🧑‍💻 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code quality, tests, and localization.
-
----
 
 ## 🔒 Security notes
 
@@ -213,8 +179,9 @@ Practical mitigations:
 - Back up `data/config.json` securely (e.g. encrypted backup).
 - The reMarkable root password has a limited blast radius: it grants SSH access to the device itself, not to any other system.
 
----
+## 🧑‍💻 Contributing
 
-## 📌 Important notes
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code quality, tests, and localization.
 
-- Configuration and data are persisted in `data/` — back up this folder regularly to avoid losing your custom images and templates
+## 📝 License
+This application is licensed under the MIT License. See [LICENSE](LICENSE) for details.
