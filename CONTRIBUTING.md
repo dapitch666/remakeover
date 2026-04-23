@@ -1,6 +1,13 @@
 # Contributing to reMakeover
 
-Contributions are welcome — feel free to open issues or pull requests.
+Contributions are welcome! Bug reports, fixes, new features, translations, and test improvements are all appreciated.
+
+If you plan to build something non-trivial, please open an issue first to discuss the idea — it avoids duplicate effort and helps align on scope before you invest time writing code. For small fixes or typos, a direct pull request is fine.
+
+When submitting a PR:
+- Include a clear description of what changed and why
+- Add or update tests if the change affects behavior
+- Make sure the pre-commit hooks and test suite pass before pushing (see below)
 
 
 ## Development setup
@@ -8,10 +15,11 @@ Contributions are welcome — feel free to open issues or pull requests.
 Install development dependencies:
 
 ```bash
-pip install -r requirements-dev.txt
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
-This installs ruff (linter + formatter), mypy (type checker), pytest-cov (coverage), vulture (dead code detector), and pre-commit
+This installs ruff (linter + formatter), mypy (type checker), pytest-cov (coverage), vulture (dead code detector), and pre-commit.
 
 
 ## Code quality
@@ -46,7 +54,7 @@ open htmlcov/index.html
 
 The test suite enforces a minimum coverage threshold defined in `pyproject.toml`. A failure means existing coverage regressed — add tests or update the threshold intentionally.
 
-### Pre-commit hooks
+## Pre-commit hooks
 
 Hooks run ruff and mypy automatically on every `git commit`:
 
