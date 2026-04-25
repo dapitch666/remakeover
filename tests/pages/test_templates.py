@@ -418,6 +418,53 @@ class TestTemplatesSync:
             btn.click().run()
         assert not at.exception
 
+    def test_check_sync_failure_does_not_write_status(self, tmp_path):
+        """When check_sync_status fails, the error branch runs and the sync result key is not written."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch(
+                "src.template_list_ui.check_sync_status",
+                return_value=(False, "SSH timeout"),
+            ),
+        ):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.switch_page("pages/templates.py").run()
+            btn = next((b for b in at.button if "Check sync" in b.label), None)
+            assert btn is not None
+            btn.click().run()
+        assert not at.exception
+        assert "tpl_sync_check_result_D1" not in at.session_state
+
+    def test_sync_status_caption_shows_last_remote_check_time(self, tmp_path):
+        """When the cached sync result has a last_remote_check_at timestamp, the expander shows a 'Last remote check' caption."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        # No remote_manifest_snapshot → refresh_cached_sync_status returns None → dict used as-is
+        sync_result = {
+            "local_count": 2,
+            "remote_count": 2,
+            "to_upload": [],
+            "to_delete_remote": [],
+            "to_upload_added_uuids": [],
+            "to_upload_modified_uuids": [],
+            "to_delete_remote_uuids": [],
+            "to_upload_added_name_by_uuid": {},
+            "to_upload_modified_name_by_uuid": {},
+            "to_delete_remote_name_by_uuid": {},
+            "last_remote_check_at": "2025-01-15T10:00:00Z",
+        }
+        at = _at_templates(
+            tmp_path,
+            cfg_path,
+            session_state={"tpl_sync_check_result_D1": sync_result},
+        )
+        assert not at.exception
+        assert any("Last remote check" in c.value for c in at.caption)
+
 
 # ---------------------------------------------------------------------------
 # TestTemplateList — left-panel list rendering
@@ -583,6 +630,58 @@ class TestTemplateList:
         assert at.session_state.tpl_filter_text == ""
         assert at.session_state.tpl_filter_orientation == ""
         assert "tpl_pill_expanded_rows" not in at.session_state
+
+    def test_filter_by_category_hides_non_matching_templates(self, tmp_path):
+        """Setting category filter to 'Lines' hides templates that only carry 'Grids'."""
+        cfg_path = with_device(tmp_path, "D1")
+        lines_json = json.dumps(
+            {"name": "lines-tpl", "categories": ["Lines"], "constants": [], "items": []}
+        )
+        grids_json = json.dumps(
+            {"name": "grids-tpl", "categories": ["Grids"], "constants": [], "items": []}
+        )
+        _make_template(tmp_path, "D1", "lines.template", content=lines_json)
+        _make_template(tmp_path, "D1", "grids.template", content=grids_json)
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_filter_cats": ["Lines"]})
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("lines" in lbl for lbl in labels)
+        assert not any("grids" in lbl for lbl in labels)
+
+    def test_filter_by_label_hides_non_matching_templates(self, tmp_path):
+        """Setting label filter to 'alpha' hides templates that only carry 'beta'."""
+        cfg_path = with_device(tmp_path, "D1")
+        alpha_json = json.dumps(
+            {"name": "alpha-tpl", "labels": ["alpha"], "constants": [], "items": []}
+        )
+        beta_json = json.dumps(
+            {"name": "beta-tpl", "labels": ["beta"], "constants": [], "items": []}
+        )
+        _make_template(tmp_path, "D1", "alpha.template", content=alpha_json)
+        _make_template(tmp_path, "D1", "beta.template", content=beta_json)
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_filter_labels": ["alpha"]})
+        assert not at.exception
+        labels = [b.label.lower() for b in at.button]
+        assert any("alpha" in lbl for lbl in labels)
+        assert not any("beta" in lbl for lbl in labels)
+
+    def test_template_with_icon_renders_in_list(self, tmp_path):
+        """A template with iconData renders its icon in the list panel without raising."""
+        b64 = base64.b64encode(_SVG_150x200.encode()).decode()
+        tpl_content = json.dumps(
+            {
+                "name": "icon-list-tpl",
+                "iconData": b64,
+                "orientation": "portrait",
+                "constants": [],
+                "items": [],
+            }
+        )
+        cfg_path = with_device(tmp_path, "D1")
+        _make_template(tmp_path, "D1", "icon_list.template", content=tpl_content)
+        at = _at_templates(tmp_path, cfg_path)
+        assert not at.exception
+        assert any("icon_list" in b.label for b in at.button)
 
 
 # ---------------------------------------------------------------------------
