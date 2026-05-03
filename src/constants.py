@@ -29,7 +29,7 @@ REMOTE_MANIFEST_FILENAME = ".manifest.json"
 # Restart the main reMarkable UI process to apply changes
 CMD_RESTART_XOCHITL = "systemctl restart xochitl"
 
-# Read the hardware board identifier (e.g. "rm2", "ferrari")
+# Read the hardware board identifier (e.g. "reMarkable 2.0", "ferrari")
 CMD_READ_MACHINE = "cat /sys/devices/soc0/machine"
 
 # Extract the firmware version line from os-release
@@ -69,8 +69,8 @@ DEFAULT_DEVICE_TYPE: str = "reMarkable Paper Pro"
 # The kernel machine string is the full board description (e.g. "Freescale i.MX7 Dual reMarkable 2"),
 # so keys are matched as substrings of the lowercased raw value.
 MACHINE_TO_DEVICE_TYPE: dict[str, str] = {
-    "rm1": "reMarkable 1",
-    "rm2": "reMarkable 2",
+    "remarkable 1": "reMarkable 1",
+    "remarkable 2": "reMarkable 2",
     "ferrari": "reMarkable Paper Pro",
     "chiappa": "reMarkable Paper Pro Move",
 }
