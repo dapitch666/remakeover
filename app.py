@@ -15,7 +15,7 @@ from src.config_ui import render_device_selector
 # noinspection PyProtectedMember
 from src.i18n import SUPPORTED_LANGUAGES, _
 
-_LANG_FLAGS = {"en": ("🇬🇧", "English"), "fr": ("🇫🇷", "Français")}
+_LANG_FLAGS = {"en": (":uk:", "English"), "fr": (":fr:", "Français")}
 
 
 def _normalize_lang_value(raw: str | None) -> str | None:
