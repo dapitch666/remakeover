@@ -81,6 +81,8 @@ def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:
 
     Returns ``(ok, device_type, firmware_version, sleep_screen_enabled, error_msg)``.
     On success ``ok=True`` and ``error_msg=""``.
+    Unrecognised machine strings are reported as ``device_type="Unknown"``
+    while still returning the firmware version and sleep-screen state.
     On failure ``ok=False``, ``device_type`` and ``firmware_version`` are ``""``
     and ``sleep_screen_enabled`` is ``False``.
     """
@@ -99,7 +101,8 @@ def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:
 
         machine_lower = machine_raw.lower()
         device_type = next(
-            (name for key, name in MACHINE_TO_DEVICE_TYPE.items() if key in machine_lower), ""
+            (name for key, name in MACHINE_TO_DEVICE_TYPE.items() if key in machine_lower),
+            "Unknown",
         )
 
         firmware_version = ""
@@ -110,19 +113,18 @@ def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:
 
         sleep_screen_enabled = sleep_raw == "yes"
 
-        if not device_type:
+        if device_type == "Unknown":
             logger.warning(
                 "detect_device_info: unrecognised machine string '%s' for %s", machine_raw, ip
             )
-            return False, "", firmware_version, False, f"Unknown machine: '{machine_raw}'"
-
-        logger.info(
-            "detect_device_info OK for %s: type=%s fw=%s sleep=%s",
-            ip,
-            device_type,
-            firmware_version,
-            sleep_screen_enabled,
-        )
+        else:
+            logger.info(
+                "detect_device_info OK for %s: type=%s fw=%s sleep=%s",
+                ip,
+                device_type,
+                firmware_version,
+                sleep_screen_enabled,
+            )
         return True, device_type, firmware_version, sleep_screen_enabled, ""
     except Exception as e:
         logger.error("detect_device_info error for %s: %s", ip, e)

@@ -176,11 +176,11 @@ class TestDownloadFileSsh:
 
 
 class TestDetectDeviceInfo:
-    def test_rm2_detected(self):
-        """/sys/devices/soc0/machine value 'rm2' maps to 'reMarkable 2'."""
+    def test_re_markable_2_detected(self):
+        """/sys/devices/soc0/machine value 'reMarkable 2.0' maps to 'reMarkable 2'."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b"IMG_VERSION=3.5.2.1896", b""),
             (b"no", b""),
         )
@@ -193,10 +193,10 @@ class TestDetectDeviceInfo:
         assert err == ""
 
     def test_rm1_detected(self):
-        """/sys/devices/soc0/machine value 'rm1' maps to 'reMarkable 1'."""
+        """/sys/devices/soc0/machine value 'reMarkable 1.0' maps to 'reMarkable 1'."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm1", b""),
+            (b"reMarkable 1.0", b""),
             (b"IMG_VERSION=2.15.0.999", b""),
             (b"no", b""),
         )
@@ -236,7 +236,7 @@ class TestDetectDeviceInfo:
         """IMG_VERSION with surrounding quotes is stripped correctly."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"reMarkable rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b'IMG_VERSION="3.5.2.1896"', b""),
             (b"no", b""),
         )
@@ -245,8 +245,8 @@ class TestDetectDeviceInfo:
         assert ok is True
         assert fw == "3.5.2.1896"
 
-    def test_unknown_machine_returns_false(self):
-        """Unrecognised machine string returns ok=False with a descriptive error."""
+    def test_unknown_machine_returns_unknown(self):
+        """Unrecognised machine string falls back to device_type 'Unknown'."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
             (b"Raspberry Pi 4", b""),
@@ -255,16 +255,17 @@ class TestDetectDeviceInfo:
         )
         with _patched_client(inst):
             ok, device_type, fw, sleep, err = detect_device_info(DEVICE)
-        assert ok is False
-        assert device_type == ""
+        assert ok is True
+        assert device_type == "Unknown"
+        assert fw == "0.0.0"
         assert sleep is False
-        assert "Raspberry Pi 4" in err
+        assert err == ""
 
     def test_empty_firmware_is_tolerated(self):
         """If grep returns nothing, firmware_version is '' but device_type still works."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b"", b""),
             (b"no", b""),
         )
@@ -290,7 +291,7 @@ class TestDetectDeviceInfo:
         """When SleepScreenPath is present in xochitl.conf, sleep_screen_enabled is True."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b"IMG_VERSION=3.5.2.1896", b""),
             (b"yes", b""),
         )
@@ -303,7 +304,7 @@ class TestDetectDeviceInfo:
         """When SleepScreenPath is absent from xochitl.conf, sleep_screen_enabled is False."""
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b"IMG_VERSION=3.5.2.1896", b""),
             (b"no", b""),
         )
@@ -322,7 +323,7 @@ class TestRunDetection:
     def test_success(self):
         inst = MagicMock()
         inst.exec_command.side_effect = _make_exec(
-            (b"rm2", b""),
+            (b"reMarkable 2.0", b""),
             (b"IMG_VERSION=3.5.2", b""),
             (b"yes", b""),
         )
@@ -330,6 +331,21 @@ class TestRunDetection:
             result = run_detection(DEVICE)
         assert result["ok"] is True
         assert result["device_type"] == "reMarkable 2"
+        assert result["firmware_version"] == "3.5.2"
+        assert result["sleep_screen_enabled"] is True
+        assert result["error"] == ""
+
+    def test_unknown_machine_falls_back_to_unknown(self):
+        inst = MagicMock()
+        inst.exec_command.side_effect = _make_exec(
+            (b"Raspberry Pi 4", b""),
+            (b"IMG_VERSION=3.5.2", b""),
+            (b"yes", b""),
+        )
+        with _patched_client(inst):
+            result = run_detection(DEVICE)
+        assert result["ok"] is True
+        assert result["device_type"] == "Unknown"
         assert result["firmware_version"] == "3.5.2"
         assert result["sleep_screen_enabled"] is True
         assert result["error"] == ""
