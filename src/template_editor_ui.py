@@ -48,6 +48,31 @@ def _on_icon_svg_change() -> None:
         st.session_state["_icon_b64_prev"] = new_b64
 
 
+def _on_icon_svg_upload() -> None:
+    gen = st.session_state.get("tpl_icon_upload_gen", 0)
+    upload = st.session_state.get(f"tpl_meta_icon_upload_{gen}")
+    if upload is None:
+        st.session_state.pop("_icon_upload_error", None)
+        return
+    orientation = str(st.session_state.get("tpl_meta_orientation", "portrait"))
+    try:
+        upl_svg = upload.read().decode("utf-8")
+    except UnicodeDecodeError:
+        st.session_state["_icon_upload_error"] = _("File is not valid UTF-8 text.")
+        return
+    ok, err = validate_svg_size(upl_svg, orientation=orientation, translate=_)
+    if not ok:
+        st.session_state["_icon_upload_error"] = err
+        return
+    st.session_state.pop("_icon_upload_error", None)
+    new_b64 = encode_svg_to_icon_data(upl_svg)
+    st.session_state["tpl_meta_icon_data"] = new_b64
+    st.session_state["tpl_meta_icon_svg_code"] = upl_svg
+    st.session_state["_icon_b64_prev"] = new_b64
+    st.session_state["tpl_icon_upload_gen"] = gen + 1
+    st.session_state["_icon_upload_pending_log"] = upload.name
+
+
 def _meta_to_session(meta: dict) -> None:
     normalized = meta_to_dict(meta)
     for template_key, session_key in {
@@ -368,30 +393,20 @@ def render_editor_panel(
                 )
 
             _icon_upload_gen = st.session_state.get("tpl_icon_upload_gen", 0)
-            _svg_upload = st.file_uploader(
+            st.file_uploader(
                 _("Upload SVG file"),
                 type=["svg"],
                 key=f"tpl_meta_icon_upload_{_icon_upload_gen}",
+                on_change=_on_icon_svg_upload,
             )
-            if _svg_upload is not None:
-                _upl_svg = _svg_upload.read().decode("utf-8")
-                _upl_ok, _upl_err = validate_svg_size(
-                    _upl_svg,
-                    orientation=_orientation,
-                    translate=_,
+            _upload_err = st.session_state.pop("_icon_upload_error", None)
+            if _upload_err:
+                st.error(_upload_err, icon=":material/error:")
+            _pending_log = st.session_state.pop("_icon_upload_pending_log", None)
+            if _pending_log:
+                add_log(
+                    f"Icon '{_pending_log}' uploaded for template editor (device: '{device.name}')"
                 )
-                if not _upl_ok:
-                    st.error(_upl_err, icon=":material/error:")
-                else:
-                    _new_b64 = encode_svg_to_icon_data(_upl_svg)
-                    st.session_state["tpl_meta_icon_data"] = _new_b64
-                    st.session_state["tpl_meta_icon_svg_code"] = _upl_svg
-                    st.session_state["_icon_b64_prev"] = _new_b64
-                    st.session_state["tpl_icon_upload_gen"] = _icon_upload_gen + 1
-                    add_log(
-                        f"Icon '{_svg_upload.name}' uploaded for template editor (device: '{device.name}')"
-                    )
-                    st.rerun()
         with _ico2:
             st.html(
                 "<style>"

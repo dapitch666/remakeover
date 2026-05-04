@@ -1576,3 +1576,49 @@ class TestSvgUploader:
         assert not at.exception
         assert any(at.error)
         assert at.session_state["tpl_meta_icon_data"] == original_b64
+
+    def test_svg_upload_preserves_editor_json(self, tmp_path):
+        """Uploading an SVG icon on an existing template must not reset tpl_editor_textarea.
+
+        Regression test: the old inline st.rerun() fired before the text_area widget was
+        rendered, causing Streamlit to cull its widget state and fall back to DEFAULT_TEMPLATE_JSON.
+        """
+        cfg_path = with_device(tmp_path, "D1")
+        template_uuid = _make_template(tmp_path, "D1", "preserve_test.template")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = template_uuid
+            at.session_state["tpl_editor_textarea"] = _FULL_JSON
+            at.switch_page("pages/templates.py").run()
+            # After the first render, the meta-split has extracted name/orientation into
+            # their dedicated meta fields; tpl_editor_textarea now holds the body only.
+            body_before = at.session_state["tpl_editor_textarea"]
+            fu = next(
+                f for f in at.file_uploader if f.key and f.key.startswith("tpl_meta_icon_upload_")
+            )
+            fu.set_value(("icon.svg", _SVG_150x200.encode(), "image/svg+xml")).run()
+        assert not at.exception
+        assert at.session_state["tpl_editor_textarea"] == body_before
+
+    def test_svg_upload_non_utf8_shows_error(self, tmp_path):
+        """Uploading a binary file mislabelled as .svg shows an error instead of crashing."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
+            at.switch_page("pages/templates.py").run()
+            original_b64 = at.session_state["tpl_meta_icon_data"]
+            fu = next(
+                f for f in at.file_uploader if f.key and f.key.startswith("tpl_meta_icon_upload_")
+            )
+            fu.set_value(("binary.svg", b"\xff\xfe binary garbage", "image/svg+xml")).run()
+        assert not at.exception
+        assert any(at.error)
+        assert at.session_state["tpl_meta_icon_data"] == original_b64
