@@ -467,6 +467,146 @@ class TestTemplatesSync:
 
 
 # ---------------------------------------------------------------------------
+# TestSyncStatusPills — st.pills widgets in the sync status expander
+# ---------------------------------------------------------------------------
+
+
+class TestSyncStatusPills:
+    """Tests for st.pills widgets rendered by _render_sync_name_line.
+
+    Covers: pills presence, expand/collapse controls, local-template selection,
+    and remote-only recovery confirmation dialog.
+    """
+
+    @staticmethod
+    def _sync_result(**overrides) -> dict:
+        base = {
+            "local_count": 0,
+            "remote_count": 0,
+            "to_upload": [],
+            "to_delete_remote": [],
+            "to_upload_added_uuids": [],
+            "to_upload_added_name_by_uuid": {},
+            "to_upload_modified_uuids": [],
+            "to_upload_modified_name_by_uuid": {},
+            "to_delete_remote_uuids": [],
+            "to_delete_remote_name_by_uuid": {},
+        }
+        base.update(overrides)
+        return base
+
+    def test_pills_rendered_for_added_uuids(self, tmp_path):
+        """When sync status has added-locally UUIDs, a tpl_pills_added widget is rendered."""
+        cfg_path = with_device(tmp_path, "D1")
+        uid = str(uuid.uuid4())
+        _make_template(tmp_path, "D1", "added.template", template_uuid=uid)
+        sync_result = self._sync_result(
+            to_upload_added_uuids=[uid],
+            to_upload_added_name_by_uuid={uid: "added"},
+        )
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_sync_check_result_D1"] = sync_result
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert any(p.key == "tpl_pills_added" for p in at.pills)
+
+    def test_expand_pill_adds_row_to_expanded_rows(self, tmp_path):
+        """Selecting the +N expand pill adds the row key to tpl_pill_expanded_rows."""
+        cfg_path = with_device(tmp_path, "D1")
+        uuids = [str(uuid.uuid4()) for _ in range(8)]
+        for i, uid in enumerate(uuids):
+            _make_template(tmp_path, "D1", f"tpl{i}.template", template_uuid=uid)
+        sync_result = self._sync_result(
+            to_upload_added_uuids=uuids,
+            to_upload_added_name_by_uuid={uid: f"tpl{i}" for i, uid in enumerate(uuids)},
+        )
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_sync_check_result_D1"] = sync_result
+            at.switch_page("pages/templates.py").run()
+            pills = next((p for p in at.pills if p.key == "tpl_pills_added"), None)
+            assert pills is not None
+            pills.set_value("+2").run()
+        assert not at.exception
+        assert "added" in at.session_state.tpl_pill_expanded_rows
+
+    def test_collapse_pill_removes_row_from_expanded_rows(self, tmp_path):
+        """Selecting the − collapse pill removes the row key from tpl_pill_expanded_rows."""
+        cfg_path = with_device(tmp_path, "D1")
+        uuids = [str(uuid.uuid4()) for _ in range(8)]
+        for i, uid in enumerate(uuids):
+            _make_template(tmp_path, "D1", f"tpl{i}.template", template_uuid=uid)
+        sync_result = self._sync_result(
+            to_upload_added_uuids=uuids,
+            to_upload_added_name_by_uuid={uid: f"tpl{i}" for i, uid in enumerate(uuids)},
+        )
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_pill_expanded_rows"] = {"added"}
+            at.session_state["tpl_sync_check_result_D1"] = sync_result
+            at.switch_page("pages/templates.py").run()
+            pills = next((p for p in at.pills if p.key == "tpl_pills_added"), None)
+            assert pills is not None
+            pills.set_value("−").run()
+        assert not at.exception
+        assert "added" not in at.session_state.tpl_pill_expanded_rows
+
+    def test_pill_select_local_template_opens_editor(self, tmp_path):
+        """Selecting a UUID pill in the 'added locally' row opens that template in the editor."""
+        cfg_path = with_device(tmp_path, "D1")
+        uid = str(uuid.uuid4())
+        _make_template(tmp_path, "D1", "local.template", template_uuid=uid)
+        sync_result = self._sync_result(
+            to_upload_added_uuids=[uid],
+            to_upload_added_name_by_uuid={uid: "local"},
+        )
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_sync_check_result_D1"] = sync_result
+            at.switch_page("pages/templates.py").run()
+            pills = next((p for p in at.pills if p.key == "tpl_pills_added"), None)
+            assert pills is not None
+            pills.set_value(uid).run()
+        assert not at.exception
+        assert at.session_state.tpl_selected_uuid == uid
+
+    def test_pill_select_remote_only_triggers_confirm_dialog(self, tmp_path):
+        """Selecting a remote-only UUID pill shows the recovery confirmation dialog."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        uid = str(uuid.uuid4())
+        sync_result = self._sync_result(
+            to_delete_remote_uuids=[uid],
+            to_delete_remote_name_by_uuid={uid: "remote-tpl"},
+        )
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_sync_check_result_D1"] = sync_result
+            at.switch_page("pages/templates.py").run()
+            pills = next((p for p in at.pills if p.key == "tpl_pills_remote_only"), None)
+            assert pills is not None
+            pills.set_value(uid).run()
+        assert not at.exception
+        assert any(b.label in {"Confirm", "Cancel"} for b in at.button)
+
+
+# ---------------------------------------------------------------------------
 # TestTemplateList — left-panel list rendering
 # ---------------------------------------------------------------------------
 

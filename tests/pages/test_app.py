@@ -229,3 +229,27 @@ def test_sidebar_ssh_test_keeps_config_when_detection_is_unchanged(tmp_path):
     assert not at.exception
     after = cfg_file.read_text(encoding="utf-8")
     assert before == after
+
+
+# ---------------------------------------------------------------------------
+# TestLanguageSelector — sidebar segmented_control for language switching
+# ---------------------------------------------------------------------------
+
+
+class TestLanguageSelector:
+    def test_lang_selector_defaults_to_en(self, tmp_path):
+        """Language selector renders with 'en' selected on first visit."""
+        with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+            at = AppTest.from_file("app.py")
+            at.run()
+        assert not at.exception
+        assert at.segmented_control(key="lang_selector").value == "en"
+
+    def test_lang_selector_switching_to_fr_updates_session_state(self, tmp_path):
+        """Switching the language selector to 'fr' sets lang in session state."""
+        with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.segmented_control(key="lang_selector").set_value("fr").run()
+        assert not at.exception
+        assert at.session_state["lang"] == "fr"

@@ -445,10 +445,7 @@ class TestImageSegmentedActions:
             at = AppTest.from_file("app.py")
             at.run()
             at.switch_page("pages/images.py").run()
-            # The action segmented control label is "Actions"
-            sc = next((s for s in at.button_group if s.label == "Actions"), None)
-            assert sc is not None, "Action segmented control not found"
-            sc.set_value(action_value).run()
+            at.segmented_control(key=f"action_{img_name}").set_value(action_value).run()
         return at
 
     def test_action_cloud_upload_sends_image(self, tmp_path):
