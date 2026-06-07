@@ -1,5 +1,6 @@
 """Template list panel rendered in the left column of the Templates page."""
 
+import math
 from collections.abc import Callable
 
 import streamlit as st
@@ -29,6 +30,7 @@ from src.templates import (
 from src.ui_common import deferred_toast, format_datetime_for_ui, normalise_filename
 
 _SENTINEL_NEW = "__new__"
+_PAGE_SIZE_OPTIONS = [10, 20, 30, 0]
 
 
 def _sync_status_key(selected_device: str) -> str:
@@ -512,9 +514,69 @@ def render_left_panel(
         return
 
     _n_filtered = len(filtered)
-    st.caption(_n("{n} template", "{n} templates", _n_filtered).format(n=_n_filtered))
 
-    for entry in filtered:
+    st.html("""
+    <style>
+    .tpl-page-size-select div[data-baseweb="select"] > div:first-child {
+        border: none !important;
+        background-color: transparent !important;
+        box-shadow: none !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+        min-height: 1.6rem !important;
+    }
+    .tpl-page-size-select div[data-baseweb="select"] [class*="valueContainer"] {
+        font-size: 0.875rem !important;
+        color: var(--text-color);
+        padding: 0 !important;
+    }
+    .tpl-page-size-select div[data-baseweb="select"] [class*="iconContainer"] svg {
+        width: 14px;
+        height: 14px;
+    }
+    /* Tighten vertical gap between count and showing-row only */
+    .st-key-tpl-count-row {
+        gap: 0 !important;
+    }
+    </style>
+    """)
+
+    def _on_page_size_change():
+        st.session_state.pop("tpl_page", None)
+
+    with st.container(key="tpl-count-row"):
+        st.caption(_n("{n} template", "{n} templates", _n_filtered).format(n=_n_filtered))
+
+        _c1, _c2, _c3 = st.columns([1, 1.5, 1], vertical_alignment="center", gap="small")
+        with _c1:
+            st.caption(_("Showing"))
+        with _c2:
+            st.markdown('<div class="tpl-page-size-select">', unsafe_allow_html=True)
+            _page_size = st.selectbox(
+                label="Per page",
+                options=_PAGE_SIZE_OPTIONS,
+                key="tpl_page_size",
+                format_func=lambda v: _("All") if v == 0 else str(v),
+                on_change=_on_page_size_change,
+                label_visibility="collapsed",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        with _c3:
+            if _page_size > 0:
+                st.caption(_("per page"))
+
+    if _page_size > 0:
+        num_pages = max(1, math.ceil(_n_filtered / _page_size))
+        if st.session_state.get("tpl_page", 1) > num_pages:
+            st.session_state.pop("tpl_page", None)
+        _current_page = (
+            st.pagination(num_pages, key="tpl_page", width="stretch") if num_pages > 1 else 1
+        )
+        page_entries = filtered[(_current_page - 1) * _page_size : _current_page * _page_size]
+    else:
+        page_entries = filtered
+
+    for entry in page_entries:
         template_uuid = str(entry.get("uuid") or "")
         display_name = str(entry.get("display_name") or entry.get("name") or template_uuid)
         is_selected = selected == template_uuid

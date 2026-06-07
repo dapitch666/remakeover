@@ -100,6 +100,7 @@ _TEMPLATE_DEVICE_SCOPED = {
     "tpl_filter_labels",
     "tpl_filter_orientation",
     "tpl_pill_expanded_rows",
+    "tpl_page",
 }
 
 
@@ -1762,3 +1763,76 @@ class TestSvgUploader:
         assert not at.exception
         assert any(at.error)
         assert at.session_state["tpl_meta_icon_data"] == original_b64
+
+
+# ---------------------------------------------------------------------------
+# TestPagination — st.pagination in the template list
+# ---------------------------------------------------------------------------
+
+
+class TestPagination:
+    def test_page_1_shows_first_ten_templates(self, tmp_path):
+        """With 11 templates, page 1 renders exactly 10 list buttons."""
+        cfg_path = with_device(tmp_path, "D1")
+        names = [f"tpl{i:02d}" for i in range(11)]
+        for name in names:
+            _make_template(tmp_path, "D1", f"{name}.template")
+        at = _at_templates(tmp_path, cfg_path)
+        assert not at.exception
+        list_btns = [b for b in at.button if b.key and b.key.startswith("tpl_list_btn_")]
+        assert len(list_btns) == 10
+
+    def test_page_2_shows_remaining_templates(self, tmp_path):
+        """With 11 templates, setting tpl_page=2 renders the 11th template."""
+        cfg_path = with_device(tmp_path, "D1")
+        names = [f"tpl{i:02d}" for i in range(11)]
+        for name in names:
+            _make_template(tmp_path, "D1", f"{name}.template")
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_page": 2})
+        assert not at.exception
+        list_btns = [b for b in at.button if b.key and b.key.startswith("tpl_list_btn_")]
+        assert len(list_btns) == 1
+
+    def test_out_of_range_page_clamped_to_1(self, tmp_path):
+        """tpl_page=99 with 11 templates is clamped to page 1 (10 list buttons rendered)."""
+        cfg_path = with_device(tmp_path, "D1")
+        for i in range(11):
+            _make_template(tmp_path, "D1", f"tpl{i:02d}.template")
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_page": 99})
+        assert not at.exception
+        list_btns = [b for b in at.button if b.key and b.key.startswith("tpl_list_btn_")]
+        assert len(list_btns) == 10
+
+    def test_no_pagination_widget_below_page_size(self, tmp_path):
+        """With fewer templates than the page size, no pagination widget is rendered."""
+        cfg_path = with_device(tmp_path, "D1")
+        for i in range(5):
+            _make_template(tmp_path, "D1", f"tpl{i}.template")
+        at = _at_templates(tmp_path, cfg_path)
+        assert not at.exception
+        assert "tpl_page" not in at.session_state
+
+    def test_all_page_size_shows_every_template(self, tmp_path):
+        """Selecting page size 0 ('All') renders all 11 templates without pagination."""
+        cfg_path = with_device(tmp_path, "D1")
+        for i in range(11):
+            _make_template(tmp_path, "D1", f"tpl{i:02d}.template")
+        at = _at_templates(tmp_path, cfg_path, session_state={"tpl_page_size": 0})
+        assert not at.exception
+        list_btns = [b for b in at.button if b.key and b.key.startswith("tpl_list_btn_")]
+        assert len(list_btns) == 11
+        assert "tpl_page" not in at.session_state
+
+    def test_tpl_page_reset_on_device_change(self, tmp_path):
+        """tpl_page is cleared when the device changes."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file("app.py")
+            at.run()
+            at.session_state["tpl_device"] = "STALE_DEVICE"
+            at.session_state["tpl_page"] = 3
+            at.switch_page("pages/templates.py").run()
+        assert not at.exception
+        assert "tpl_page" not in at.session_state
