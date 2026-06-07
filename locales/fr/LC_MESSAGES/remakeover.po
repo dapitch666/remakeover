@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  reMakeover\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-22 19:10+0200\n"
+"POT-Creation-Date: 2026-06-07 11:10+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -143,14 +143,15 @@ msgid ""
 msgstr ""
 "Retrouvez ci-dessous toutes les images enregistrées pour cet appareil. \n"
 "Cliquez sur le **nom** d'une image pour la renommer.  \n"
-"Les boutons sous chaque image permettent de **:material/cloud_upload: l'envoyer**"
-" comme image de veille ou de la **:material/delete: supprimer**.  \n"
-"En bas de page, vous pouvez **récupérer l'image de veille**"
-" actuellement installée sur l'appareil,"
-" **ajouter une nouvelle image** depuis votre ordinateur — "
-" elle sera automatiquement convertie au bon format et aux bonnes dimensions."
-" — ou **restaurer l'image de veille par défaut** si vous voulez supprimer"
-" la personnalisation de l'image de veille et revenir à la configuration usine."
+"Les boutons sous chaque image permettent de **:material/cloud_upload: "
+"l'envoyer** comme image de veille ou de la **:material/delete: "
+"supprimer**.  \n"
+"En bas de page, vous pouvez **récupérer l'image de veille** actuellement "
+"installée sur l'appareil, **ajouter une nouvelle image** depuis votre "
+"ordinateur —  elle sera automatiquement convertie au bon format et aux "
+"bonnes dimensions. — ou **restaurer l'image de veille par défaut** si "
+"vous voulez supprimer la personnalisation de l'image de veille et revenir"
+" à la configuration usine."
 
 #: pages/images.py:304
 msgid ""
@@ -249,11 +250,11 @@ msgstr "Effacer les logs"
 msgid "Clear logs for this session?"
 msgstr "Effacer les logs de cette session ?"
 
-#: pages/templates.py:43
+#: pages/templates.py:44
 msgid ":material/description: Templates"
 msgstr ":material/description: Modèles"
 
-#: pages/templates.py:64
+#: pages/templates.py:65
 msgid ""
 "The template list for this device has not been imported yet. Turn on the "
 "device and click the button below to start."
@@ -261,26 +262,26 @@ msgstr ""
 "La liste des modèles de cet appareil n'a pas encore été importée. Allumez"
 " l'appareil et cliquez sur le bouton ci-dessous pour commencer."
 
-#: pages/templates.py:79
+#: pages/templates.py:80
 msgid "Templates imported successfully"
 msgstr "Modèles importés avec succès"
 
-#: pages/templates.py:85
+#: pages/templates.py:86
 msgid "Initialize templates from this device"
 msgstr "Initialiser les modèles depuis l'appareil"
 
-#: pages/templates.py:89
+#: pages/templates.py:90
 msgid "Import templates from this device and initialize local metadata"
 msgstr ""
 "Importer les modèles depuis l'appareil et initialiser la bibliothèque "
 "locale"
 
-#: pages/templates.py:94 src/template_list_ui.py:370
+#: pages/templates.py:95 src/template_list_ui.py:372
 #, python-brace-format
 msgid "Error: {msg}"
 msgstr "Erreur : {msg}"
 
-#: pages/templates.py:101
+#: pages/templates.py:102
 msgid ""
 "Browse and manage templates for this device in the **left panel**.  \n"
 "Click a template to open it in the **editor** on the right, where you can"
@@ -379,8 +380,8 @@ msgstr "Impossible de sauvegarder la configuration : {error}"
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: src/config_ui.py:200 src/template_editor_ui.py:188
-#: src/template_editor_ui.py:497 src/template_list_ui.py:228
+#: src/config_ui.py:200 src/template_editor_ui.py:213
+#: src/template_editor_ui.py:512 src/template_list_ui.py:230
 msgid "Save"
 msgstr "Sauvegarder"
 
@@ -388,8 +389,8 @@ msgstr "Sauvegarder"
 msgid "Save device configuration"
 msgstr "Enregistrer la configuration de l'appareil"
 
-#: src/config_ui.py:216 src/template_editor_ui.py:151
-#: src/template_editor_ui.py:568
+#: src/config_ui.py:216 src/template_editor_ui.py:176
+#: src/template_editor_ui.py:583
 msgid "Delete"
 msgstr "Supprimer"
 
@@ -397,8 +398,8 @@ msgstr "Supprimer"
 msgid "Delete this device and its local images and templates"
 msgstr "Supprimer cet appareil, ses images et modèles locaux"
 
-#: src/config_ui.py:234 src/dialog.py:25 src/template_editor_ui.py:147
-#: src/template_editor_ui.py:205 src/template_list_ui.py:252
+#: src/config_ui.py:234 src/dialog.py:25 src/template_editor_ui.py:172
+#: src/template_editor_ui.py:230 src/template_list_ui.py:254
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -422,7 +423,7 @@ msgstr ""
 "'{name}' supprimé, mais les données locales n'ont pas pu être entièrement"
 " supprimées"
 
-#: src/config_ui.py:273 src/template_editor_ui.py:161
+#: src/config_ui.py:273 src/template_editor_ui.py:186
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr "'{name}' supprimé"
@@ -508,42 +509,46 @@ msgstr "Tester la connexion SSH"
 msgid "Confirm"
 msgstr "Confirmer"
 
-#: src/template_editor_ui.py:75 src/template_list_ui.py:272
+#: src/template_editor_ui.py:61
+msgid "File is not valid UTF-8 text."
+msgstr "Le fichier n'est pas un texte UTF-8 valide."
+
+#: src/template_editor_ui.py:100 src/template_list_ui.py:274
 msgid "New"
 msgstr "Nouveau"
 
-#: src/template_editor_ui.py:131
+#: src/template_editor_ui.py:156
 msgid "Template duplicated (not saved)"
 msgstr "Modèle dupliqué (non sauvegardé)"
 
-#: src/template_editor_ui.py:134
+#: src/template_editor_ui.py:159
 msgid "Delete template"
 msgstr "Supprimer le modèle"
 
-#: src/template_editor_ui.py:144
+#: src/template_editor_ui.py:169
 #, python-brace-format
 msgid "Do you really want to delete {name}?"
 msgstr "Voulez-vous vraiment supprimer {name} ?"
 
-#: src/template_editor_ui.py:165
+#: src/template_editor_ui.py:190
 #, python-brace-format
 msgid "Error deleting '{name}'"
 msgstr "Erreur lors de la suppression de {name}"
 
-#: src/template_editor_ui.py:172
+#: src/template_editor_ui.py:197
 msgid "Replace template file"
 msgstr "Remplacer le fichier de modèle"
 
-#: src/template_editor_ui.py:181
+#: src/template_editor_ui.py:206
 msgid "New .template file"
 msgstr "Nouveau fichier .template"
 
-#: src/template_editor_ui.py:199
+#: src/template_editor_ui.py:224
 #, python-brace-format
 msgid "'{name}' updated locally"
 msgstr "{name} mis à jour localement"
 
-#: src/template_editor_ui.py:228
+#: src/template_editor_ui.py:253
 msgid ""
 "No templates yet. Click **:material/add: New** to create one, or "
 "**:material/upload_file: Import** to add from your computer."
@@ -552,7 +557,7 @@ msgstr ""
 "en créer un, ou **:material/upload_file: Importer** pour en ajouter "
 "depuis votre ordinateur."
 
-#: src/template_editor_ui.py:236
+#: src/template_editor_ui.py:261
 msgid ""
 "Select a template from the list, or click **:material/add: New** to "
 "create one."
@@ -560,90 +565,90 @@ msgstr ""
 "Sélectionnez un modèle dans la liste ou cliquez sur **:material/add: "
 "Nouveau** pour en créer un."
 
-#: src/template_editor_ui.py:298
+#: src/template_editor_ui.py:323
 msgid "Metadata"
 msgstr "Métadonnées"
 
-#: src/template_editor_ui.py:303
+#: src/template_editor_ui.py:328
 msgid "Name"
 msgstr "Nom"
 
-#: src/template_editor_ui.py:305
+#: src/template_editor_ui.py:330
 msgid "Author"
 msgstr "Auteur"
 
-#: src/template_editor_ui.py:308 src/template_list_ui.py:480
+#: src/template_editor_ui.py:333 src/template_list_ui.py:482
 msgid "Orientation"
 msgstr "Orientation"
 
-#: src/template_editor_ui.py:316 src/template_list_ui.py:463
+#: src/template_editor_ui.py:341 src/template_list_ui.py:465
 msgid "Categories"
 msgstr "Catégories"
 
-#: src/template_editor_ui.py:320
+#: src/template_editor_ui.py:345
 msgid "Select or add categories"
 msgstr "Modifier les catégories"
 
-#: src/template_editor_ui.py:321
+#: src/template_editor_ui.py:346
 msgid "Categories are used on the device to filter templates."
 msgstr "Les catégories sont utilisées sur l'appareil pour filtrer les modèles."
 
-#: src/template_editor_ui.py:326 src/template_list_ui.py:473
+#: src/template_editor_ui.py:351 src/template_list_ui.py:475
 msgid "Labels"
 msgstr "Labels"
 
-#: src/template_editor_ui.py:330
+#: src/template_editor_ui.py:355
 msgid "Select or add labels"
 msgstr "Sélectionnez ou ajoutez des étiquettes"
 
-#: src/template_editor_ui.py:331
+#: src/template_editor_ui.py:356
 msgid "Labels are only used here to filter templates."
 msgstr "Les étiquettes ne sont utilisées qu'ici pour filtrer les modèles."
 
-#: src/template_editor_ui.py:335
+#: src/template_editor_ui.py:360
 msgid "Format version"
 msgstr "Version du format"
 
-#: src/template_editor_ui.py:338
+#: src/template_editor_ui.py:363
 msgid "Integer format version (usually 1)"
 msgstr "Un entier représentant la version du format (généralement 1)"
 
-#: src/template_editor_ui.py:341
+#: src/template_editor_ui.py:366
 msgid "Template version"
 msgstr "Version du modèle"
 
-#: src/template_editor_ui.py:343
+#: src/template_editor_ui.py:368
 msgid ":material/grid_on: Icon"
 msgstr ":material/grid_on: Icône"
 
-#: src/template_editor_ui.py:361
+#: src/template_editor_ui.py:386
 msgid "Icon preview"
 msgstr "Aperçu"
 
-#: src/template_editor_ui.py:372
+#: src/template_editor_ui.py:397
 msgid "Upload SVG file"
 msgstr "Envoyez un fichier SVG"
 
-#: src/template_editor_ui.py:408
+#: src/template_editor_ui.py:423
 #, python-brace-format
 msgid "Icon SVG code ({w}×{h} px)"
 msgstr "Code de l'icône SVG ({w}×{h} px)"
 
-#: src/template_editor_ui.py:412
+#: src/template_editor_ui.py:427
 msgid "Raw SVG source — not base64. Must match the selected orientation."
 msgstr ""
 "Source brute du SVG — pas en base64. Doit correspondre à l'orientation "
 "sélectionnée."
 
-#: src/template_editor_ui.py:421
+#: src/template_editor_ui.py:436
 msgid "JSON"
 msgstr "JSON"
 
-#: src/template_editor_ui.py:436
+#: src/template_editor_ui.py:451
 msgid "Template JSON"
 msgstr "JSON du modèle"
 
-#: src/template_editor_ui.py:440
+#: src/template_editor_ui.py:455
 msgid ""
 "Enter your reMarkable template JSON here. The preview updates "
 "automatically."
@@ -651,127 +656,127 @@ msgstr ""
 "Entrez ici le JSON de votre modèle reMarkable. L'aperçu se met à jour "
 "automatiquement."
 
-#: src/template_editor_ui.py:450
+#: src/template_editor_ui.py:465
 msgid "Invalid JSON body"
 msgstr "Corps du JSON invalide"
 
-#: src/template_editor_ui.py:453
+#: src/template_editor_ui.py:468
 msgid "Preview"
 msgstr "Aperçu"
 
-#: src/template_editor_ui.py:466
+#: src/template_editor_ui.py:481
 msgid "Actions"
 msgstr "Actions"
 
-#: src/template_editor_ui.py:489 src/template_list_ui.py:243
+#: src/template_editor_ui.py:504 src/template_list_ui.py:245
 #, python-brace-format
 msgid "Template {name} saved"
 msgstr "Modèle {name} sauvegardé"
 
-#: src/template_editor_ui.py:503
+#: src/template_editor_ui.py:518
 msgid "Save the .template file to the selected device's library."
 msgstr ""
 "Enregistre le fichier .template dans la bibliothèque de l'appareil "
 "sélectionné."
 
-#: src/template_editor_ui.py:521
+#: src/template_editor_ui.py:536
 msgid "Export"
 msgstr "Exporter"
 
-#: src/template_editor_ui.py:528
+#: src/template_editor_ui.py:543
 msgid "Download the .template file to your computer"
 msgstr "Téléchargez le fichier .template"
 
-#: src/template_editor_ui.py:540
+#: src/template_editor_ui.py:555
 msgid "Duplicate"
 msgstr "Dupliquer"
 
-#: src/template_editor_ui.py:545
+#: src/template_editor_ui.py:560
 msgid "Create an unsaved copy in the editor"
 msgstr "Crée une copie non sauvegardée dans l'éditeur"
 
-#: src/template_editor_ui.py:554
+#: src/template_editor_ui.py:569
 msgid "Replace file"
 msgstr "Remplacer"
 
-#: src/template_editor_ui.py:559
+#: src/template_editor_ui.py:574
 msgid "Replace this template with a new .template file"
 msgstr "Remplacer ce modèle par un nouveau fichier .template"
 
-#: src/template_editor_ui.py:573
+#: src/template_editor_ui.py:588
 msgid "Delete this template"
 msgstr "Supprimer ce modèle"
 
-#: src/template_editor_ui.py:577
+#: src/template_editor_ui.py:592
 msgid ":material/help: reMarkable JSON format documentation"
 msgstr ":material/help: Documentation du format JSON reMarkable"
 
-#: src/template_list_ui.py:156
+#: src/template_list_ui.py:158
 #, python-brace-format
 msgid "'{name}' recovered from device"
 msgstr "{name} récupéré depuis l'appareil"
 
-#: src/template_list_ui.py:165
+#: src/template_list_ui.py:167
 #, python-brace-format
 msgid "Import failed: {msg}"
 msgstr "L'import a échoué : {msg}"
 
-#: src/template_list_ui.py:175
+#: src/template_list_ui.py:177
 msgid "Recover template"
 msgstr "Récupérer le modèle"
 
-#: src/template_list_ui.py:177
+#: src/template_list_ui.py:179
 #, python-brace-format
 msgid "'{name}' only exists on the device. Recover it to local storage?"
 msgstr "'{name}' n'est présent que sur l'appareil. Voulez-vous le récupérer ?"
 
-#: src/template_list_ui.py:210
+#: src/template_list_ui.py:212
 msgid "Import templates"
 msgstr "Importer des modèles"
 
-#: src/template_list_ui.py:215
+#: src/template_list_ui.py:217
 msgid "Drag one or more `.template` files here"
 msgstr "Glisser un ou plusieurs fichiers `.template` ici"
 
-#: src/template_list_ui.py:247
+#: src/template_list_ui.py:249
 #, python-brace-format
 msgid "{count} templates saved"
 msgstr "{count} modèles sauvegardés"
 
-#: src/template_list_ui.py:276
+#: src/template_list_ui.py:278
 msgid "Create a new template from scratch"
 msgstr "Créer un nouveau modèle"
 
-#: src/template_list_ui.py:285
+#: src/template_list_ui.py:287
 msgid "Import"
 msgstr "Importer"
 
-#: src/template_list_ui.py:289
+#: src/template_list_ui.py:291
 msgid "Import .template files from your computer"
 msgstr "Importer un ou plusieurs fichiers .template"
 
-#: src/template_list_ui.py:294
+#: src/template_list_ui.py:296
 msgid ":material/sync: Sync"
 msgstr ":material/sync: Synchronisation"
 
-#: src/template_list_ui.py:298
+#: src/template_list_ui.py:300
 #, python-brace-format
 msgid "Last modified on {date} at {time}"
 msgstr "Modifié le {date} à {time}"
 
-#: src/template_list_ui.py:306
+#: src/template_list_ui.py:308
 msgid "Sync status checked"
 msgstr "État de synchronisation vérifié"
 
-#: src/template_list_ui.py:308
+#: src/template_list_ui.py:310
 msgid "Sync check error"
 msgstr "Erreur lors de la vérification de la synchronisation"
 
-#: src/template_list_ui.py:311
+#: src/template_list_ui.py:313
 msgid "Check sync"
 msgstr "Vérifier la synchronisation"
 
-#: src/template_list_ui.py:315
+#: src/template_list_ui.py:317
 msgid ""
 "Connect to the device and check if templates are in sync (does not change"
 " anything)"
@@ -779,19 +784,19 @@ msgstr ""
 "Se connecte à l'appareil et vérifie si les modèles sont synchronisés (ne "
 "change rien)"
 
-#: src/template_list_ui.py:329 src/template_list_ui.py:356
+#: src/template_list_ui.py:331 src/template_list_ui.py:358
 msgid "Templates synced"
 msgstr "Modèles synchronisés"
 
-#: src/template_list_ui.py:335
+#: src/template_list_ui.py:337
 msgid "Sync error"
 msgstr "Erreur lors de la synchronisation"
 
-#: src/template_list_ui.py:338
+#: src/template_list_ui.py:340
 msgid "Sync now"
 msgstr "Synchroniser maintenant"
 
-#: src/template_list_ui.py:342
+#: src/template_list_ui.py:344
 msgid ""
 "Sync templates between this manager and the device (uploads new/modified "
 "templates, deletes remote-only templates)"
@@ -799,11 +804,11 @@ msgstr ""
 "Synchronise les modèles avec l'appareil (envoie les modèles nouveaux ou "
 "modifiés, supprime les modèles présents uniquement sur l'appareil)"
 
-#: src/template_list_ui.py:373
+#: src/template_list_ui.py:375
 msgid "Reset & reinitialize"
 msgstr "Réinitialiser"
 
-#: src/template_list_ui.py:377
+#: src/template_list_ui.py:379
 msgid ""
 "Delete all local templates and re-fetch from the device (use if you think"
 " the local state is corrupted)"
@@ -811,94 +816,106 @@ msgstr ""
 "Supprime tous les modèles locaux et récupère ceux de l'appareil (à "
 "n'utiliser que si vous pensez que l'état local est corrompu)"
 
-#: src/template_list_ui.py:392
+#: src/template_list_ui.py:394
 #, python-brace-format
 msgid "{n} local template"
 msgid_plural "{n} local templates"
 msgstr[0] "{n} modèle local"
 msgstr[1] "{n} modèles locaux"
 
-#: src/template_list_ui.py:395
+#: src/template_list_ui.py:397
 #, python-brace-format
 msgid "{n} remote template"
 msgid_plural "{n} remote templates"
 msgstr[0] "{n} modèle sur l'appareil"
 msgstr[1] "{n} modèles sur l'appareil"
 
-#: src/template_list_ui.py:399
+#: src/template_list_ui.py:401
 #, python-brace-format
 msgid "{n} template to upload"
 msgid_plural "{n} templates to upload"
 msgstr[0] "{n} modèle à envoyer"
 msgstr[1] "{n} modèles à envoyer"
 
-#: src/template_list_ui.py:404
+#: src/template_list_ui.py:406
 #, python-brace-format
 msgid "{n} template to delete on device"
 msgid_plural "{n} templates to delete on device"
 msgstr[0] "{n} modèle à supprimer de l'appareil"
 msgstr[1] "{n} modèles à supprimer de l'appareil"
 
-#: src/template_list_ui.py:414
+#: src/template_list_ui.py:416
 #, python-brace-format
 msgid "Last remote check on {date} at {time}"
 msgstr "Dernière vérification le {date} à {time}"
 
-#: src/template_list_ui.py:416
+#: src/template_list_ui.py:418
 msgid "Added locally (upload)"
 msgstr "Ajoutés localement (à envoyer)"
 
-#: src/template_list_ui.py:418 src/template_list_ui.py:429
-#: src/template_list_ui.py:440
+#: src/template_list_ui.py:420 src/template_list_ui.py:431
+#: src/template_list_ui.py:442
 msgid "none"
 msgstr "aucun"
 
-#: src/template_list_ui.py:427
+#: src/template_list_ui.py:429
 msgid "Modified locally (upload)"
 msgstr "Modifiés localement (à envoyer)"
 
-#: src/template_list_ui.py:438
+#: src/template_list_ui.py:440
 msgid "Remote-only (delete on sync)"
 msgstr "Appareil uniquement (à supprimer)"
 
-#: src/template_list_ui.py:452
+#: src/template_list_ui.py:454
 msgid ":material/filter_list: Filters"
 msgstr ":material/filter_list: Filtres"
 
-#: src/template_list_ui.py:454
+#: src/template_list_ui.py:456
 msgid "Search"
 msgstr "Chercher"
 
-#: src/template_list_ui.py:456
+#: src/template_list_ui.py:458
 msgid "Filter by name…"
 msgstr "Filtrer par nom…"
 
-#: src/template_list_ui.py:467
+#: src/template_list_ui.py:469
 msgid "Filter by category…"
 msgstr "Filtrer par catégorie…"
 
-#: src/template_list_ui.py:477
+#: src/template_list_ui.py:479
 msgid "Filter by label…"
 msgstr "Filtrer par étiquette…"
 
-#: src/template_list_ui.py:484
+#: src/template_list_ui.py:486
 msgid "All orientations"
 msgstr "Toutes les orientations"
 
-#: src/template_list_ui.py:507
+#: src/template_list_ui.py:509
 msgid "No templates yet. Click 'New' or 'Import'."
 msgstr "Aucun modèle pour l'instant. Cliquez sur 'Nouveau' ou 'Importer'."
 
-#: src/template_list_ui.py:511
+#: src/template_list_ui.py:513
 msgid "No templates match the filter."
 msgstr "Aucun modèle ne correspond aux filtres."
 
-#: src/template_list_ui.py:515
+#: src/template_list_ui.py:544
 #, python-brace-format
 msgid "{n} template"
 msgid_plural "{n} templates"
 msgstr[0] "{n} modèle"
 msgstr[1] "{n} modèles"
+
+#: src/template_list_ui.py:548
+msgid "Showing"
+msgstr "Afficher"
+
+#: src/template_list_ui.py:551 src/template_list_ui.py:560
+msgid "per page"
+msgstr "par page"
+
+#: src/template_list_ui.py:554
+msgid "All"
+msgstr "Tout"
 
 #: src/templates.py:71
 msgid "No <svg> root element found."
@@ -924,10 +941,4 @@ msgstr "Aucun appareil configuré. Ajoutez-en un dans la barre latérale."
 #: src/ui_common.py:64
 msgid "Select a device in the sidebar."
 msgstr "Sélectionnez un appareil dans la barre latérale."
-
-#~ msgid "Not initialized yet."
-#~ msgstr "Pas encore initialisé."
-
-#~ msgid "Initialize from device"
-#~ msgstr "Initialiser depuis l'appareil"
 

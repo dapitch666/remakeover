@@ -26,6 +26,7 @@ _TEMPLATE_DEVICE_SCOPED_KEYS = (
     "tpl_filter_labels",
     "tpl_filter_orientation",
     "tpl_pill_expanded_rows",
+    "tpl_page",
 )
 
 
