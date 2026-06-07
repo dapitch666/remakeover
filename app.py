@@ -55,8 +55,8 @@ def _language_selector() -> None:
     """Render a compact flag+label toggle in the sidebar using ``st.segmented_control``.
 
     ``key="lang"`` makes ``st.session_state["lang"]`` the widget value directly.
-    URL sync is manual: ``bind="query-params"`` serialises the ``format_func``
-    output (emoji string) rather than the raw option code, which breaks the URL.
+    URL sync is manual: URL-serialised widget labels would include emojis (from
+    ``format_func``) rather than the raw option codes, which breaks the URL.
     """
 
     def _on_lang_change():
