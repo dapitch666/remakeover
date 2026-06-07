@@ -237,19 +237,19 @@ def test_sidebar_ssh_test_keeps_config_when_detection_is_unchanged(tmp_path):
 
 
 class TestLanguageSelector:
-    def test_lang_selector_defaults_to_en(self, tmp_path):
+    def test_lang_defaults_to_en(self, tmp_path):
         """Language selector renders with 'en' selected on first visit."""
         with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
             at = AppTest.from_file("app.py")
             at.run()
         assert not at.exception
-        assert at.segmented_control(key="lang_selector").value == "en"
+        assert at.segmented_control(key="lang").value == "en"
 
-    def test_lang_selector_switching_to_fr_updates_session_state(self, tmp_path):
+    def test_lang_switching_to_fr_updates_session_state(self, tmp_path):
         """Switching the language selector to 'fr' sets lang in session state."""
         with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
             at = AppTest.from_file("app.py")
             at.run()
-            at.segmented_control(key="lang_selector").set_value("fr").run()
+            at.segmented_control(key="lang").set_value("fr").run()
         assert not at.exception
         assert at.session_state["lang"] == "fr"
