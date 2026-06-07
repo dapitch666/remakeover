@@ -35,10 +35,10 @@ def _normalize_lang_value(raw: str | None) -> str | None:
 
 
 def _init_language() -> None:
-    """Set ``st.session_state["lang"]`` on the first visit when no URL param is present.
+    """Set ``st.session_state["lang"]`` before any ``_()`` call.
 
-    A canonical short value (``en``/``fr``) is always kept in URL params,
-    session state and the language selector state.
+    Must run before the widget renders so that page titles and other translated
+    strings use the correct language from the very first rerun.
     """
     query_lang = _normalize_lang_value(st.query_params.get("lang"))
     if query_lang:
@@ -47,7 +47,6 @@ def _init_language() -> None:
         browser_lang = (st.context.locale or "en").split("-")[0].lower()
         st.session_state["lang"] = browser_lang if browser_lang in SUPPORTED_LANGUAGES else "en"
 
-    # Keep URL in canonical short form (en/fr).
     if st.query_params.get("lang") != st.session_state["lang"]:
         st.query_params["lang"] = st.session_state["lang"]
 
@@ -55,15 +54,13 @@ def _init_language() -> None:
 def _language_selector() -> None:
     """Render a compact flag+label toggle in the sidebar using ``st.segmented_control``.
 
-    The widget shows a rich label (flag + full name), while URL/query state is
-    explicitly synced using canonical short codes (``en``/``fr``).
+    ``key="lang"`` makes ``st.session_state["lang"]`` the widget value directly.
+    URL sync is manual: URL-serialised widget labels would include emojis (from
+    ``format_func``) rather than the raw option codes, which breaks the URL.
     """
 
     def _on_lang_change():
-        selected = st.session_state.get("lang_selector")
-        if selected:
-            st.session_state["lang"] = selected
-            st.query_params["lang"] = selected
+        st.query_params["lang"] = st.session_state["lang"]
 
     with st.sidebar:
         st.segmented_control(
@@ -71,8 +68,7 @@ def _language_selector() -> None:
             options=list(SUPPORTED_LANGUAGES),
             format_func=lambda lang: f"{_LANG_FLAGS[lang][0]} {_LANG_FLAGS[lang][1]}",
             label_visibility="collapsed",
-            key="lang_selector",
-            default=st.session_state.get("lang", "en"),
+            key="lang",
             width="stretch",
             on_change=_on_lang_change,
         )
