@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  reMakeover\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-06-07 10:28+0200\n"
+"POT-Creation-Date: 2026-06-07 11:10+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -898,24 +898,24 @@ msgstr "Aucun modèle pour l'instant. Cliquez sur 'Nouveau' ou 'Importer'."
 msgid "No templates match the filter."
 msgstr "Aucun modèle ne correspond aux filtres."
 
-#: src/template_list_ui.py:548
+#: src/template_list_ui.py:544
 #, python-brace-format
 msgid "{n} template"
 msgid_plural "{n} templates"
 msgstr[0] "{n} modèle"
 msgstr[1] "{n} modèles"
 
-#: src/template_list_ui.py:552
+#: src/template_list_ui.py:548
 msgid "Showing"
 msgstr "Afficher"
 
-#: src/template_list_ui.py:559
-msgid "All"
-msgstr "Tout"
-
-#: src/template_list_ui.py:566
+#: src/template_list_ui.py:551 src/template_list_ui.py:560
 msgid "per page"
 msgstr "par page"
+
+#: src/template_list_ui.py:554
+msgid "All"
+msgstr "Tout"
 
 #: src/templates.py:71
 msgid "No <svg> root element found."

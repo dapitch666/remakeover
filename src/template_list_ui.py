@@ -517,7 +517,7 @@ def render_left_panel(
 
     st.html("""
     <style>
-    .tpl-page-size-select div[data-baseweb="select"] > div:first-child {
+    .st-key-tpl_page_size div[data-baseweb="select"] > div:first-child {
         border: none !important;
         background-color: transparent !important;
         box-shadow: none !important;
@@ -525,15 +525,11 @@ def render_left_panel(
         padding-right: 2px !important;
         min-height: 1.6rem !important;
     }
-    .tpl-page-size-select div[data-baseweb="select"] [class*="valueContainer"] {
-        font-size: 0.875rem !important;
-        color: var(--text-color);
-        padding: 0 !important;
+    
+    .st-key-tpl_page_size div[data-baseweb="select"] * {
+        font-size: 1rem !important;
     }
-    .tpl-page-size-select div[data-baseweb="select"] [class*="iconContainer"] svg {
-        width: 14px;
-        height: 14px;
-    }
+    
     /* Tighten vertical gap between count and showing-row only */
     .st-key-tpl-count-row {
         gap: 0 !important;
@@ -547,23 +543,21 @@ def render_left_panel(
     with st.container(key="tpl-count-row"):
         st.caption(_n("{n} template", "{n} templates", _n_filtered).format(n=_n_filtered))
 
-        _c1, _c2, _c3 = st.columns([1, 1.5, 1], vertical_alignment="center", gap="small")
+        _c1, _c2, _c3 = st.columns([0.7, 1, 0.7], vertical_alignment="center", gap="xxsmall")
         with _c1:
-            st.caption(_("Showing"))
+            st.text(_("Showing"))
         with _c2:
-            st.markdown('<div class="tpl-page-size-select">', unsafe_allow_html=True)
             _page_size = st.selectbox(
-                label="Per page",
+                _("per page"),
                 options=_PAGE_SIZE_OPTIONS,
                 key="tpl_page_size",
                 format_func=lambda v: _("All") if v == 0 else str(v),
                 on_change=_on_page_size_change,
                 label_visibility="collapsed",
             )
-            st.markdown("</div>", unsafe_allow_html=True)
         with _c3:
             if _page_size > 0:
-                st.caption(_("per page"))
+                st.text(_("per page"))
 
     if _page_size > 0:
         num_pages = max(1, math.ceil(_n_filtered / _page_size))

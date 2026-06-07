@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-06-07 10:28+0200\n"
+"POT-Creation-Date: 2026-06-07 11:10+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -835,23 +835,23 @@ msgstr ""
 msgid "No templates match the filter."
 msgstr ""
 
-#: src/template_list_ui.py:548
+#: src/template_list_ui.py:544
 #, python-brace-format
 msgid "{n} template"
 msgid_plural "{n} templates"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/template_list_ui.py:552
+#: src/template_list_ui.py:548
 msgid "Showing"
 msgstr ""
 
-#: src/template_list_ui.py:559
-msgid "All"
+#: src/template_list_ui.py:551 src/template_list_ui.py:560
+msgid "per page"
 msgstr ""
 
-#: src/template_list_ui.py:566
-msgid "per page"
+#: src/template_list_ui.py:554
+msgid "All"
 msgstr ""
 
 #: src/templates.py:71
