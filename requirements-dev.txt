@@ -2,5 +2,5 @@ mypy==2.3.0
 pytest-cov==7.1.0
 ruff==0.16.2
 types-paramiko==5.0.0.20260724
-pre-commit==4.6.1
+pre-commit==4.6.2
 vulture==2.16
