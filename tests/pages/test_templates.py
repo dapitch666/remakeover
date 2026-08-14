@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 from streamlit.testing.v1 import AppTest
 
 from tests.pages.helpers import (
+    APP_PY,
     backup_dir,
     empty_cfg,
     make_env,
@@ -115,7 +116,7 @@ def _at_templates(
     """
     env = make_env(tmp_path, cfg_path)
     with patch.dict(os.environ, env):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         if session_state:
             if (
@@ -180,7 +181,7 @@ def _labels_multiselect(at):
 def test_templates_page_warns_when_no_devices(tmp_path):
     """Templates page shows 'No device' message with empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.switch_page("pages/templates.py").run()
     assert not at.exception
@@ -222,7 +223,7 @@ class TestTemplatesPageInit:
                 ),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if "Initialize templates" in b.label), None)
@@ -241,7 +242,7 @@ class TestTemplatesPageInit:
                 return_value=(False, "SSH connection refused"),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if "Initialize templates" in b.label), None)
@@ -320,7 +321,7 @@ class TestTemplatesSync:
                 ),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if b.label == "Sync now"), None)
@@ -354,7 +355,7 @@ class TestTemplatesSync:
                 ),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if "Reset" in b.label), None)
@@ -382,7 +383,7 @@ class TestTemplatesSync:
             patch("src.template_editor_ui.get_all_categories", return_value=[]),
             patch("src.template_sync._ssh.ssh_session", _fake_session),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if b.label == "Sync now"), None)
@@ -411,7 +412,7 @@ class TestTemplatesSync:
                 ),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if "Check sync" in b.label), None)
@@ -431,7 +432,7 @@ class TestTemplatesSync:
                 return_value=(False, "SSH timeout"),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             btn = next((b for b in at.button if "Check sync" in b.label), None)
@@ -507,7 +508,7 @@ class TestSyncStatusPills:
         )
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_sync_check_result_D1"] = sync_result
@@ -527,7 +528,7 @@ class TestSyncStatusPills:
         )
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_sync_check_result_D1"] = sync_result
@@ -550,7 +551,7 @@ class TestSyncStatusPills:
         )
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_pill_expanded_rows"] = {"added"}
@@ -573,7 +574,7 @@ class TestSyncStatusPills:
         )
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_sync_check_result_D1"] = sync_result
@@ -595,7 +596,7 @@ class TestSyncStatusPills:
         )
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_sync_check_result_D1"] = sync_result
@@ -657,7 +658,7 @@ class TestTemplateList:
         _make_template(tmp_path, "D1", "pick_me.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             # Pre-set device tracking so no reset happens
             at.session_state["tpl_device"] = "D1"
@@ -745,7 +746,7 @@ class TestTemplateList:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             # Simulate a stale device tracking value (e.g. previously D2 was selected)
             at.session_state["tpl_device"] = "STALE_DEVICE"
@@ -760,7 +761,7 @@ class TestTemplateList:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "STALE_DEVICE"
             at.session_state["tpl_filter_text"] = "zzznomatch"
@@ -861,7 +862,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             new_btn = next((b for b in at.button if b.label == "New"), None)
@@ -985,7 +986,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1002,7 +1003,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1100,7 +1101,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1120,7 +1121,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1138,7 +1139,7 @@ class TestEditorPanelNew:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1249,7 +1250,7 @@ class TestEditorPanelExisting:
 
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1302,7 +1303,7 @@ class TestEditorPanelExisting:
         template_uuid = _make_template(tmp_path, "D1", "del_me.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1321,7 +1322,7 @@ class TestEditorPanelExisting:
         template_uuid = _make_template(tmp_path, "D1", "replace_me.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1348,7 +1349,7 @@ class TestEditorSave:
         tdir = d / "templates"
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1390,7 +1391,7 @@ class TestEditorSave:
         tdir = backup_dir(tmp_path, "D1") / "templates"
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1418,7 +1419,7 @@ class TestEditorSave:
             patch("src.template_editor_ui.get_all_categories", return_value=["Lines", "Grids"]),
             patch("src.template_editor_ui.get_all_labels", return_value=["alpha", "beta"]),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1444,7 +1445,7 @@ class TestEditorSave:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1482,7 +1483,7 @@ class TestEditorSave:
         (d / "templates" / f"{template_uuid}.template").write_text(_FULL_JSON, encoding="utf-8")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1551,7 +1552,7 @@ class TestNewButtonFlow:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             new_btn = next((b for b in at.button if b.label == "New"), None)
@@ -1567,7 +1568,7 @@ class TestNewButtonFlow:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             next(b for b in at.button if b.label == "New").click().run()
@@ -1595,7 +1596,7 @@ class TestImportDialog:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             next(b for b in at.button if b.label == "Import").click().run()
@@ -1610,7 +1611,7 @@ class TestImportDialog:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/templates.py").run()
             next(b for b in at.button if b.label == "Import").click().run()
@@ -1632,7 +1633,7 @@ class TestReplaceFileDialog:
         template_uuid = _make_template(tmp_path, "D1", "replace_me.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1652,7 +1653,7 @@ class TestReplaceFileDialog:
         template_uuid = _make_template(tmp_path, "D1", "replace_me.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1677,7 +1678,7 @@ class TestSvgUploader:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1704,7 +1705,7 @@ class TestSvgUploader:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1728,7 +1729,7 @@ class TestSvgUploader:
         template_uuid = _make_template(tmp_path, "D1", "preserve_test.template")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = template_uuid
@@ -1750,7 +1751,7 @@ class TestSvgUploader:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "D1"
             at.session_state["tpl_selected_uuid"] = "__new__"
@@ -1829,7 +1830,7 @@ class TestPagination:
         backup_dir(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["tpl_device"] = "STALE_DEVICE"
             at.session_state["tpl_page"] = 3

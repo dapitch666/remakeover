@@ -10,6 +10,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from tests.pages.helpers import (
+    APP_PY,
     empty_cfg,
     make_env,
     with_device,
@@ -47,7 +48,7 @@ def _fail_result(error="Connection refused"):
 def test_configuration_save_requires_name(tmp_path):
     """Save stays disabled until a device name is provided."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         assert save_btn.disabled is True
@@ -58,7 +59,7 @@ def test_configuration_save_requires_name(tmp_path):
 def test_configuration_save_rejects_duplicate_name(tmp_path):
     """Save stays disabled when creating a device with an existing name."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path, name="D1"))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
         device_box.set_value("─ New device ─").run()
@@ -84,7 +85,7 @@ def test_configuration_save_rejects_duplicate_name(tmp_path):
 def test_configuration_save_rejects_empty_ip(tmp_path):
     """Save stays disabled when IP is empty."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.text_input[0].set_value("MyDevice").run()
         at.text_input[2].set_value("pw").run()
@@ -97,7 +98,7 @@ def test_configuration_save_rejects_empty_ip(tmp_path):
 def test_configuration_save_rejects_invalid_ip(tmp_path):
     """Save stays disabled when IP is malformed."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.text_input[0].set_value("MyDevice").run()
         at.text_input[1].set_value("not-an-ip").run()
@@ -116,7 +117,7 @@ def test_configuration_save_rejects_invalid_ip(tmp_path):
 def test_configuration_page_shows_device_selectbox(tmp_path):
     """When a device exists, the device selectbox offers a '─ New device ─' option."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
 
     assert not at.exception
@@ -127,7 +128,7 @@ def test_configuration_page_shows_device_selectbox(tmp_path):
 def test_configuration_edit_mode_has_no_device_type_selectbox(tmp_path):
     """Device model is auto-detected, so edit mode must not show a model dropdown."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
 
     assert not at.exception
@@ -144,7 +145,7 @@ def test_saving_new_device_sets_pending_selected_device(tmp_path):
     """Saving a new device writes all fields to config and selects it in the sidebar."""
     cfg_path = empty_cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["connection_test_result"] = {
             "ok": True,
@@ -184,7 +185,7 @@ def test_saving_new_device_sets_pending_selected_device(tmp_path):
 def test_cancel_button_shown_in_creation_mode_when_device_exists(tmp_path):
     """Selecting '─ New device ─' shows a Cancel button alongside Save."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
         device_box.set_value("─ New device ─").run()
@@ -196,7 +197,7 @@ def test_cancel_button_shown_in_creation_mode_when_device_exists(tmp_path):
 def test_cancel_button_not_shown_on_first_device_creation(tmp_path):
     """With no existing devices, there is nowhere to cancel to — no Cancel button shown."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
 
     assert not at.exception
@@ -206,7 +207,7 @@ def test_cancel_button_not_shown_on_first_device_creation(tmp_path):
 def test_cancel_button_returns_to_edit_mode(tmp_path):
     """Clicking Cancel switches the selectbox back to the real device and shows the edit form."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path, name="D1"))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
         device_box.set_value("─ New device ─").run()
@@ -229,7 +230,7 @@ class TestConfigurationDeleteFlow:
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.session_state["config_panel_open"] = True
             at.run()
         assert not at.exception
@@ -241,7 +242,7 @@ class TestConfigurationDeleteFlow:
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.session_state["config_panel_open"] = True
             at.run()
             del_btn = next((b for b in at.button if b.label == "Delete"), None)
@@ -257,7 +258,7 @@ class TestConfigurationDeleteFlow:
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.session_state["config_panel_open"] = True
             at.run()
             at.session_state["pending_delete_device"] = "D1"
@@ -273,7 +274,7 @@ class TestConfigurationDeleteFlow:
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.session_state["config_panel_open"] = True
             at.run()
             at.session_state["pending_delete_device"] = "D1"
@@ -290,7 +291,7 @@ class TestConfigurationDeleteFlow:
         cfg_path = with_device(tmp_path, "D1")
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             device_box = next(s for s in at.selectbox if s.key == "device")
             device_box.set_value("─ New device ─").run()
@@ -311,7 +312,7 @@ class TestConfigurationDeleteFlow:
 def test_test_connection_button_exists_in_create_mode(tmp_path):
     """Create mode shows a 'Test Connection' button."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
 
     assert not at.exception
@@ -321,7 +322,7 @@ def test_test_connection_button_exists_in_create_mode(tmp_path):
 def test_create_mode_no_device_type_selectbox(tmp_path):
     """Create mode does not have a device type selectbox."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
 
     assert not at.exception
@@ -334,7 +335,7 @@ def test_test_connection_success_shows_device_type(tmp_path):
         patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
         patch(_DETECT_PATCH, return_value=_ok_result()),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.text_input[0].set_value("MyDevice").run()
         at.text_input[1].set_value("192.168.1.1").run()
@@ -354,7 +355,7 @@ def test_test_connection_failure_shows_error(tmp_path):
         patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))),
         patch(_DETECT_PATCH, return_value=_fail_result()),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.text_input[1].set_value("192.168.1.99").run()
         test_btn = next(b for b in at.button if "test connection" in b.label.lower())
@@ -369,7 +370,7 @@ def test_save_uses_detected_device_type(tmp_path):
     """Saving after a successful test writes the detected device_type and firmware to config."""
     cfg_path = empty_cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["connection_test_result"] = {
             "ok": True,
@@ -382,6 +383,7 @@ def test_save_uses_detected_device_type(tmp_path):
         }
         at.text_input[0].set_value("ProDevice").run()
         at.text_input[1].set_value("192.168.1.5").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
@@ -396,7 +398,7 @@ def test_save_persists_sleep_screen_enabled(tmp_path):
     """When connection_test_result has sleep_screen_enabled=True, it is written to config."""
     cfg_path = empty_cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["connection_test_result"] = {
             "ok": True,
@@ -410,6 +412,7 @@ def test_save_persists_sleep_screen_enabled(tmp_path):
         }
         at.text_input[0].set_value("SleepDevice").run()
         at.text_input[1].set_value("192.168.1.10").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
@@ -426,7 +429,7 @@ def test_renaming_existing_device_renames_data_dir(tmp_path):
     (old_dir / "marker.txt").write_text("ok", encoding="utf-8")
 
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.session_state["config_panel_open"] = True
         at.run()
         at.text_input[0].set_value("Renamed Device").run()
@@ -466,7 +469,7 @@ def test_renaming_existing_device_renames_data_dir(tmp_path):
 def test_switching_device_closes_config_panel(tmp_path):
     """Changing the device selectbox closes the config panel."""
     with patch.dict(os.environ, make_env(tmp_path, with_two_devices(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.session_state["config_panel_open"] = True
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
@@ -479,7 +482,7 @@ def test_switching_device_closes_config_panel(tmp_path):
 def test_switching_device_clears_stale_inputs(tmp_path):
     """Changing the device selectbox removes stale typed values from session state."""
     with patch.dict(os.environ, make_env(tmp_path, with_two_devices(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.session_state["config_panel_open"] = True
         at.session_state["config_device_ip"] = "stale_ip"
         at.session_state["config_device_name"] = "stale_name"
@@ -496,7 +499,7 @@ def test_switching_device_clears_stale_inputs(tmp_path):
 def test_switching_from_sentinel_to_real_device_closes_panel(tmp_path):
     """Switching from '─ New device ─' to a real device closes the config panel."""
     with patch.dict(os.environ, make_env(tmp_path, with_two_devices(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
         device_box.set_value("─ New device ─").run()
@@ -511,7 +514,7 @@ def test_switching_from_sentinel_to_real_device_closes_panel(tmp_path):
 def test_new_device_sentinel_clears_stale_inputs(tmp_path):
     """Selecting '─ New device ─' replaces previously typed values with empty defaults."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.session_state["config_device_ip"] = "stale_ip"
         at.session_state["config_device_name"] = "stale_name"
         at.run()
@@ -528,7 +531,7 @@ def test_new_device_sentinel_clears_stale_inputs(tmp_path):
 def test_cancel_button_clears_stale_inputs(tmp_path):
     """Clicking Cancel restores the real device, closes the panel, and clears stale inputs."""
     with patch.dict(os.environ, make_env(tmp_path, with_device(tmp_path, name="D1"))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         device_box = next(s for s in at.selectbox if s.key == "device")
         device_box.set_value("─ New device ─").run()

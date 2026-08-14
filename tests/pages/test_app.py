@@ -12,6 +12,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from tests.pages.helpers import (
+    APP_PY,
     empty_cfg,
     make_env,
     with_device,
@@ -22,7 +23,7 @@ from tests.pages.helpers import (
 def test_main_page_renders(tmp_path):
     """With no devices, the app shows a warning and the config panel in create mode."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
     assert not at.exception
     assert any(at.warning)
@@ -31,7 +32,7 @@ def test_main_page_renders(tmp_path):
 def test_no_config_shows_config_panel_in_create_mode(tmp_path):
     """When no devices are configured, the sidebar config panel opens in create mode."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
     assert not at.exception
     assert any("test connection" in b.label.lower() for b in at.button)
@@ -42,7 +43,7 @@ def test_pending_selected_device_is_applied_to_sidebar(tmp_path):
     on the next run without raising a StreamlitAPIException."""
     cfg_path = with_two_devices(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["pending_selected_device"] = "D2"
         at.run()
@@ -61,7 +62,7 @@ def test_ssh_test_success_colors_button_green(tmp_path):
             "src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", False, "")
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -83,7 +84,7 @@ def test_ssh_test_failure_colors_button_red(tmp_path):
             "src.ssh.detect_device_info", return_value=(False, "", "", False, "Connection refused")
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -96,7 +97,7 @@ def test_ssh_stale_result_shows_neutral_button(tmp_path):
     """A successful SSH result older than 5 minutes renders a neutral (non-green) button."""
     cfg_path = with_device(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["_ssh_test_result"] = {
             "ok": True,
@@ -123,7 +124,7 @@ def test_ssh_result_cleared_on_device_change(tmp_path):
             "src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", False, "")
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         # Test SSH on D1
         at.button(key="sidebar_test_ssh").click().run()
@@ -145,7 +146,7 @@ def test_sidebar_ssh_test_updates_firmware_in_config(tmp_path):
             "src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "4.0.1", False, "")
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -168,7 +169,7 @@ def test_ssh_test_persists_sleep_screen_disabled_when_detected_false(tmp_path):
             return_value=(True, "reMarkable 2", "3.0.0", False, ""),
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -187,7 +188,7 @@ def test_ssh_test_persists_sleep_screen_enabled_when_detected_true(tmp_path):
             return_value=(True, "reMarkable 2", "3.0.0", True, ""),
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -222,7 +223,7 @@ def test_sidebar_ssh_test_keeps_config_when_detection_is_unchanged(tmp_path):
             "src.ssh.detect_device_info", return_value=(True, "reMarkable 2", "3.0.0", False, "")
         ),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.button(key="sidebar_test_ssh").click().run()
 
@@ -240,7 +241,7 @@ class TestLanguageSelector:
     def test_lang_defaults_to_en(self, tmp_path):
         """Language selector renders with 'en' selected on first visit."""
         with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
         assert not at.exception
         assert at.segmented_control(key="lang").value == "en"
@@ -248,7 +249,7 @@ class TestLanguageSelector:
     def test_lang_switching_to_fr_updates_session_state(self, tmp_path):
         """Switching the language selector to 'fr' sets lang in session state."""
         with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.segmented_control(key="lang").set_value("fr").run()
         assert not at.exception

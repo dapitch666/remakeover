@@ -13,6 +13,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from tests.pages.helpers import (
+    APP_PY,
     PNG_BYTES,
     at_page,
     empty_cfg,
@@ -29,7 +30,7 @@ from tests.pages.helpers import (
 def test_images_page_warns_when_no_devices(tmp_path):
     """Images page shows 'No device' message with an empty config."""
     with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.switch_page("pages/images.py").run()
 
@@ -74,7 +75,7 @@ def test_upload_and_send_flow(tmp_path):
         for p in flow_patches(images_dir, upload_calls, run_cmds, saved_files):
             stack.enter_context(p)
 
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.sidebar.selectbox[0].set_value("D1").run()
 
@@ -115,7 +116,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["a.png", "b.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
         assert not at.exception
@@ -129,7 +130,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["MyImage.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             name_btn = next((b for b in at.button if "MyImage" in b.label), None)
@@ -147,7 +148,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["pic.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
@@ -164,7 +165,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["image2.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "image2.png"
@@ -185,7 +186,7 @@ class TestImagesPage:
                 side_effect=lambda _n, f: deleted.append(f),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "image2.png"
@@ -203,7 +204,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["keep.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_delete"] = "keep.png"
@@ -227,7 +228,7 @@ class TestImagesPage:
                 side_effect=lambda _n, _d, f: saved.append(f),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             import_btn = next((b for b in at.button if "Import from device" in b.label), None)
@@ -245,7 +246,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=[]),
             patch("src.ssh.download_file_ssh", return_value=(None, "Connection refused")),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             import_btn = next((b for b in at.button if "Import from device" in b.label), None)
@@ -262,7 +263,7 @@ class TestImagesPage:
             patch.dict(os.environ, env),
             patch("src.images.list_device_images", return_value=[]),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
         assert not at.exception
@@ -277,7 +278,7 @@ class TestImagesPage:
             patch("src.images.list_device_images", return_value=["old.png", "new.png"]),
             patch("src.images.load_device_image", return_value=PNG_BYTES),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
@@ -298,7 +299,7 @@ class TestImagesPage:
                 side_effect=lambda _n, o, f: renamed.append((o, f)),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
@@ -323,7 +324,7 @@ class TestImagesPage:
                 side_effect=lambda _n, o, f: renamed.append((o, f)),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_pending_rename"] = ("old.png", "new.png")
@@ -393,7 +394,7 @@ class TestSleepScreenGating:
             patch("src.images.load_device_image", return_value=PNG_BYTES),
             patch("src.images.send_suspended_png", return_value=True),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             sc = next((s for s in at.button_group if s.label == "Actions"), None)
@@ -412,7 +413,7 @@ class TestSleepScreenGating:
             patch("src.images.list_device_images", return_value=[]),
             patch("src.images.rollback_sleep_screen", return_value=True),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_pending_rollback_D1"] = True
             at.session_state["confirm_rollback_D1"] = True
@@ -442,7 +443,7 @@ class TestImageSegmentedActions:
             stack.enter_context(patch("src.images.load_device_image", return_value=PNG_BYTES))
             for p in extra_patches:
                 stack.enter_context(p)
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             at.segmented_control(key=f"action_{img_name}").set_value(action_value).run()
@@ -522,7 +523,7 @@ class TestRollbackPaths:
             patch.dict(os.environ, env),
             patch("src.images.list_device_images", return_value=[]),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             btn = next((b for b in at.button if "Restore default" in b.label), None)
@@ -544,7 +545,7 @@ class TestRollbackPaths:
                 side_effect=lambda d, log: rolled_back.append(d.name) or True,
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_pending_rollback_D1"] = True
             at.session_state["confirm_rollback_D1"] = False
@@ -562,7 +563,7 @@ class TestRollbackPaths:
             patch("src.images.list_device_images", return_value=[]),
             patch("src.images.rollback_sleep_screen", return_value=False),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_pending_rollback_D1"] = True
             at.session_state["confirm_rollback_D1"] = True
@@ -596,7 +597,7 @@ class TestUploadConfirmation:
                 side_effect=lambda _n, _d, f: saved.append(f),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
@@ -618,7 +619,7 @@ class TestUploadConfirmation:
                 side_effect=lambda _d, _data, name, _log: sent.append(name) or True,
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
@@ -642,7 +643,7 @@ class TestUploadConfirmation:
                 side_effect=lambda _d, _data, name, _log: sent.append(name) or True,
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.switch_page("pages/images.py").run()
             at.file_uploader[0].set_value(("upload.png", PNG_BYTES, "image/png")).run()
@@ -673,7 +674,7 @@ class TestInlineRename:
                 side_effect=lambda _n, old, new: renamed.append((old, new)),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
@@ -700,7 +701,7 @@ class TestInlineRename:
                 side_effect=lambda _n, old, new: renamed.append((old, new)),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
@@ -731,7 +732,7 @@ class TestInlineRename:
                 side_effect=lambda _n, old, new: renamed.append((old, new)),
             ),
         ):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["img_device"] = "D1"
             at.session_state["img_renaming"] = "pic.png"
@@ -759,7 +760,7 @@ def test_img_state_resets_on_device_change(tmp_path):
         patch.dict(os.environ, env),
         patch("src.images.list_device_images", return_value=[]),
     ):
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         at.session_state["img_device"] = "STALE_DEVICE"
         at.session_state["img_renaming"] = "foo.png"
