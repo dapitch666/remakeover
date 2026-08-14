@@ -9,6 +9,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from tests.pages.helpers import (
+    APP_PY,
     at_page,
     empty_cfg,
     make_env,
@@ -28,7 +29,7 @@ class TestLogsPage:
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["logs"] = ["first log", "second log"]
             at.switch_page("pages/logs.py").run()
@@ -42,7 +43,7 @@ class TestLogsPage:
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["logs"] = ["an entry"]
             at.switch_page("pages/logs.py").run()
@@ -57,7 +58,7 @@ class TestLogsPage:
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["logs"] = ["entry1", "entry2"]
             at.session_state["pending_clear_logs"] = True
@@ -72,7 +73,7 @@ class TestLogsPage:
         cfg_path = with_device(tmp_path)
         env = make_env(tmp_path, cfg_path)
         with patch.dict(os.environ, env):
-            at = AppTest.from_file("app.py")
+            at = AppTest.from_file(APP_PY)
             at.run()
             at.session_state["logs"] = ["stay"]
             at.session_state["pending_clear_logs"] = True

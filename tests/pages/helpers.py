@@ -7,9 +7,14 @@ import base64
 import json
 import os
 from contextlib import ExitStack
+from pathlib import Path
 from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
+
+# Absolute path to app.py — required by Streamlit ≥1.61 which resolves relative
+# paths in AppTest.from_file() relative to the caller's file, not the cwd.
+APP_PY = Path(__file__).parent.parent.parent / "app.py"
 
 # ---------------------------------------------------------------------------
 # Synthetic media
@@ -107,7 +112,7 @@ def at_page(
         stack.enter_context(patch.dict(os.environ, env))
         for p in patches or []:
             stack.enter_context(p)
-        at = AppTest.from_file("app.py")
+        at = AppTest.from_file(APP_PY)
         at.run()
         if session_state:
             for key, value in session_state.items():
