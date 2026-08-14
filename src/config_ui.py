@@ -96,18 +96,7 @@ def render_config_panel(
     if is_new:
 
         def _on_test_connection():
-            if not ip_stripped:
-                st.session_state.pop("connection_test_result", None)
-                st.session_state["_test_feedback_error"] = _("Enter an IP address before testing.")
-            else:
-                result = run_detection(Device(name="", ip=ip_stripped, password=password))
-                st.session_state["connection_test_result"] = {
-                    **result,
-                    "ip": ip_stripped,
-                    "mode": "new",
-                    "device_name": device_name,
-                }
-                st.session_state.pop("_test_feedback_error", None)
+            st.session_state["_test_connection_pending"] = True
 
         st.button(
             _("Test Connection"),
@@ -117,6 +106,23 @@ def render_config_panel(
             help=_("Test SSH connection to the device and detect its type and firmware version"),
             on_click=_on_test_connection,
         )
+
+        if st.session_state.pop("_test_connection_pending", False):
+            with st.skeleton(width="stretch"):
+                if not ip_stripped:
+                    st.session_state.pop("connection_test_result", None)
+                    st.session_state["_test_feedback_error"] = _(
+                        "Enter an IP address before testing."
+                    )
+                else:
+                    result = run_detection(Device(name="", ip=ip_stripped, password=password))
+                    st.session_state["connection_test_result"] = {
+                        **result,
+                        "ip": ip_stripped,
+                        "mode": "new",
+                        "device_name": device_name,
+                    }
+                    st.session_state.pop("_test_feedback_error", None)
 
     test_result = st.session_state.get("connection_test_result") or {}
     test_matches_context = (
@@ -442,21 +448,26 @@ def render_device_selector(config: dict, add_log: Callable[[str], None]) -> str 
                     _device = Device.from_dict(selected_name, devices[selected_name])
 
                     def _on_ssh_test():
-                        result = run_detection(_device)
-                        st.session_state["_ssh_test_result"] = {
-                            **result,
-                            "device": selected_name,
-                            "tested_at": datetime.now(),
-                        }
-                        if result["ok"]:
-                            _apply_detected_metadata(
-                                selected_name, devices, config, result, add_log
-                            )
-                            add_log(f"SSH connection successful to '{selected_name}'")
-                        else:
-                            add_log(
-                                f"SSH connection failed to '{selected_name}': {result['error']}"
-                            )
+                        st.session_state["_ssh_test_pending"] = True
+
+                    if st.session_state.pop("_ssh_test_pending", False):
+                        with st.skeleton(width="stretch"):
+                            result = run_detection(_device)
+                            st.session_state["_ssh_test_result"] = {
+                                **result,
+                                "device": selected_name,
+                                "tested_at": datetime.now(),
+                            }
+                            if result["ok"]:
+                                _apply_detected_metadata(
+                                    selected_name, devices, config, result, add_log
+                                )
+                                add_log(f"SSH connection successful to '{selected_name}'")
+                            else:
+                                add_log(
+                                    f"SSH connection failed to '{selected_name}': {result['error']}"
+                                )
+                        _ssh_result = st.session_state.get("_ssh_test_result")
 
                     _is_stale = (
                         _ssh_result is not None
