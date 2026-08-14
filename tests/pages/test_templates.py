@@ -165,6 +165,10 @@ def _replace_file_btn(at):
     return next((b for b in at.button if "Replace file" in b.label), None)
 
 
+def _export_btn(at):
+    return next((b for b in at.download_button if b.label == "Export"), None)
+
+
 def _categories_multiselect(at):
     return next((ms for ms in at.multiselect if ms.label == "Categories"), None)
 
@@ -1507,6 +1511,41 @@ class TestEditorSave:
         data = json.loads(tpl_file.read_text(encoding="utf-8"))
         assert data["name"] == "Blank"
         assert "constants" in data  # body from _BODY_JSON preserved
+
+
+class TestEditorExport:
+    def test_export_button_disabled_when_name_empty(self, tmp_path):
+        """Export button is disabled when name is empty, like Save."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        at = _at_templates(tmp_path, cfg_path, {"tpl_selected_uuid": "__new__"})
+        assert not at.exception
+        export = _export_btn(at)
+        assert export is not None
+        assert export.disabled
+
+    def test_export_click_logs_export_with_normalised_filename(self, tmp_path):
+        """Clicking Export logs the normalised .template filename and device name."""
+        cfg_path = with_device(tmp_path, "D1")
+        backup_dir(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with patch.dict(os.environ, env):
+            at = AppTest.from_file(APP_PY)
+            at.run()
+            at.session_state["tpl_device"] = "D1"
+            at.session_state["tpl_selected_uuid"] = "__new__"
+            at.session_state["tpl_meta_name"] = "export-test"
+            at.session_state["tpl_editor_textarea"] = _BODY_JSON
+            at.switch_page("pages/templates.py").run()
+            export = _export_btn(at)
+            assert export is not None
+            assert not export.disabled
+            export.click().run()
+        assert not at.exception
+        assert any(
+            "Exported template 'export-test.template' for 'D1'" in entry
+            for entry in at.session_state["logs"]
+        )
 
 
 # ---------------------------------------------------------------------------
