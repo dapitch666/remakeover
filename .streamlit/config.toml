@@ -2,7 +2,7 @@
 gatherUsageStats = false
 
 [server]
-allowedHosts = ["remakeover.laprade.eu", "localhost"]
+allowedHosts = ["remakeover.laprade.eu", "localhost", "127.0.0.1"]
 
 [theme]
 linkUnderline = false
