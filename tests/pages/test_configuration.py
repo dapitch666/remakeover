@@ -421,6 +421,29 @@ def test_save_persists_sleep_screen_enabled(tmp_path):
     assert saved["devices"]["SleepDevice"]["sleep_screen_enabled"] is True
 
 
+# ---------------------------------------------------------------------------
+# Sidebar SSH test button — single click resolves in one rerun
+# ---------------------------------------------------------------------------
+
+
+def test_sidebar_ssh_test_click_resolves_in_one_rerun(tmp_path):
+    """A single click on the sidebar SSH-test button stores the result immediately."""
+    cfg_path = with_device(tmp_path, "D1")
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch(_DETECT_PATCH, return_value=_ok_result()),
+    ):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        ssh_btn = next(b for b in at.button if b.key == "sidebar_test_ssh")
+        ssh_btn.click().run()
+
+    assert not at.exception
+    assert at.session_state["_ssh_test_result"]["ok"] is True
+    assert at.session_state["_ssh_test_result"]["device"] == "D1"
+    assert "_ssh_test_pending" not in at.session_state
+
+
 def test_renaming_existing_device_renames_data_dir(tmp_path):
     """Renaming an existing device updates config key and local data directory."""
     cfg_path = with_device(tmp_path, "D1")
