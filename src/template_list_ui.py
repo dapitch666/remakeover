@@ -195,7 +195,7 @@ def _render_sync_name_line(
     st.rerun()
 
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, refresh_mode="background")
 def get_template_icon_svg(device_name: str, template_uuid: str) -> str:
     """Return the decoded icon SVG for a template (cached 60 s)."""
     if template_uuid == _SENTINEL_NEW:

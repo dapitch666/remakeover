@@ -33,3 +33,7 @@ Thumbs.db
 
 # Localization build artifacts
 locales/**/LC_MESSAGES/*.mo
+
+# Streamlit agent skills (environment-specific symlinks)
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit
