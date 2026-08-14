@@ -1,5 +1,8 @@
 [browser]
 gatherUsageStats = false
 
+[server]
+allowedHosts = ["remakeover.laprade.eu", "localhost"]
+
 [theme]
 linkUnderline = false
