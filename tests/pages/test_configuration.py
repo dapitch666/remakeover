@@ -383,6 +383,7 @@ def test_save_uses_detected_device_type(tmp_path):
         }
         at.text_input[0].set_value("ProDevice").run()
         at.text_input[1].set_value("192.168.1.5").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
@@ -411,6 +412,7 @@ def test_save_persists_sleep_screen_enabled(tmp_path):
         }
         at.text_input[0].set_value("SleepDevice").run()
         at.text_input[1].set_value("192.168.1.10").run()
+        at.text_input[2].set_value("pw").run()
         save_btn = next(b for b in at.button if "save" in b.label.lower())
         save_btn.click().run()
 
