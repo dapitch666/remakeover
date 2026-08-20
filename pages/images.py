@@ -16,11 +16,11 @@ from src.i18n import _
 from src.images import rollback_sleep_screen, send_suspended_png
 from src.models import Device
 from src.ui_common import (
-    deferred_toast,
     handle_rename_confirmation,
     init_page,
     normalise_filename,
     rainbow_divider,
+    show_toast,
 )
 
 # ── Image card ────────────────────────────────────────────────────────────────
@@ -43,15 +43,13 @@ def _render_image_card(img_name, device, add_log, config):
                 try:
                     _images.rename_device_image(device.name, old, new_name)
                     add_log(f"Renamed image '{old}' to '{new_name}' for '{device.name}'")
-                    deferred_toast(
+                    show_toast(
                         _("Image renamed from '{o}' to {n}").format(o=old, n=new_name),
                         ":material/task_alt:",
                     )
                 except OSError as _err:
                     add_log(f"Error renaming image '{old}' for '{device.name}': {_err}")
-                    deferred_toast(
-                        _("Error renaming image '{o}'").format(o=old), ":material/error:"
-                    )
+                    show_toast(_("Error renaming image '{o}'").format(o=old), ":material/error:")
 
         with st.form(key=f"img_rename_form_{img_name}", border=False):
             col_in, col_btn = st.columns([3, 1], vertical_alignment="center", gap="xxsmall")
@@ -103,13 +101,13 @@ def _render_image_card(img_name, device, add_log, config):
             try:
                 _images.rename_device_image(device.name, _old_r, _new_r)
                 add_log(f"Renamed image '{_old_r}' to '{_new_r}' for '{device.name}'")
-                deferred_toast(
+                show_toast(
                     _("Image renamed from '{o}' to {n}").format(o=_old_r, n=_new_r),
                     ":material/task_alt:",
                 )
             except OSError as _err:
                 add_log(f"Error renaming image '{_old_r}' for '{device.name}': {_err}")
-                deferred_toast(_("Error renaming image '{o}'").format(o=_old_r), ":material/error:")
+                show_toast(_("Error renaming image '{o}'").format(o=_old_r), ":material/error:")
 
         handle_rename_confirmation(
             "confirm_rename_img", "img_pending_rename", "img_renaming", _do_rename_img
@@ -127,12 +125,10 @@ def _render_image_card(img_name, device, add_log, config):
             try:
                 _images.delete_device_image(device.name, img_name)
                 add_log(f"Deleted {img_name} from '{device.name}'")
-                deferred_toast(
-                    _("{img_name} deleted").format(img_name=img_name), ":material/delete:"
-                )
+                show_toast(_("{img_name} deleted").format(img_name=img_name), ":material/delete:")
             except OSError as e:
                 add_log(f"Error deleting {img_name} from '{device.name}': {e}")
-                deferred_toast(
+                show_toast(
                     _("Error deleting {img_name}").format(img_name=img_name), ":material/error:"
                 )
             st.session_state.pop("confirm_del_img", None)
@@ -156,12 +152,12 @@ def _render_image_card(img_name, device, add_log, config):
                 if send_suspended_png(device, data, name, add_log):
                     config["devices"][device.name]["sleep_screen_enabled"] = True
                     save_config(config)
-                    deferred_toast(
+                    show_toast(
                         _("{name} sent to {device}").format(name=name, device=device.name),
                         ":material/task_alt:",
                     )
                 else:
-                    deferred_toast(_("Error sending {name}").format(name=name), ":material/error:")
+                    show_toast(_("Error sending {name}").format(name=name), ":material/error:")
             elif selection == 1:
                 st.session_state["img_pending_delete"] = name
         finally:
@@ -204,9 +200,7 @@ def _render_upload_section(device, add_log, config):
         filename = normalise_filename(uploaded_file.name)
         _images.save_device_image(device.name, img_data, filename)
         add_log(f"Image saved locally: {filename} for '{device.name}'")
-        deferred_toast(
-            _("Image saved: {filename}").format(filename=filename), ":material/task_alt:"
-        )
+        show_toast(_("Image saved: {filename}").format(filename=filename), ":material/task_alt:")
         st.session_state[upload_key] = uploaded_file.name
         st.session_state[f"img_send_data_{device.name}"] = (img_data, filename)
         _dialog.confirm(
@@ -233,12 +227,12 @@ def _render_upload_section(device, add_log, config):
             if send_suspended_png(device, img_data, filename, add_log):
                 config["devices"][device.name]["sleep_screen_enabled"] = True
                 save_config(config)
-                deferred_toast(
+                show_toast(
                     _("{name} sent to {device}").format(name=filename, device=device.name),
                     ":material/task_alt:",
                 )
             else:
-                deferred_toast(_("Error sending image."), ":material/error:")
+                show_toast(_("Error sending image."), ":material/error:")
         st.session_state.pop(f"img_send_confirm_{device.name}", None)
         st.session_state.pop(f"img_send_data_{device.name}", None)
         _reset_uploader()
@@ -321,7 +315,7 @@ with col_dl:
             _filename = f"{timestamp}.png"
             _images.save_device_image(current_device.name, image_data, _filename)
             add_log_fn(f"suspended.png downloaded from '{current_device.name}' as {_filename}")
-            deferred_toast(_("Image saved: {name}").format(name=_filename), ":material/task_alt:")
+            show_toast(_("Image saved: {name}").format(name=_filename), ":material/task_alt:")
 
     st.button(
         _("Import from device"),
@@ -361,14 +355,14 @@ with col_restore:
             if rollback_sleep_screen(current_device, add_log_fn):
                 config["devices"][current_device.name]["sleep_screen_enabled"] = False
                 save_config(config)
-                deferred_toast(
+                show_toast(
                     _("Sleep screen reset to default on {device}").format(
                         device=current_device.name
                     ),
                     ":material/task_alt:",
                 )
             else:
-                deferred_toast(_("Error resetting sleep screen."), ":material/error:")
+                show_toast(_("Error resetting sleep screen."), ":material/error:")
             st.session_state.pop(_rollback_key, None)
             st.session_state.pop(_rollback_confirm_key, None)
             st.rerun()

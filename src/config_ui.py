@@ -17,7 +17,7 @@ from src.config import (
 from src.i18n import _
 from src.models import Device
 from src.ssh import run_detection
-from src.ui_common import deferred_toast
+from src.ui_common import show_toast
 
 _INPUT_KEY_BASES = ("config_device_name", "config_device_ip", "config_device_password")
 
@@ -84,6 +84,10 @@ def render_config_panel(
         device_config.get("ip", ""),
         placeholder="192.168.x.x",
         key=f"{key_prefix}config_device_ip",
+        validate=(
+            r"^(\d{1,3}\.){3}\d{1,3}$",
+            _("Enter a valid IPv4 address, e.g. 192.168.1.1"),
+        ),
     )
     ip_stripped = ip.strip()
     password = st.text_input(
@@ -193,7 +197,7 @@ def render_config_panel(
                 ).format(error=str(err))
             else:
                 add_log(f"Configuration saved for '{final_name}'")
-                deferred_toast(
+                show_toast(
                     _("Configuration of '{name}' saved").format(name=final_name),
                     ":material/task_alt:",
                 )
@@ -268,16 +272,14 @@ def render_config_panel(
                 save_config(config)
             add_log(f"Configuration deleted for '{device_name}'")
             if _data_dir_error:
-                deferred_toast(
+                show_toast(
                     _("'{name}' deleted, but local data could not be fully removed").format(
                         name=device_name
                     ),
                     ":material/error:",
                 )
             else:
-                deferred_toast(
-                    _("'{name}' deleted").format(name=device_name), ":material/task_alt:"
-                )
+                show_toast(_("'{name}' deleted").format(name=device_name), ":material/task_alt:")
             st.session_state.pop("pending_delete_device", None)
             st.session_state.pop(f"del_device_{device_name}", None)
             st.session_state["config_panel_open"] = False
@@ -354,13 +356,13 @@ def _apply_detected_metadata(
         save_config(config)
     except OSError as exc:
         add_log(f"Detected metadata change for '{selected_name}' but failed to persist: {exc}")
-        deferred_toast(
+        show_toast(
             _("Could not save detected metadata for '{name}'").format(name=selected_name),
             ":material/error:",
         )
         return
 
-    deferred_toast(
+    show_toast(
         _("Detected update for '{name}': {details}").format(
             name=selected_name, details=", ".join(details)
         ),

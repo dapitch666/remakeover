@@ -189,10 +189,6 @@ def main():
     _sidebar_version(_read_version())
     _debug_overlay()
 
-    from src.ui_common import show_deferred_toast
-
-    show_deferred_toast()
-
     pg.run()
 
 
