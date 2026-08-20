@@ -22,8 +22,16 @@ jobs:
   open-release-pr:
     runs-on: ubuntu-latest
     steps:
+      - name: Ensure workflow was launched from main
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::This workflow must be run with 'Use workflow from' set to main (got ${{ github.ref_name }})." >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@v7
         with:
+          ref: main
           token: ${{ secrets.RELEASE_PAT }}
           persist-credentials: true
 
