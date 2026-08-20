@@ -15,3 +15,11 @@ repos:
     rev: v2.16
     hooks:
       - id: vulture
+  - repo: local
+    hooks:
+      - id: check-translations
+        name: check translations are complete
+        entry: python scripts/check_translations.py
+        language: system
+        pass_filenames: false
+        always_run: true
