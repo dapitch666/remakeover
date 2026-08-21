@@ -11,6 +11,9 @@
       "/requirements.*\\.txt$/"
     ]
   },
+  "pre-commit": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "description": "Group all pip runtime dependencies",
