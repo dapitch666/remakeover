@@ -33,7 +33,7 @@ from src.templates import (
     save_json_template,
     validate_svg_size,
 )
-from src.ui_common import normalise_filename, show_toast
+from src.ui_common import normalise_filename
 
 
 def _on_icon_svg_change() -> None:
@@ -153,7 +153,7 @@ def _duplicate_template_into_editor(
 
     on_select(sentinel_new)
     add_log(f"Template '{ui_name}' duplicated in editor for '{device.name}' (not saved)")
-    show_toast(_("Template duplicated (not saved)"), ":material/task_alt:")
+    st.toast(":green[{}]".format(_("Template duplicated (not saved)")), icon=":material/task_alt:")
 
 
 @st.dialog(_("Delete template"), dismissible=False)
@@ -183,10 +183,16 @@ def _show_delete_dialog(
                 delete_device_template(device.name, template_uuid)
                 remove_template_entry(device.name, template_uuid)
                 add_log(f"Template '{ui_name}' deleted locally from '{device.name}'")
-                show_toast(_("'{name}' deleted").format(name=ui_name), ":material/delete:")
+                st.toast(
+                    ":green[{}]".format(_("'{name}' deleted").format(name=ui_name)),
+                    icon=":material/delete:",
+                )
             except OSError as e:
                 add_log(f"Error deleting template '{ui_name}' from '{device.name}': {e}")
-                show_toast(_("Error deleting '{name}'").format(name=ui_name), ":material/error:")
+                st.toast(
+                    ":red[{}]".format(_("Error deleting '{name}'").format(name=ui_name)),
+                    icon=":material/error:",
+                )
             get_template_icon_svg.clear()
             on_deselect()
             st.rerun()
@@ -218,7 +224,10 @@ def _show_reload_dialog(template_uuid: str, device: Device, add_log) -> None:
             content = reload_file.read()
             save_device_template(device.name, content, f"{template_uuid}.template")
             add_log(f"Template '{ui_name}' reloaded locally for '{device.name}'")
-            show_toast(_("'{name}' updated locally").format(name=ui_name), ":material/task_alt:")
+            st.toast(
+                ":green[{}]".format(_("'{name}' updated locally").format(name=ui_name)),
+                icon=":material/task_alt:",
+            )
             get_template_icon_svg.clear()
             load_template_into_editor(device.name, template_uuid)
             st.rerun()
@@ -496,7 +505,10 @@ def render_editor_panel(
                 preferred_name=str(st.session_state.get("tpl_meta_name", "")).strip(),
             )
             add_log(f"Template '{filename_tpl}' saved for '{device.name}'")
-            show_toast(_("Template {name} saved").format(name=filename_tpl), ":material/task_alt:")
+            st.toast(
+                ":green[{}]".format(_("Template {name} saved").format(name=filename_tpl)),
+                icon=":material/task_alt:",
+            )
             get_template_icon_svg.clear()
             if saved_uuid:
                 on_select(saved_uuid)

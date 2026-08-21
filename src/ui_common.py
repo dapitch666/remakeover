@@ -13,12 +13,6 @@ from src.i18n import _, get_language
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
 
 
-def show_toast(msg: str, icon: str | None = None) -> None:
-    """Display a color-coded toast (red for errors, green otherwise)."""
-    msg = f":red[{msg}]" if icon and icon == ":material/error:" else f":green[{msg}]"
-    st.toast(msg, icon=icon)
-
-
 def init_page(require_selected: bool = True) -> tuple[dict, str | None, dict]:
     """Extract common page session state and return (config, selected_name, DEVICES).
 
