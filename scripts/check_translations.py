@@ -21,8 +21,15 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from src.i18n import SUPPORTED_LANGUAGES  # noqa: E402
 
+MsgId = str | tuple[str, ...]
 
-def extracted_msgids() -> set[str | tuple[str, ...]]:
+
+def _msgid(message_id: str | tuple[str, ...] | list[str]) -> MsgId:
+    """Normalize a Message.id to a hashable form (Babel's type allows an unhashable list)."""
+    return tuple(message_id) if isinstance(message_id, list) else message_id
+
+
+def extracted_msgids() -> set[MsgId]:
     with tempfile.NamedTemporaryFile(suffix=".pot") as tmp:
         subprocess.run(
             ["pybabel", "extract", "-F", "pyproject.toml", "-k", "_n:1,2", "-o", tmp.name, "."],
@@ -32,13 +39,13 @@ def extracted_msgids() -> set[str | tuple[str, ...]]:
         )
         with open(tmp.name, "rb") as f:
             catalog = read_po(f)
-    return {m.id for m in catalog if m.id}
+    return {_msgid(m.id) for m in catalog if m.id}
 
 
-def translated_msgids(po_path: Path) -> set[str | tuple[str, ...]]:
+def translated_msgids(po_path: Path) -> set[MsgId]:
     with po_path.open("rb") as f:
         catalog = read_po(f)
-    return {m.id for m in catalog if m.id and m.string and "fuzzy" not in m.flags}
+    return {_msgid(m.id) for m in catalog if m.id and m.string and "fuzzy" not in m.flags}
 
 
 def main() -> int:
