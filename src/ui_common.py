@@ -10,22 +10,7 @@ from babel.dates import format_date, format_time
 
 from src.i18n import _, get_language
 
-_DEFERRED_TOAST_KEY = "_deferred_toast"
 _KNOWN_EXTENSIONS = {".png", ".jpg", ".jpeg", ".svg", ".bmp", ".gif", ".webp", ".template"}
-
-
-def deferred_toast(msg: str, icon: str | None = None) -> None:
-    """Queue a toast to be displayed on the next rerun via show_deferred_toast()."""
-    st.session_state[_DEFERRED_TOAST_KEY] = {"msg": msg, "icon": icon}
-
-
-def show_deferred_toast() -> None:
-    """Display and clear any queued deferred toast. Call once per rerun at app level."""
-    toast = st.session_state.pop(_DEFERRED_TOAST_KEY, None)
-    if toast:
-        msg, icon = toast["msg"], toast["icon"]
-        msg = f":red[{msg}]" if icon and icon == ":material/error:" else f":green[{msg}]"
-        st.toast(msg, icon=icon)
 
 
 def init_page(require_selected: bool = True) -> tuple[dict, str | None, dict]:

@@ -195,6 +195,25 @@ class TestImagesPage:
         assert not at.exception
         assert "image2.png" in deleted
 
+    def test_delete_confirmed_shows_toast(self, tmp_path):
+        """Deleting an image fires a confirmation toast, even though a rerun follows it."""
+        cfg_path = with_device(tmp_path, "D1")
+        env = make_env(tmp_path, cfg_path)
+        with (
+            patch.dict(os.environ, env),
+            patch("src.images.list_device_images", return_value=["image2.png"]),
+            patch("src.images.load_device_image", return_value=PNG_BYTES),
+            patch("src.images.delete_device_image"),
+        ):
+            at = AppTest.from_file(APP_PY)
+            at.run()
+            at.session_state["img_device"] = "D1"
+            at.session_state["img_pending_delete"] = "image2.png"
+            at.session_state["confirm_del_img"] = True
+            at.switch_page("pages/images.py").run()
+        assert not at.exception
+        assert any("image2.png" in t.value for t in at.toast)
+
     def test_delete_cancelled_clears_state(self, tmp_path):
         """When confirm_del_img is False, state is cleared without deleting."""
         cfg_path = with_device(tmp_path, "D1")

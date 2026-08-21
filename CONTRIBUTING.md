@@ -88,6 +88,8 @@ The script reads the mapping configuration from `pyproject.toml` (`[tool.babel]`
 
 Review any entries marked `#, fuzzy` in the `.po` file — they were matched approximately and may need manual correction. Remove the `#, fuzzy` flag once the translation is verified.
 
+The `check-translations` pre-commit hook re-extracts messages and fails the commit if any string is missing a translation (or still marked `#, fuzzy`) in a supported language — run `pre-commit run check-translations` to check without committing.
+
 ### Adding a new language
 
 ```bash

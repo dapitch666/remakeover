@@ -16,7 +16,7 @@ from src.template_editor_ui import (
 from src.template_list_ui import refresh_sync_snapshot_after_remote_change, render_left_panel
 from src.template_sync import fetch_and_init_templates
 from src.templates import refresh_local_manifest
-from src.ui_common import deferred_toast, init_page, rainbow_divider
+from src.ui_common import init_page, rainbow_divider
 
 _SENTINEL_NEW = "__new__"
 _SESSION_SELECTED_UUID_KEY = "tpl_selected_uuid"
@@ -77,7 +77,10 @@ if not os.path.exists(manifest_path):
                 add_log_fn,
                 "initialized_from_device",
             )
-            deferred_toast(_("Templates imported successfully"), ":material/task_alt:")
+            st.toast(
+                ":green[{}]".format(_("Templates imported successfully")),
+                icon=":material/task_alt:",
+            )
         else:
             add_log_fn(f"Error initializing templates for '{current_device.name}' : {msg}")
             st.session_state["_tpl_page_init_error"] = msg

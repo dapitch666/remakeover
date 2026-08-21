@@ -27,7 +27,7 @@ from src.templates import (
     list_template_entries,
     save_device_template,
 )
-from src.ui_common import deferred_toast, format_datetime_for_ui, normalise_filename
+from src.ui_common import format_datetime_for_ui, normalise_filename
 
 _SENTINEL_NEW = "__new__"
 _PAGE_SIZE_OPTIONS = [10, 20, 30, 0]
@@ -154,18 +154,20 @@ def _render_sync_name_line(
             st.session_state.pop(confirm_result_key, None)
             import_ok, import_msg = fetch_single_template_from_device(device, pending_uuid)
             if import_ok:
-                deferred_toast(
-                    _("'{name}' recovered from device").format(name=template_name),
-                    ":material/download:",
+                st.toast(
+                    ":green[{}]".format(
+                        _("'{name}' recovered from device").format(name=template_name)
+                    ),
+                    icon=":material/download:",
                 )
                 on_select(pending_uuid)
             else:
                 add_log(
                     f"Error recovering template '{template_name}' from '{device.name}': {import_msg}"
                 )
-                deferred_toast(
-                    _("Import failed: {msg}").format(msg=import_msg),
-                    ":material/error:",
+                st.toast(
+                    ":red[{}]".format(_("Import failed: {msg}").format(msg=import_msg)),
+                    icon=":material/error:",
                 )
             st.rerun()
         elif result is False:
@@ -241,12 +243,14 @@ def _show_import_dialog(device: Device, add_log) -> None:
                 add_log(f"{filename} template saved for '{device.name}'")
                 saved.append(filename)
             if len(saved) == 1:
-                deferred_toast(
-                    _("Template {name} saved").format(name=saved[0]), ":material/task_alt:"
+                st.toast(
+                    ":green[{}]".format(_("Template {name} saved").format(name=saved[0])),
+                    icon=":material/task_alt:",
                 )
             elif len(saved) > 1:
-                deferred_toast(
-                    _("{count} templates saved").format(count=len(saved)), ":material/task_alt:"
+                st.toast(
+                    ":green[{}]".format(_("{count} templates saved").format(count=len(saved))),
+                    icon=":material/task_alt:",
                 )
             st.session_state[f"tpl_upload_gen_{device.name}"] = gen + 1
             st.rerun()
@@ -305,9 +309,9 @@ def render_left_panel(
                 if isinstance(payload, dict):
                     payload["last_remote_check_at"] = payload.get("checked_at")
                 st.session_state[_sync_status_key(device.name)] = payload
-                deferred_toast(_("Sync status checked"), ":material/task_alt:")
+                st.toast(":green[{}]".format(_("Sync status checked")), icon=":material/task_alt:")
             else:
-                deferred_toast(_("Sync check error"), ":material/error:")
+                st.toast(":red[{}]".format(_("Sync check error")), icon=":material/error:")
 
         st.button(
             _("Check sync"),
@@ -328,13 +332,13 @@ def render_left_panel(
                     add_log,
                     "assumed_after_sync",
                 )
-                deferred_toast(_("Templates synced"), ":material/task_alt:")
+                st.toast(":green[{}]".format(_("Templates synced")), icon=":material/task_alt:")
                 _current = selected_uuid()
                 if _current and _current != sentinel_new:
                     on_select(str(_current))
                 st.session_state["tpl_list_gen"] = st.session_state.get("tpl_list_gen", 0) + 1
             else:
-                deferred_toast(_("Sync error"), ":material/error:")
+                st.toast(":red[{}]".format(_("Sync error")), icon=":material/error:")
 
         st.button(
             _("Sync now"),
@@ -355,7 +359,7 @@ def render_left_panel(
                     add_log,
                     "assumed_after_reinitialize",
                 )
-                deferred_toast(_("Templates synced"), ":material/task_alt:")
+                st.toast(":green[{}]".format(_("Templates synced")), icon=":material/task_alt:")
                 _current = selected_uuid()
                 if (
                     _current
@@ -369,7 +373,9 @@ def render_left_panel(
                 else:
                     on_deselect()
             else:
-                deferred_toast(_("Error: {msg}").format(msg=_msg), ":material/error:")
+                st.toast(
+                    ":red[{}]".format(_("Error: {msg}").format(msg=_msg)), icon=":material/error:"
+                )
 
         st.button(
             _("Reset & reinitialize"),
@@ -455,6 +461,7 @@ def render_left_panel(
         filter_text = st.text_input(
             _("Search"),
             key="tpl_filter_text",
+            type="search",
             placeholder=_("Filter by name…"),
             label_visibility="collapsed",
         )

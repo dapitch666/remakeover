@@ -394,6 +394,31 @@ def test_save_uses_detected_device_type(tmp_path):
     assert saved["devices"]["ProDevice"]["firmware_version"] == "4.0.0.1"
 
 
+def test_save_shows_success_toast(tmp_path):
+    """Saving a device fires a confirmation toast immediately (no extra rerun needed)."""
+    cfg_path = empty_cfg(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.5.2.1896",
+            "error": "",
+            "ip": "192.168.1.30",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.text_input[0].set_value("ToastDevice").run()
+        at.text_input[1].set_value("192.168.1.30").run()
+        at.text_input[2].set_value("pw").run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        save_btn.click().run()
+
+    assert not at.exception
+    assert any("ToastDevice" in t.value for t in at.toast)
+
+
 def test_save_persists_sleep_screen_enabled(tmp_path):
     """When connection_test_result has sleep_screen_enabled=True, it is written to config."""
     cfg_path = empty_cfg(tmp_path)
