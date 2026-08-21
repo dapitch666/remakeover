@@ -64,24 +64,6 @@ def _default_install_cmd(device_type: str) -> str:
     return DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RMPP
 
 
-def get_current_device_name(config: dict) -> str | None:
-    """Return the device the sidebar selectbox currently resolves to.
-
-    Reads the ``"device"`` widget key directly rather than
-    ``st.session_state["selected_name"]``. Streamlit updates a widget's own
-    session_state key *before* the script reruns following a user change, but
-    ``selected_name`` is only assigned partway through
-    ``render_device_selector()``'s own execution — so on the very run where the
-    user picks a different device, ``selected_name`` still reflects the
-    *previous* run. Callers that need the true current selection before
-    ``render_device_selector()`` has run this script (e.g. app.py building its
-    page list) must use this instead.
-    """
-    devices = config.get("devices", {})
-    name = st.session_state.get("device")
-    return name if name in devices else None
-
-
 def _recover_invalid_device_selection(device_names: list[str]) -> str:
     """Return the device to fall back to when the current "device" selection is invalid.
 

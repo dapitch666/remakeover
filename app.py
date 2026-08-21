@@ -10,7 +10,7 @@ from src.config import (
     BASE_DIR,
     load_config,
 )
-from src.config_ui import get_current_device_name, render_device_selector
+from src.config_ui import render_device_selector
 
 # noinspection PyProtectedMember
 from src.i18n import SUPPORTED_LANGUAGES, _
@@ -178,12 +178,14 @@ def main():
         st.Page("pages/templates.py", title=_("Templates"), icon=":material/description:"),
     ]
 
-    # Use get_current_device_name(), not st.session_state["selected_name"] — the
-    # latter is only assigned partway through render_device_selector() below, so
-    # it would still reflect the *previous* run's device right after switching.
-    selected_name = get_current_device_name(config)
-    selected_device = config.get("devices", {}).get(selected_name, {}) if selected_name else {}
-    if selected_device.get("rmfakecloud_enabled"):
+    # Gate on *any* device having rmfakecloud enabled, not the currently selected
+    # one: st.switch_page() only reaches pages/rmfakecloud.py if it's declared in
+    # THIS run's pages list, and figuring out "the currently selected device"
+    # before render_device_selector() has run this script is fragile (both
+    # st.session_state["selected_name"], only assigned partway through that
+    # function, and the "device" widget key itself proved unreliable at this
+    # point in practice). A config-derived check has no per-run staleness.
+    if any(d.get("rmfakecloud_enabled") for d in config.get("devices", {}).values()):
         pages.append(
             st.Page("pages/rmfakecloud.py", title=_("rmfakecloud"), icon=":material/cloud:")
         )

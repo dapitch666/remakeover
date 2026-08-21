@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  reMakeover\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-21 15:16+0200\n"
+"POT-Creation-Date: 2026-08-21 17:34+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -22,11 +22,11 @@ msgstr "Images de veille"
 msgid "Templates"
 msgstr "Modèles"
 
-#: app.py:187
+#: app.py:190
 msgid "rmfakecloud"
 msgstr "rmfakecloud"
 
-#: app.py:190
+#: app.py:193
 msgid "Logs"
 msgstr "Logs"
 
@@ -57,7 +57,7 @@ msgstr "Confirmer le remplacement"
 msgid "'{new}' already exists. Replace this file?"
 msgstr "'{new}' existe déjà. Voulez-vous remplacer ce fichier ?"
 
-#: pages/images.py:128 src/config_ui.py:335
+#: pages/images.py:128 src/config_ui.py:348
 msgid "Confirm deletion"
 msgstr "Confirmer la suppression"
 
@@ -258,13 +258,13 @@ msgstr "Effacer les logs de cette session ?"
 msgid ":material/cloud: rmfakecloud"
 msgstr ":material/cloud: rmfakecloud"
 
-#: pages/rmfakecloud.py:36
+#: pages/rmfakecloud.py:38
 msgid ""
 "rmfakecloud re-pairing is not enabled for this device. Enable it in the "
 "device settings."
 msgstr ""
-"La reconnexion rmfakecloud n'est pas activée pour cet appareil. Activez-la"
-" dans les paramètres de l'appareil."
+"La reconnexion rmfakecloud n'est pas activée pour cet appareil. Activez-"
+"la dans les paramètres de l'appareil."
 
 #: pages/templates.py:44
 msgid ":material/description: Templates"
@@ -317,16 +317,16 @@ msgstr ""
 "Sauvegarder** pour enregistrer localement, puis **:material/sync: "
 "Synchroniser maintenant** pour envoyer les changements à l'appareil."
 
-#: src/config_ui.py:88
+#: src/config_ui.py:101
 #, python-brace-format
 msgid "Edit: {name}"
 msgstr "Modifier : {name}"
 
-#: src/config_ui.py:93
+#: src/config_ui.py:106
 msgid "Create a new device"
 msgstr "Créer un nouvel appareil"
 
-#: src/config_ui.py:96
+#: src/config_ui.py:109
 msgid ""
 "💡 To find the IP address and root password of your reMarkable, enable "
 "developer mode if needed, go to Settings > Help > About > Copyrights and "
@@ -337,31 +337,31 @@ msgstr ""
 " À propos > Copyrights et licences, puis faites défiler la colonne de "
 "droite si nécessaire."
 
-#: src/config_ui.py:106
+#: src/config_ui.py:119
 msgid "Device name"
 msgstr "Nom de l'appareil"
 
-#: src/config_ui.py:108
+#: src/config_ui.py:121
 msgid "My reMarkable"
 msgstr "Ma reMarkable"
 
-#: src/config_ui.py:112
+#: src/config_ui.py:125
 msgid "IP Address"
 msgstr "Adresse IP"
 
-#: src/config_ui.py:118
+#: src/config_ui.py:131
 msgid "Enter a valid IPv4 address, e.g. 192.168.1.1"
 msgstr "Entrez une adresse IPv4 valide, par exemple 192.168.1.1"
 
-#: src/config_ui.py:123
+#: src/config_ui.py:136
 msgid "SSH Password"
 msgstr "Mot de passe SSH"
 
-#: src/config_ui.py:130
+#: src/config_ui.py:143
 msgid "Auto re-pair with rmfakecloud after firmware updates"
 msgstr "Se reconnecter automatiquement à rmfakecloud après une mise à jour"
 
-#: src/config_ui.py:134
+#: src/config_ui.py:147
 msgid ""
 "When a firmware update is detected on this device, offer to run the "
 "install command below over SSH and fetch a fresh pairing code from "
@@ -371,23 +371,23 @@ msgstr ""
 "d'exécuter la commande d'installation ci-dessous en SSH et de récupérer "
 "un nouveau code de connexion depuis rmfakecloud."
 
-#: src/config_ui.py:144
+#: src/config_ui.py:157
 msgid "rmfakecloud URL"
 msgstr "URL rmfakecloud"
 
-#: src/config_ui.py:150
+#: src/config_ui.py:163
 msgid "rmfakecloud email"
 msgstr "E-mail rmfakecloud"
 
-#: src/config_ui.py:155
+#: src/config_ui.py:168
 msgid "rmfakecloud password"
 msgstr "Mot de passe rmfakecloud"
 
-#: src/config_ui.py:161
+#: src/config_ui.py:174
 msgid "Install command"
 msgstr "Commande d'installation"
 
-#: src/config_ui.py:164
+#: src/config_ui.py:177
 #, python-brace-format
 msgid ""
 "Run over SSH after a firmware update. {url} is replaced with the URL "
@@ -396,31 +396,31 @@ msgstr ""
 "Exécutée en SSH après une mise à jour du firmware. {url} est remplacé par"
 " l'URL ci-dessus."
 
-#: src/config_ui.py:174
+#: src/config_ui.py:187
 msgid "Test Connection"
 msgstr "Tester la connexion SSH"
 
-#: src/config_ui.py:178
+#: src/config_ui.py:191
 msgid "Test SSH connection to the device and detect its type and firmware version"
 msgstr ""
 "Teste la connexion SSH à l'appareil et détecte son type et sa version de "
 "firmware"
 
-#: src/config_ui.py:187
+#: src/config_ui.py:200
 msgid "Enter an IP address before testing."
 msgstr "Saisir une adresse IP avant de tester la connexion."
 
-#: src/config_ui.py:220
+#: src/config_ui.py:233
 #, python-brace-format
 msgid "Detected: {dt}, Firmware: {fw}"
 msgstr "Détecté : {dt}, Firmware : {fw}"
 
-#: src/config_ui.py:221 src/config_ui.py:222 src/config_ui.py:404
-#: src/config_ui.py:405 src/config_ui.py:432 src/config_ui.py:437
+#: src/config_ui.py:234 src/config_ui.py:235 src/config_ui.py:417
+#: src/config_ui.py:418 src/config_ui.py:445 src/config_ui.py:450
 msgid "unknown"
 msgstr "inconnu"
 
-#: src/config_ui.py:271
+#: src/config_ui.py:284
 #, python-brace-format
 msgid ""
 "A local data folder already exists for '{name}'. Choose another device "
@@ -429,44 +429,44 @@ msgstr ""
 "Un répertoire local existe déjà pour '{name}'. Choisissez un autre nom "
 "d'appareil."
 
-#: src/config_ui.py:275
+#: src/config_ui.py:288
 #, python-brace-format
 msgid "Could not save configuration: {error}"
 msgstr "Impossible de sauvegarder la configuration : {error}"
 
-#: src/config_ui.py:281
+#: src/config_ui.py:294
 #, python-brace-format
 msgid "Configuration of '{name}' saved"
 msgstr "Configuration de '{name}' sauvegardée"
 
-#: src/config_ui.py:291 src/template_editor_ui.py:217
+#: src/config_ui.py:304 src/template_editor_ui.py:217
 #: src/template_editor_ui.py:518 src/template_list_ui.py:232
 msgid "Save"
 msgstr "Sauvegarder"
 
-#: src/config_ui.py:295
+#: src/config_ui.py:308
 msgid "Save device configuration"
 msgstr "Enregistrer la configuration de l'appareil"
 
-#: src/config_ui.py:307 src/template_editor_ui.py:176
+#: src/config_ui.py:320 src/template_editor_ui.py:176
 #: src/template_editor_ui.py:589
 msgid "Delete"
 msgstr "Supprimer"
 
-#: src/config_ui.py:312
+#: src/config_ui.py:325
 msgid "Delete this device and its local images and templates"
 msgstr "Supprimer cet appareil, ses images et modèles locaux"
 
-#: src/config_ui.py:325 src/dialog.py:25 src/template_editor_ui.py:172
+#: src/config_ui.py:338 src/dialog.py:25 src/template_editor_ui.py:172
 #: src/template_editor_ui.py:235 src/template_list_ui.py:258
 msgid "Cancel"
 msgstr "Annuler"
 
-#: src/config_ui.py:330
+#: src/config_ui.py:343
 msgid "Cancel editing this device"
 msgstr "Annuler la modification de cet appareil"
 
-#: src/config_ui.py:337
+#: src/config_ui.py:350
 #, python-brace-format
 msgid ""
 "Confirm deletion of device '{name}'? This will also remove its local "
@@ -475,19 +475,19 @@ msgstr ""
 "Confirmez-vous la suppression de l'appareil '{name}' ? Cette action "
 "supprimera aussi ses images et modèles locaux."
 
-#: src/config_ui.py:358
+#: src/config_ui.py:371
 #, python-brace-format
 msgid "'{name}' deleted, but local data could not be fully removed"
 msgstr ""
 "'{name}' supprimé, mais les données locales n'ont pas pu être entièrement"
 " supprimées"
 
-#: src/config_ui.py:366 src/template_editor_ui.py:187
+#: src/config_ui.py:379 src/template_editor_ui.py:187
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr "'{name}' supprimé"
 
-#: src/config_ui.py:387
+#: src/config_ui.py:400
 msgid ""
 "Fill in the rmfakecloud URL, email, password and install command, or "
 "uncheck auto re-pairing, before saving."
@@ -496,7 +496,7 @@ msgstr ""
 " rmfakecloud, ou décochez la reconnexion automatique, avant "
 "d'enregistrer."
 
-#: src/config_ui.py:395
+#: src/config_ui.py:408
 msgid ""
 "To save, fill all fields, turn the device on and run Test Connection to "
 "detect device model and firmware."
@@ -505,71 +505,71 @@ msgstr ""
 "lancez le test de connexion pour détecter le modèle de l'appareil et la "
 "version du firmware."
 
-#: src/config_ui.py:403
+#: src/config_ui.py:416
 #, python-brace-format
 msgid "Connected to {device_type} (firmware {firmware_version})"
 msgstr "Connecté à {device_type} (firmware {firmware_version})"
 
-#: src/config_ui.py:411
+#: src/config_ui.py:424
 #, python-brace-format
 msgid "Connection failed: {error}"
 msgstr "Échec de la connexion : {error}"
 
-#: src/config_ui.py:432
+#: src/config_ui.py:445
 #, python-brace-format
 msgid "model: {old} -> {new}"
 msgstr "modèle : {old} -> {new}"
 
-#: src/config_ui.py:437
+#: src/config_ui.py:450
 #, python-brace-format
 msgid "firmware: {old} -> {new}"
 msgstr "firmware : {old} -> {new}"
 
-#: src/config_ui.py:444
+#: src/config_ui.py:457
 msgid "sleep screen now enabled"
 msgstr "image de veille maintenant activée"
 
-#: src/config_ui.py:446
+#: src/config_ui.py:459
 msgid "sleep screen now disabled"
 msgstr "image de veille maintenant désactivée"
 
-#: src/config_ui.py:458
+#: src/config_ui.py:471
 #, python-brace-format
 msgid "Could not save detected metadata for '{name}'"
 msgstr "Erreur lors de la sauvegarde des métadonnées détectées pour '{name}'"
 
-#: src/config_ui.py:466
+#: src/config_ui.py:479
 #, python-brace-format
 msgid "Detected update for '{name}': {details}"
 msgstr "Mise à jour détectée pour '{name}' : {details}"
 
-#: src/config_ui.py:518
+#: src/config_ui.py:531
 msgid "Device"
 msgstr "Appareil"
 
-#: src/config_ui.py:522
+#: src/config_ui.py:535
 msgid "─ New device ─"
 msgstr "─ Nouvel appareil ─"
 
-#: src/config_ui.py:540
+#: src/config_ui.py:553
 msgid "Device configuration"
 msgstr "Configuration de l'appareil"
 
-#: src/config_ui.py:586
+#: src/config_ui.py:599
 msgid "SSH connection OK"
 msgstr "Connexion SSH OK"
 
-#: src/config_ui.py:606
+#: src/config_ui.py:619
 #, python-brace-format
 msgid "Connection status unknown (last checked {n} min ago)"
 msgstr "Statut de la connexion inconnu (dernière vérification il y a {n} min)"
 
-#: src/config_ui.py:610
+#: src/config_ui.py:623
 #, python-brace-format
 msgid "SSH connection failed: {err}"
 msgstr "Connexion SSH impossible : {err}"
 
-#: src/config_ui.py:615
+#: src/config_ui.py:628
 msgid "Test SSH connection"
 msgstr "Tester la connexion SSH"
 
@@ -588,8 +588,8 @@ msgstr "La commande d'installation a échoué — voir la sortie ci-dessus."
 #: src/rmfakecloud_ui.py:98
 msgid "Pairing code — enter it now on the device (expires in 5 minutes):"
 msgstr ""
-"Code de vérification — saisissez-le maintenant sur l'appareil (expire dans 5"
-" minutes) :"
+"Code de vérification — saisissez-le maintenant sur l'appareil (expire "
+"dans 5 minutes) :"
 
 #: src/rmfakecloud_ui.py:107
 msgid "Get a new code"
@@ -613,8 +613,8 @@ msgid ""
 "General → Account → Pair with the reMarkable Cloud."
 msgstr ""
 "Exécute la commande d'installation en SSH, puis récupère un nouveau code "
-"de vérification depuis rmfakecloud. Saisissez le code sur l'appareil dans "
-"les 5 minutes : Paramètres → Général → Compte → Jumelez."
+"de vérification depuis rmfakecloud. Saisissez le code sur l'appareil dans"
+" les 5 minutes : Paramètres → Général → Compte → Jumelez."
 
 #: src/rmfakecloud_ui.py:139
 msgid "Re-pair now"

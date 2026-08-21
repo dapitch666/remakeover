@@ -228,6 +228,39 @@ def test_firmware_change_redirects_when_rmfakecloud_enabled(tmp_path):
     mock_switch.assert_called_once_with("pages/rmfakecloud.py")
 
 
+def test_firmware_change_redirect_lands_on_the_right_device_end_to_end(tmp_path):
+    """Full, real st.switch_page() flow — not mocked — matching an actual reported bug.
+
+    D1 (the default/first device, no rmfakecloud) is selected on load; the user
+    then picks D2 (rmfakecloud-enabled) and runs the SSH test. Regression guard:
+    with app.py gating the nav page on the *currently selected* device instead of
+    "any device has it enabled", this redirect silently landed back on the
+    default "Images" page instead of pages/rmfakecloud.py.
+    """
+    cfg_path = write_config(
+        tmp_path,
+        {
+            "devices": {
+                "D1": _device_cfg(rmfakecloud_enabled=False, firmware_version=""),
+                "D2": _device_cfg(),
+            }
+        },
+    )
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch(_DETECT_PATCH, return_value=_new_fw_result()),
+    ):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at.selectbox(key="device").set_value("D2").run()
+        at.button(key="sidebar_test_ssh").click().run()
+
+    assert not at.exception
+    assert at.title[0].value == ":material/cloud: rmfakecloud"
+    assert at.session_state["device"] == "D2"
+    assert at.session_state["selected_name"] == "D2"
+
+
 _RECOVER_INVALID_SELECTION_SCRIPT = """
 import streamlit as st
 from src.config_ui import _recover_invalid_device_selection
@@ -244,8 +277,8 @@ def test_invalid_device_recovers_from_selected_name_not_first_device():
     firmware-change redirect landed the user on the wrong device's rmfakecloud page.
     Exercised as a standalone function: AppTest validates a selectbox's session_state
     value against its last-rendered options before any app code runs, so this
-    specific "the value became invalid" precondition can't be simulated through the
-    real widget — see get_current_device_name's tests for the same constraint.
+    specific "the value became invalid" precondition can't be simulated through
+    the real widget.
     """
     at = AppTest.from_string(_RECOVER_INVALID_SELECTION_SCRIPT)
     at.session_state["selected_name"] = "D2"
