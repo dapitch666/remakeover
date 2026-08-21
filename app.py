@@ -176,8 +176,18 @@ def main():
     pages = [
         st.Page("pages/images.py", title=_("Sleep Screen"), icon=":material/image:"),
         st.Page("pages/templates.py", title=_("Templates"), icon=":material/description:"),
-        st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"),
     ]
+
+    # selected_name reflects the previous run's selection at this point — see
+    # render_device_selector() below, which runs (and updates it) after this.
+    selected_name = st.session_state.get("selected_name")
+    selected_device = config.get("devices", {}).get(selected_name, {}) if selected_name else {}
+    if selected_device.get("rmfakecloud_enabled"):
+        pages.append(
+            st.Page("pages/rmfakecloud.py", title=_("rmfakecloud"), icon=":material/lock_open:")
+        )
+
+    pages.append(st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"))
 
     pg = st.navigation(pages)
 

@@ -6,13 +6,15 @@ operation, and return an ``(ok, msg)`` or ``(output, error)`` pair.
 Public API
 ----------
 - run_ssh_cmd(device, commands) -> (stdout, stderr)
+- stream_ssh_cmd(device, commands, on_chunk=None) -> (ok, output)
 - upload_file_ssh(device, content, remote_path) -> (ok, msg)
 - download_file_ssh(device, remote_path) -> (bytes | None, msg)
 - detect_device_info(device) -> (ok, device_type, firmware_version, sleep_screen_enabled, error_msg)
 """
 
 import logging
-from collections.abc import Generator
+import time
+from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 
 import paramiko
@@ -32,6 +34,9 @@ logger = logging.getLogger(__name__)
 # Long: operations that may block — systemctl restart, symlink loops, etc.
 _CMD_TIMEOUT_QUICK: int = 10
 _CMD_TIMEOUT_LONG: int = 60
+
+# Poll interval (seconds) used by stream_ssh_cmd while waiting for more output.
+_STREAM_POLL_INTERVAL: float = 0.05
 
 
 @contextmanager
@@ -70,6 +75,78 @@ def run_ssh_cmd(device: Device, commands: list[str]) -> tuple[str, str]:
     except Exception as e:
         logger.error("SSH error on %s: %s", ip, e)
         return "", str(e)
+
+
+def stream_ssh_cmd(
+    device: Device, commands: list[str], on_chunk: Callable[[str], None] | None = None
+) -> tuple[bool, str]:
+    """Execute commands over SSH, invoking ``on_chunk(text)`` as output arrives.
+
+    Unlike ``run_ssh_cmd``, which reads stdout and stderr as two separate
+    buffered streams only after the command finishes,
+    this polls the raw channel and interleaves stdout/stderr chunks in the
+    order the remote process actually emits them — for live display of a
+    long-running remote script. Bounded by ``_CMD_TIMEOUT_LONG`` as a
+    wall-clock deadline; exceeding it is treated as failure.
+
+    Success is judged by the real exit status. Returns ``(ok, full_output)``.
+    """
+    ip = device.ip
+    full_cmd = " && ".join(commands)
+    chunks: list[str] = []
+
+    def _emit(text: str) -> None:
+        chunks.append(text)
+        if on_chunk is not None:
+            on_chunk(text)
+
+    if not full_cmd:
+        return True, ""
+
+    logger.info("SSH stream connect to %s (commands=%d)", ip, len(commands))
+    try:
+        with _ssh_client(ip, device.password) as client:
+            transport = client.get_transport()
+            assert transport is not None
+            channel = transport.open_session()
+            channel.exec_command(full_cmd)
+
+            deadline = time.monotonic() + _CMD_TIMEOUT_LONG
+            timed_out = False
+            while True:
+                received = False
+                if channel.recv_ready():
+                    _emit(channel.recv(4096).decode(errors="replace"))
+                    received = True
+                if channel.recv_stderr_ready():
+                    _emit(channel.recv_stderr(4096).decode(errors="replace"))
+                    received = True
+                if not received:
+                    if channel.exit_status_ready():
+                        break
+                    if time.monotonic() > deadline:
+                        timed_out = True
+                        break
+                    time.sleep(_STREAM_POLL_INTERVAL)
+
+            # Drain any remaining buffered output after the command exited.
+            while channel.recv_ready():
+                _emit(channel.recv(4096).decode(errors="replace"))
+            while channel.recv_stderr_ready():
+                _emit(channel.recv_stderr(4096).decode(errors="replace"))
+
+            if timed_out:
+                logger.error("SSH stream timed out on %s after %ds", ip, _CMD_TIMEOUT_LONG)
+                _emit(f"\n[timed out after {_CMD_TIMEOUT_LONG}s]\n")
+                return False, "".join(chunks)
+
+            exit_status = channel.recv_exit_status()
+            logger.info("SSH stream done on %s (exit=%d)", ip, exit_status)
+            return exit_status == 0, "".join(chunks)
+    except Exception as e:
+        logger.error("SSH stream error on %s: %s", ip, e)
+        _emit(f"\n[connection error: {e}]\n")
+        return False, "".join(chunks)
 
 
 def detect_device_info(device: Device) -> tuple[bool, str, str, bool, str]:

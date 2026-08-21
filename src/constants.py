@@ -76,6 +76,16 @@ MACHINE_TO_DEVICE_TYPE: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
+# rmfakecloud re-pairing
+# ---------------------------------------------------------------------------
+
+# Default SSH install command suggested in the UI, keyed by device generation.
+# {url} is replaced with the configured rmfakecloud URL before the command runs.
+# Users can freely edit the field — these are only starting suggestions.
+DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RMPP = "./installer-rmpro.sh install {url}"
+DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RM1_2 = "./installer-rm12.sh install {url}"
+
+# ---------------------------------------------------------------------------
 # UI layout
 # ---------------------------------------------------------------------------
 
