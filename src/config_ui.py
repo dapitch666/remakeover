@@ -64,6 +64,37 @@ def _default_install_cmd(device_type: str) -> str:
     return DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RMPP
 
 
+def get_current_device_name(config: dict) -> str | None:
+    """Return the device the sidebar selectbox currently resolves to.
+
+    Reads the ``"device"`` widget key directly rather than
+    ``st.session_state["selected_name"]``. Streamlit updates a widget's own
+    session_state key *before* the script reruns following a user change, but
+    ``selected_name`` is only assigned partway through
+    ``render_device_selector()``'s own execution — so on the very run where the
+    user picks a different device, ``selected_name`` still reflects the
+    *previous* run. Callers that need the true current selection before
+    ``render_device_selector()`` has run this script (e.g. app.py building its
+    page list) must use this instead.
+    """
+    devices = config.get("devices", {})
+    name = st.session_state.get("device")
+    return name if name in devices else None
+
+
+def _recover_invalid_device_selection(device_names: list[str]) -> str:
+    """Return the device to fall back to when the current "device" selection is invalid.
+
+    Prefers the last-known selection (``selected_name``) over blindly defaulting
+    to ``device_names[0]`` — protects against something desyncing the "device"
+    widget key from what the user was actually viewing (e.g. ``st.switch_page()``
+    resetting ``st.query_params``, which otherwise made a firmware-change redirect
+    land the user on the wrong device's page).
+    """
+    last_known = st.session_state.get("selected_name")
+    return last_known if last_known in device_names else device_names[0]
+
+
 def _clear_input_keys():
     for base in _INPUT_KEY_BASES:
         for key in (base, f"new_{base}"):
@@ -507,7 +538,7 @@ def render_device_selector(config: dict, add_log: Callable[[str], None]) -> str 
 
         # Keep a valid selected device in session state when the list changes.
         if st.session_state.get("device") not in device_names_with_new:
-            st.session_state["device"] = device_names[0]
+            st.session_state["device"] = _recover_invalid_device_selection(device_names)
 
         with st.sidebar:
             col_device, col_btn_settings, col_btn_ssh = st.columns(

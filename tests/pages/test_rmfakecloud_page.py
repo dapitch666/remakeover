@@ -228,6 +228,43 @@ def test_firmware_change_redirects_when_rmfakecloud_enabled(tmp_path):
     mock_switch.assert_called_once_with("pages/rmfakecloud.py")
 
 
+_RECOVER_INVALID_SELECTION_SCRIPT = """
+import streamlit as st
+from src.config_ui import _recover_invalid_device_selection
+
+st.session_state["result"] = _recover_invalid_device_selection(["D1", "D2"])
+"""
+
+
+def test_invalid_device_recovers_from_selected_name_not_first_device():
+    """A device becoming invalid (e.g. after st.switch_page() resets query params)
+
+    must recover to the last-known device (selected_name), not silently fall back
+    to the first device in the list — regression guard for the real bug where a
+    firmware-change redirect landed the user on the wrong device's rmfakecloud page.
+    Exercised as a standalone function: AppTest validates a selectbox's session_state
+    value against its last-rendered options before any app code runs, so this
+    specific "the value became invalid" precondition can't be simulated through the
+    real widget — see get_current_device_name's tests for the same constraint.
+    """
+    at = AppTest.from_string(_RECOVER_INVALID_SELECTION_SCRIPT)
+    at.session_state["selected_name"] = "D2"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["result"] == "D2"
+
+
+def test_invalid_device_falls_back_to_first_when_selected_name_also_invalid():
+    """With no valid last-known device either, falls back to the first device."""
+    at = AppTest.from_string(_RECOVER_INVALID_SELECTION_SCRIPT)
+    at.session_state["selected_name"] = "D_deleted"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["result"] == "D1"
+
+
 def test_firmware_change_does_not_redirect_when_disabled(tmp_path):
     """A firmware change on a device without rmfakecloud enabled does not redirect."""
     cfg_path = _cfg(tmp_path, rmfakecloud_enabled=False)

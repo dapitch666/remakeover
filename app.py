@@ -10,7 +10,7 @@ from src.config import (
     BASE_DIR,
     load_config,
 )
-from src.config_ui import render_device_selector
+from src.config_ui import get_current_device_name, render_device_selector
 
 # noinspection PyProtectedMember
 from src.i18n import SUPPORTED_LANGUAGES, _
@@ -178,13 +178,14 @@ def main():
         st.Page("pages/templates.py", title=_("Templates"), icon=":material/description:"),
     ]
 
-    # selected_name reflects the previous run's selection at this point — see
-    # render_device_selector() below, which runs (and updates it) after this.
-    selected_name = st.session_state.get("selected_name")
+    # Use get_current_device_name(), not st.session_state["selected_name"] — the
+    # latter is only assigned partway through render_device_selector() below, so
+    # it would still reflect the *previous* run's device right after switching.
+    selected_name = get_current_device_name(config)
     selected_device = config.get("devices", {}).get(selected_name, {}) if selected_name else {}
     if selected_device.get("rmfakecloud_enabled"):
         pages.append(
-            st.Page("pages/rmfakecloud.py", title=_("rmfakecloud"), icon=":material/lock_open:")
+            st.Page("pages/rmfakecloud.py", title=_("rmfakecloud"), icon=":material/cloud:")
         )
 
     pages.append(st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"))

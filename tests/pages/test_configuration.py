@@ -683,3 +683,45 @@ def test_saving_device_with_rmfakecloud_enabled_persists_fields(tmp_path):
     assert entry["rmfakecloud_email"] == "anne@example.com"
     assert entry["rmfakecloud_password"] == "rmfc-secret"
     assert entry["rmfakecloud_install_cmd"] == "./installer-rmpro.sh install {url}"
+
+
+# ---------------------------------------------------------------------------
+# get_current_device_name — used by app.py to build its page list
+# ---------------------------------------------------------------------------
+
+
+_GET_CURRENT_DEVICE_SCRIPT = """
+import streamlit as st
+from src.config_ui import get_current_device_name
+
+config = {"devices": {"D1": {}, "D2": {}}}
+st.session_state.setdefault("device", "D1")
+st.session_state["result"] = get_current_device_name(config)
+"""
+
+
+def test_get_current_device_name_reflects_this_run_not_the_last():
+    """Regression guard: app.py must see a device change on the same run it happens,
+
+    not one run later. get_current_device_name() reads the "device" widget key
+    directly — Streamlit updates it before the script reruns after a selection
+    change, unlike st.session_state["selected_name"] which render_device_selector()
+    only assigns partway through its own execution (i.e. one run behind on the
+    very run where the user picks a different device).
+    """
+    at = AppTest.from_string(_GET_CURRENT_DEVICE_SCRIPT)
+    at.run()
+    assert at.session_state["result"] == "D1"
+
+    at.session_state["device"] = "D2"
+    at.run()
+    assert at.session_state["result"] == "D2"
+
+
+def test_get_current_device_name_ignores_new_device_sentinel():
+    """Returns None while the "─ New device ─" sentinel is selected."""
+    at = AppTest.from_string(_GET_CURRENT_DEVICE_SCRIPT)
+    at.run()
+    at.session_state["device"] = "__new_device__"
+    at.run()
+    assert at.session_state["result"] is None
