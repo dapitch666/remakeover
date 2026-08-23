@@ -135,6 +135,16 @@ Manage and edit custom templates in a split-panel layout:
 
 On the device, custom templates are available in the rM Methods tab of the template picker.
 
+### ☁️ rmfakecloud
+Optional integration for devices paired to a [rmfakecloud](https://github.com/ddvk/rmfakecloud) server, to re-pair automatically after a firmware update instead of losing the connection.
+- Enable **Auto re-pair with rmfakecloud after firmware updates** in the device's ⚙️ Configuration panel, then fill in the rmfakecloud URL, account email/password, and the install command to run over SSH
+- When a firmware update is detected on a device with this enabled, the app redirects here automatically
+- **Re-pair now** runs the install command over SSH (with live streamed output), then fetches a fresh verification code
+- **Get a new code** fetches a fresh verification code without re-running the install command
+- Enter the code on the device: **Settings → General → Account → Pair**
+
+This page only appears in the sidebar once at least one device has the feature enabled.
+
 ### 📋 Logs
 View the history of operations for the current session.
 
