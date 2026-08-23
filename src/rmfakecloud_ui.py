@@ -1,5 +1,6 @@
 """rmfakecloud re-pairing panel UI — install command output and verification code display."""
 
+import html
 from collections.abc import Callable
 
 import streamlit as st
@@ -12,7 +13,7 @@ from src.rmfakecloud import fetch_pairing_code, run_install
 
 def _render_boxed_code(code: str) -> None:
     """Render *code* as a row of individual boxed/tiled characters."""
-    boxes = "".join(f'<div class="rmfc-code-box">{ch}</div>' for ch in code)
+    boxes = "".join(f'<div class="rmfc-code-box">{html.escape(ch)}</div>' for ch in code)
     st.html(
         "<style>"
         ".rmfc-code-row { display: flex; gap: 0.5rem; }"

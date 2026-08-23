@@ -54,7 +54,11 @@ def fetch_pairing_code(url: str, email: str, password: str) -> tuple[bool, str, 
         logger.error("rmfakecloud newcode failed for %s: HTTP %d", base, resp.status_code)
         return False, "", f"Could not generate pairing code (HTTP {resp.status_code})"
 
-    code = resp.json()
+    try:
+        code = resp.json()
+    except ValueError as e:
+        logger.error("rmfakecloud newcode returned non-JSON body for %s: %s", base, e)
+        return False, "", "Unexpected response from rmfakecloud when generating the pairing code"
     if not isinstance(code, str) or not code:
         logger.error("rmfakecloud newcode returned unexpected payload for %s: %r", base, code)
         return False, "", "Unexpected response from rmfakecloud when generating the pairing code"

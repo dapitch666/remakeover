@@ -268,10 +268,26 @@ def render_config_panel(
                 "firmware_version": detected_fw,
                 "sleep_screen_enabled": detected_sleep,
                 "rmfakecloud_enabled": rmfakecloud_enabled,
-                "rmfakecloud_url": rmfakecloud_url.strip(),
-                "rmfakecloud_email": rmfakecloud_email.strip(),
-                "rmfakecloud_password": rmfakecloud_password,
-                "rmfakecloud_install_cmd": rmfakecloud_install_cmd.strip(),
+                "rmfakecloud_url": (
+                    rmfakecloud_url.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_url", "")
+                ),
+                "rmfakecloud_email": (
+                    rmfakecloud_email.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_email", "")
+                ),
+                "rmfakecloud_password": (
+                    rmfakecloud_password
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_password", "")
+                ),
+                "rmfakecloud_install_cmd": (
+                    rmfakecloud_install_cmd.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_install_cmd", "")
+                ),
             }
             try:
                 if not is_new and final_name != device_name:
