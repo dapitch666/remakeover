@@ -3,4 +3,4 @@ paramiko==5.0.0
 pillow==12.3.0
 zstandard==0.25.0
 babel==2.18.0
-requests==2.32.3
+requests==2.34.2
