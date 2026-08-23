@@ -12,6 +12,7 @@ from src.ssh import (
     run_detection,
     run_ssh_cmd,
     ssh_session,
+    stream_ssh_cmd,
     upload_file_ssh,
 )
 
@@ -99,6 +100,123 @@ class TestRunSshCmd:
         with _patched_client(inst):
             run_ssh_cmd(DEVICE, ["cmd1", "cmd2"])
         assert captured[0] == "cmd1 && cmd2"
+
+
+# ---------------------------------------------------------------------------
+# stream_ssh_cmd
+# ---------------------------------------------------------------------------
+
+
+def _make_channel(
+    recv_ready_seq,
+    recv_stderr_ready_seq,
+    exit_status_ready_seq,
+    recv_bytes: bytes = b"",
+    recv_stderr_bytes: bytes = b"",
+    exit_status: int = 0,
+):
+    """Build a mock paramiko Channel driven by explicit ready/exit-status sequences."""
+    channel = MagicMock()
+    channel.recv_ready.side_effect = recv_ready_seq
+    channel.recv_stderr_ready.side_effect = recv_stderr_ready_seq
+    channel.exit_status_ready.side_effect = exit_status_ready_seq
+    channel.recv.return_value = recv_bytes
+    channel.recv_stderr.return_value = recv_stderr_bytes
+    channel.recv_exit_status.return_value = exit_status
+    return channel
+
+
+def _patched_client_with_channel(channel: MagicMock) -> MagicMock:
+    """Return an SSHClient mock whose get_transport().open_session() yields *channel*."""
+    inst = MagicMock()
+    inst.get_transport.return_value.open_session.return_value = channel
+    return inst
+
+
+class TestStreamSshCmd:
+    def test_interleaves_stdout_and_stderr_and_succeeds(self):
+        """stdout and stderr chunks are emitted in real arrival order, not buffered per-stream."""
+        channel = _make_channel(
+            recv_ready_seq=[True, False, False, False],
+            recv_stderr_ready_seq=[False, True, False, False],
+            exit_status_ready_seq=[True],
+            recv_bytes=b"out\n",
+            recv_stderr_bytes=b"err\n",
+            exit_status=0,
+        )
+        inst = _patched_client_with_channel(channel)
+        received: list[str] = []
+        with _patched_client(inst):
+            ok, output = stream_ssh_cmd(DEVICE, ["cmd"], on_chunk=received.append)
+        assert ok is True
+        assert received == ["out\n", "err\n"]
+        assert output == "out\nerr\n"
+
+    def test_nonzero_exit_is_failure(self):
+        channel = _make_channel(
+            recv_ready_seq=[False, False],
+            recv_stderr_ready_seq=[False, False],
+            exit_status_ready_seq=[True],
+            exit_status=1,
+        )
+        inst = _patched_client_with_channel(channel)
+        with _patched_client(inst):
+            ok, output = stream_ssh_cmd(DEVICE, ["false"])
+        assert ok is False
+
+    def test_success_despite_stderr_warning(self):
+        """Exit status 0 is success even when stderr carries a harmless warning.
+
+        Regression test for real installer-rmpro.sh output: a `systemctl stop`
+        warning on a not-yet-loaded unit lands on stderr, but the script still
+        succeeds overall.
+        """
+        channel = _make_channel(
+            recv_ready_seq=[True, False, False, False],
+            recv_stderr_ready_seq=[False, True, False, False],
+            exit_status_ready_seq=[True],
+            recv_bytes=b"Starting xochitl...\n",
+            recv_stderr_bytes=(
+                b"Failed to stop rmfakecloud-proxy.service: "
+                b"Unit rmfakecloud-proxy.service not loaded.\n"
+            ),
+            exit_status=0,
+        )
+        inst = _patched_client_with_channel(channel)
+        with _patched_client(inst):
+            ok, output = stream_ssh_cmd(DEVICE, ["./installer-rmpro.sh install https://x"])
+        assert ok is True
+        assert "Starting xochitl" in output
+        assert "Failed to stop" in output
+
+    def test_empty_commands_returns_ok(self):
+        ok, output = stream_ssh_cmd(DEVICE, [])
+        assert (ok, output) == (True, "")
+
+    def test_connect_error(self):
+        inst = MagicMock()
+        inst.connect.side_effect = OSError("timeout")
+        with _patched_client(inst):
+            ok, output = stream_ssh_cmd(DEVICE, ["ls"])
+        assert ok is False
+        assert "timeout" in output
+
+    def test_timeout_breaks_loop(self):
+        channel = _make_channel(
+            recv_ready_seq=[False, False],
+            recv_stderr_ready_seq=[False, False],
+            exit_status_ready_seq=[False],
+        )
+        inst = _patched_client_with_channel(channel)
+        with (
+            _patched_client(inst),
+            patch("src.ssh.time.monotonic", side_effect=[0, 999999]),
+            patch("src.ssh.time.sleep"),
+        ):
+            ok, output = stream_ssh_cmd(DEVICE, ["hang"])
+        assert ok is False
+        assert "timed out" in output
+        channel.recv_exit_status.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

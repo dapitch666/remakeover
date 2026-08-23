@@ -19,6 +19,11 @@ class Device:
     device_type: str = ""
     firmware_version: str = ""
     sleep_screen_enabled: bool = False
+    rmfakecloud_enabled: bool = False
+    rmfakecloud_url: str = ""
+    rmfakecloud_email: str = ""
+    rmfakecloud_password: str = ""
+    rmfakecloud_install_cmd: str = ""
 
     @staticmethod
     def from_dict(name: str, data: dict[str, Any]) -> Device:
@@ -29,6 +34,11 @@ class Device:
             device_type=data.get("device_type", ""),
             firmware_version=str(data.get("firmware_version", "")),
             sleep_screen_enabled=data.get("sleep_screen_enabled", False),
+            rmfakecloud_enabled=data.get("rmfakecloud_enabled", False),
+            rmfakecloud_url=data.get("rmfakecloud_url", ""),
+            rmfakecloud_email=data.get("rmfakecloud_email", ""),
+            rmfakecloud_password=data.get("rmfakecloud_password", ""),
+            rmfakecloud_install_cmd=data.get("rmfakecloud_install_cmd", ""),
         )
 
     def resolve_type(

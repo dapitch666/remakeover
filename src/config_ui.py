@@ -14,11 +14,24 @@ from src.config import (
     rename_device_data_dir,
     save_config,
 )
+from src.constants import (
+    DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RM1_2,
+    DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RMPP,
+)
 from src.i18n import _
 from src.models import Device
 from src.ssh import run_detection
 
-_INPUT_KEY_BASES = ("config_device_name", "config_device_ip", "config_device_password")
+_INPUT_KEY_BASES = (
+    "config_device_name",
+    "config_device_ip",
+    "config_device_password",
+    "config_rmfakecloud_enabled",
+    "config_rmfakecloud_url",
+    "config_rmfakecloud_email",
+    "config_rmfakecloud_password",
+    "config_rmfakecloud_install_cmd",
+)
 
 _NEW_DEVICE = "__new_device__"
 _SSH_RESULT_STALE_AFTER = timedelta(minutes=5)
@@ -27,11 +40,41 @@ _CONFIG_INPUT_KEYS = (
     "config_device_name",
     "config_device_ip",
     "config_device_password",
+    "config_rmfakecloud_enabled",
+    "config_rmfakecloud_url",
+    "config_rmfakecloud_email",
+    "config_rmfakecloud_password",
+    "config_rmfakecloud_install_cmd",
     "new_config_device_name",
     "new_config_device_ip",
     "new_config_device_password",
+    "new_config_rmfakecloud_enabled",
+    "new_config_rmfakecloud_url",
+    "new_config_rmfakecloud_email",
+    "new_config_rmfakecloud_password",
+    "new_config_rmfakecloud_install_cmd",
     "connection_test_result",
 )
+
+
+def _default_install_cmd(device_type: str) -> str:
+    """Return the suggested install command for *device_type* (UI default only)."""
+    if device_type in ("reMarkable 1", "reMarkable 2"):
+        return DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RM1_2
+    return DEFAULT_RMFAKECLOUD_INSTALL_CMD_FOR_RMPP
+
+
+def _recover_invalid_device_selection(device_names: list[str]) -> str:
+    """Return the device to fall back to when the current "device" selection is invalid.
+
+    Prefers the last-known selection (``selected_name``) over blindly defaulting
+    to ``device_names[0]`` — protects against something desyncing the "device"
+    widget key from what the user was actually viewing (e.g. ``st.switch_page()``
+    resetting ``st.query_params``, which otherwise made a firmware-change redirect
+    land the user on the wrong device's page).
+    """
+    last_known = st.session_state.get("selected_name")
+    return last_known if last_known in device_names else device_names[0]
 
 
 def _clear_input_keys():
@@ -95,6 +138,45 @@ def render_config_panel(
         type="password",
         key=f"{key_prefix}config_device_password",
     )
+
+    rmfakecloud_enabled = st.checkbox(
+        _("Auto re-pair with rmfakecloud after firmware updates"),
+        value=device_config.get("rmfakecloud_enabled", False),
+        key=f"{key_prefix}config_rmfakecloud_enabled",
+        help=_(
+            "When a firmware update is detected on this device, offer to run the install "
+            "command below over SSH and fetch a fresh verification code from rmfakecloud."
+        ),
+    )
+    rmfakecloud_url = ""
+    rmfakecloud_email = ""
+    rmfakecloud_password = ""
+    rmfakecloud_install_cmd = ""
+    if rmfakecloud_enabled:
+        rmfakecloud_url = st.text_input(
+            _("rmfakecloud URL"),
+            device_config.get("rmfakecloud_url", ""),
+            placeholder="https://remarkable.example.com",
+            key=f"{key_prefix}config_rmfakecloud_url",
+        )
+        rmfakecloud_email = st.text_input(
+            _("rmfakecloud email"),
+            device_config.get("rmfakecloud_email", ""),
+            key=f"{key_prefix}config_rmfakecloud_email",
+        )
+        rmfakecloud_password = st.text_input(
+            _("rmfakecloud password"),
+            device_config.get("rmfakecloud_password", ""),
+            type="password",
+            key=f"{key_prefix}config_rmfakecloud_password",
+        )
+        rmfakecloud_install_cmd = st.text_input(
+            _("Install command"),
+            device_config.get("rmfakecloud_install_cmd", "")
+            or _default_install_cmd(device_config.get("device_type", "")),
+            help=_("Run over SSH after a firmware update. {url} is replaced with the URL above."),
+            key=f"{key_prefix}config_rmfakecloud_install_cmd",
+        )
 
     if is_new:
 
@@ -167,7 +249,13 @@ def render_config_panel(
     has_required_fields = bool(
         final_name and ip_stripped and password and detected_type and detected_fw
     )
-    can_save = has_required_fields and valid_ip and name_is_unique
+    rmfakecloud_fields_ok = not rmfakecloud_enabled or bool(
+        rmfakecloud_url.strip()
+        and rmfakecloud_email.strip()
+        and rmfakecloud_password
+        and rmfakecloud_install_cmd.strip()
+    )
+    can_save = has_required_fields and valid_ip and name_is_unique and rmfakecloud_fields_ok
 
     col_save, col_action = st.columns(2)
     with col_save:
@@ -179,6 +267,27 @@ def render_config_panel(
                 "device_type": detected_type,
                 "firmware_version": detected_fw,
                 "sleep_screen_enabled": detected_sleep,
+                "rmfakecloud_enabled": rmfakecloud_enabled,
+                "rmfakecloud_url": (
+                    rmfakecloud_url.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_url", "")
+                ),
+                "rmfakecloud_email": (
+                    rmfakecloud_email.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_email", "")
+                ),
+                "rmfakecloud_password": (
+                    rmfakecloud_password
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_password", "")
+                ),
+                "rmfakecloud_install_cmd": (
+                    rmfakecloud_install_cmd.strip()
+                    if rmfakecloud_enabled
+                    else device_config.get("rmfakecloud_install_cmd", "")
+                ),
             }
             try:
                 if not is_new and final_name != device_name:
@@ -301,6 +410,14 @@ def render_config_panel(
         st.error(save_feedback_error, icon=":material/error:")
     elif test_feedback_error:
         st.error(test_feedback_error, icon=":material/error:")
+    elif not rmfakecloud_fields_ok:
+        st.warning(
+            _(
+                "Fill in the rmfakecloud URL, email, password and install command, "
+                "or uncheck auto re-pairing, before saving."
+            ),
+            icon=":material/error:",
+        )
     elif not can_save:
         st.warning(
             _(
@@ -336,6 +453,7 @@ def _apply_detected_metadata(
     detected_fw = result["firmware_version"]
     sleep_screen_enabled = result["sleep_screen_enabled"]
 
+    should_redirect_to_rmfakecloud = False
     details: list[str] = []
     if detected_type and detected_type != old_type:
         devices[selected_name]["device_type"] = detected_type
@@ -347,6 +465,8 @@ def _apply_detected_metadata(
         details.append(
             _("firmware: {old} -> {new}").format(old=old_fw or _("unknown"), new=detected_fw)
         )
+        if old_fw and devices[selected_name].get("rmfakecloud_enabled"):
+            should_redirect_to_rmfakecloud = True
     if sleep_screen_enabled != old_sleep:
         devices[selected_name]["sleep_screen_enabled"] = sleep_screen_enabled
         details.append(
@@ -379,6 +499,9 @@ def _apply_detected_metadata(
         icon=":material/task_alt:",
     )
     add_log(f"Updated detected metadata for '{selected_name}': {', '.join(details)}")
+
+    if should_redirect_to_rmfakecloud:
+        st.switch_page("pages/rmfakecloud.py")
 
 
 def render_device_selector(config: dict, add_log: Callable[[str], None]) -> str | None:
@@ -413,7 +536,7 @@ def render_device_selector(config: dict, add_log: Callable[[str], None]) -> str 
 
         # Keep a valid selected device in session state when the list changes.
         if st.session_state.get("device") not in device_names_with_new:
-            st.session_state["device"] = device_names[0]
+            st.session_state["device"] = _recover_invalid_device_selection(device_names)
 
         with st.sidebar:
             col_device, col_btn_settings, col_btn_ssh = st.columns(

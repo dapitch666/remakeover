@@ -592,3 +592,94 @@ def test_cancel_button_clears_stale_inputs(tmp_path):
     assert at.session_state["config_panel_open"] is False
     assert "config_device_ip" not in at.session_state
     assert "new_config_device_ip" not in at.session_state
+
+
+# ---------------------------------------------------------------------------
+# rmfakecloud re-pairing settings
+# ---------------------------------------------------------------------------
+
+
+def test_rmfakecloud_checkbox_reveals_fields(tmp_path):
+    """Checking the rmfakecloud checkbox reveals the URL/email/password/install-command fields."""
+    with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        checkbox = next(c for c in at.checkbox if "rmfakecloud" in c.label.lower())
+        checkbox.set_value(True).run()
+
+    assert not at.exception
+    keys = {t.key for t in at.text_input}
+    assert "new_config_rmfakecloud_url" in keys
+    assert "new_config_rmfakecloud_email" in keys
+    assert "new_config_rmfakecloud_password" in keys
+    assert "new_config_rmfakecloud_install_cmd" in keys
+
+
+def test_save_disabled_when_rmfakecloud_enabled_but_incomplete(tmp_path):
+    """Save stays disabled when the rmfakecloud checkbox is on but a field is empty."""
+    with patch.dict(os.environ, make_env(tmp_path, empty_cfg(tmp_path))):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable 2",
+            "firmware_version": "3.5.0",
+            "error": "",
+            "ip": "192.168.1.1",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.text_input[0].set_value("D1").run()
+        at.text_input[1].set_value("192.168.1.1").run()
+        at.text_input[2].set_value("pw").run()
+        checkbox = next(c for c in at.checkbox if "rmfakecloud" in c.label.lower())
+        checkbox.set_value(True).run()
+        url_input = next(t for t in at.text_input if t.key == "new_config_rmfakecloud_url")
+        url_input.set_value("https://remarkable.example.com").run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        assert save_btn.disabled is True
+
+
+def test_saving_device_with_rmfakecloud_enabled_persists_fields(tmp_path):
+    """Saving a device with rmfakecloud auto re-pairing enabled writes all fields to config."""
+    cfg_path = empty_cfg(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at.session_state["connection_test_result"] = {
+            "ok": True,
+            "device_type": "reMarkable Paper Pro",
+            "firmware_version": "4.0.0.1",
+            "error": "",
+            "ip": "192.168.1.5",
+            "mode": "new",
+            "device_name": "",
+        }
+        at.text_input[0].set_value("RmfcDevice").run()
+        at.text_input[1].set_value("192.168.1.5").run()
+        at.text_input[2].set_value("pw").run()
+        checkbox = next(c for c in at.checkbox if "rmfakecloud" in c.label.lower())
+        checkbox.set_value(True).run()
+        next(t for t in at.text_input if t.key == "new_config_rmfakecloud_url").set_value(
+            "https://remarkable.example.com"
+        ).run()
+        next(t for t in at.text_input if t.key == "new_config_rmfakecloud_email").set_value(
+            "anne@example.com"
+        ).run()
+        next(t for t in at.text_input if t.key == "new_config_rmfakecloud_password").set_value(
+            "rmfc-secret"
+        ).run()
+        next(t for t in at.text_input if t.key == "new_config_rmfakecloud_install_cmd").set_value(
+            "./installer-rmpro.sh install {url}"
+        ).run()
+        save_btn = next(b for b in at.button if "save" in b.label.lower())
+        save_btn.click().run()
+
+    assert not at.exception
+    saved = json.loads((tmp_path / "config.json").read_text())
+    entry = saved["devices"]["RmfcDevice"]
+    assert entry["rmfakecloud_enabled"] is True
+    assert entry["rmfakecloud_url"] == "https://remarkable.example.com"
+    assert entry["rmfakecloud_email"] == "anne@example.com"
+    assert entry["rmfakecloud_password"] == "rmfc-secret"
+    assert entry["rmfakecloud_install_cmd"] == "./installer-rmpro.sh install {url}"

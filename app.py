@@ -176,8 +176,21 @@ def main():
     pages = [
         st.Page("pages/images.py", title=_("Sleep Screen"), icon=":material/image:"),
         st.Page("pages/templates.py", title=_("Templates"), icon=":material/description:"),
-        st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"),
     ]
+
+    # Gate on *any* device having rmfakecloud enabled, not the currently selected
+    # one: st.switch_page() only reaches pages/rmfakecloud.py if it's declared in
+    # THIS run's pages list, and figuring out "the currently selected device"
+    # before render_device_selector() has run this script is fragile (both
+    # st.session_state["selected_name"], only assigned partway through that
+    # function, and the "device" widget key itself proved unreliable at this
+    # point in practice). A config-derived check has no per-run staleness.
+    if any(d.get("rmfakecloud_enabled") for d in config.get("devices", {}).values()):
+        pages.append(
+            st.Page("pages/rmfakecloud.py", title=_("rmfakecloud"), icon=":material/cloud:")
+        )
+
+    pages.append(st.Page("pages/logs.py", title=_("Logs"), icon=":material/list:"))
 
     pg = st.navigation(pages)
 
