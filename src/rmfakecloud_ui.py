@@ -1,8 +1,9 @@
-"""rmfakecloud re-pairing panel UI — install command output and pairing code display."""
+"""rmfakecloud re-pairing panel UI — install command output and verification code display."""
 
 from collections.abc import Callable
 
 import streamlit as st
+from streamlit.delta_generator import DeltaGenerator
 
 from src.i18n import _
 from src.models import Device
@@ -14,15 +15,13 @@ def _render_boxed_code(code: str) -> None:
     boxes = "".join(f'<div class="rmfc-code-box">{ch}</div>' for ch in code)
     st.html(
         "<style>"
-        ".rmfc-code-row { display: flex; gap: 0.5rem; margin: 0.5rem 0 1.25rem 0; }"
+        ".rmfc-code-row { display: flex; gap: 0.5rem; }"
         ".rmfc-code-box {"
-        "  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;"
-        "  font-size: 1.75rem; font-weight: 700; text-transform: uppercase;"
-        "  letter-spacing: 0;"
-        "  border: 2px solid rgba(128, 128, 128, 0.45);"
+        "  font-size: 1.75rem;"
+        "  border: 1px solid rgba(128, 128, 128, 0.45);"
         "  border-radius: 8px;"
         "  width: 2.5rem; height: 3.25rem;"
-        "  display: flex; align-items: center; justify-content: center;"
+        "  display: flex; justify-content: center;"
         "  background: rgba(128, 128, 128, 0.08);"
         "}"
         "</style>"
@@ -30,33 +29,50 @@ def _render_boxed_code(code: str) -> None:
     )
 
 
-def _display_install_output() -> None:
-    """Render the persisted install output/error, whether just-produced or from a prior run."""
-    output = st.session_state.get("rmfc_install_output")
-    if output is None:
-        return
-    st.caption(_("Install command output"))
-    st.code(output, language=None)
-    if st.session_state.get("rmfc_install_ok") is False:
-        st.error(_("Install command failed — see output above."), icon=":material/error:")
+def _render_install_output(placeholder: DeltaGenerator) -> None:
+    """Render the persisted install output/error into *placeholder*, as one atomic unit.
+
+    Called both to show a prior run's persisted output and, via _run_install(),
+    to redraw the final state after a live run completes — always through the
+    same placeholder so a subsequent run's own atomic redraws (see _run_install)
+    can never leave this stale while they're in progress.
+    """
+    with placeholder.container():
+        output = st.session_state.get("rmfc_install_output")
+        if output is None:
+            return
+        st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
+        st.code(output, language=None)
+        if st.session_state.get("rmfc_install_ok") is False:
+            st.error(_("Install command failed — see output above."), icon=":material/error:")
 
 
-def _run_install(device: Device, add_log: Callable[[str], None]) -> None:
-    """Run the install command with a live-updating output placeholder."""
+def _run_install(
+    device: Device, add_log: Callable[[str], None], placeholder: DeltaGenerator
+) -> None:
+    """Run the install command, live-updating *placeholder* as output arrives.
+
+    Every chunk redraws the subheader + accumulated output together as one
+    atomic unit into the *same* placeholder used for the persisted/final
+    display — a chunk-only update would leave a *different*, not-yet-reached
+    element (the subheader) missing until the run finishes, and would leave a
+    previous run's separate final block stale below it on a re-run.
+    """
     st.session_state.pop("rmfc_code", None)
     st.session_state.pop("rmfc_code_error", None)
 
-    placeholder = st.empty()
     lines: list[str] = []
 
     def _on_chunk(text: str) -> None:
         lines.append(text)
-        placeholder.code("".join(lines), language=None)
+        with placeholder.container():
+            st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
+            st.code("".join(lines), language=None)
 
     ok, output = run_install(device, on_chunk=_on_chunk)
-    placeholder.empty()  # the unconditional _display_install_output() below takes over
     st.session_state["rmfc_install_output"] = output
     st.session_state["rmfc_install_ok"] = ok
+    _render_install_output(placeholder)
 
     if not ok:
         add_log(f"rmfakecloud install failed on '{device.name}'")
@@ -68,51 +84,53 @@ def _run_install(device: Device, add_log: Callable[[str], None]) -> None:
     )
     if code_ok:
         st.session_state["rmfc_code"] = code
-        add_log(f"rmfakecloud pairing code generated for '{device.name}'")
+        add_log(f"rmfakecloud verification code generated for '{device.name}'")
     else:
         st.session_state["rmfc_code_error"] = error
-        add_log(f"rmfakecloud pairing code fetch failed for '{device.name}': {error}")
+        add_log(f"rmfakecloud verification code fetch failed for '{device.name}': {error}")
 
 
 def _refresh_code(device: Device, add_log: Callable[[str], None]) -> None:
-    """Fetch a fresh pairing code without re-running the install command."""
+    """Fetch a fresh verification code without re-running the install command."""
     code_ok, code, error = fetch_pairing_code(
         device.rmfakecloud_url, device.rmfakecloud_email, device.rmfakecloud_password
     )
     if code_ok:
         st.session_state["rmfc_code"] = code
         st.session_state.pop("rmfc_code_error", None)
-        add_log(f"rmfakecloud pairing code refreshed for '{device.name}'")
+        add_log(f"rmfakecloud verification code refreshed for '{device.name}'")
     else:
         st.session_state.pop("rmfc_code", None)
         st.session_state["rmfc_code_error"] = error
-        add_log(f"rmfakecloud pairing code refresh failed for '{device.name}': {error}")
+        add_log(f"rmfakecloud verification code refresh failed for '{device.name}': {error}")
 
 
 def _display_code() -> None:
-    """Render the persisted pairing code/error and the "Get a new code" control."""
+    """Render the persisted verification code/error and the "Get a new code" control."""
     code = st.session_state.get("rmfc_code")
     code_error = st.session_state.get("rmfc_code_error")
     if code:
-        st.success(
-            _("Pairing code — enter it now on the device (expires in 5 minutes):"),
-            icon=":material/lock_open:",
-        )
-        _render_boxed_code(code)
+        st.subheader(_(":material/lock_open: Verification code"), divider="rainbow")
 
-        def _on_new_code_click():
-            st.session_state["rmfc_code_pending"] = True
+        with st.container(
+            horizontal=True, width="content", vertical_alignment="center", gap="medium"
+        ):
+            st.info(_("Settings → General → Account → Pair"), icon=":material/settings:")
+            _render_boxed_code(code)
 
-        st.button(
-            _("Get a new code"),
-            key="ui_rmfc_new_code",
-            icon=":material/refresh:",
-            help=_("Fetch a fresh pairing code without re-running the install command"),
-            on_click=_on_new_code_click,
-        )
+            def _on_new_code_click():
+                st.session_state["rmfc_code_pending"] = True
+
+            st.button(
+                _("Get a new code"),
+                key="ui_rmfc_new_code",
+                icon=":material/cached:",
+                help=_("Fetch a fresh verification code without re-running the install command"),
+                on_click=_on_new_code_click,
+            )
     elif code_error:
         st.error(
-            _("Could not get a pairing code: {error}").format(error=code_error),
+            _("Could not get a verification code: {error}").format(error=code_error),
             icon=":material/error:",
         )
 
@@ -126,9 +144,7 @@ def render_rmfakecloud_page(device: Device, add_log: Callable[[str], None]) -> N
 
     st.markdown(
         _(
-            "Runs the install command over SSH, then fetches a fresh pairing code from "
-            "rmfakecloud. Enter the code on the device within 5 minutes: "
-            "Settings → General → Account → Pair with the reMarkable Cloud."
+            "Runs the install command over SSH, then fetches a fresh verification code from rmfakecloud."
         )
     )
 
@@ -138,14 +154,16 @@ def render_rmfakecloud_page(device: Device, add_log: Callable[[str], None]) -> N
     st.button(
         _("Re-pair now"),
         key="ui_rmfc_repair",
-        icon=":material/sync_lock:",
+        icon=":material/cloud_sync:",
         type="primary",
-        help=_("Run the install command over SSH and fetch a fresh pairing code"),
+        help=_("Run the install command over SSH and fetch a fresh verification code"),
         on_click=_on_repair_click,
     )
 
+    output_placeholder = st.empty()
     if st.session_state.pop("rmfc_install_pending", False):
-        _run_install(device, add_log)
+        _run_install(device, add_log, output_placeholder)
+    else:
+        _render_install_output(output_placeholder)
 
-    _display_install_output()
     _display_code()

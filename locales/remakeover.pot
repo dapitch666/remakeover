@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-21 17:34+0200\n"
+"POT-Creation-Date: 2026-08-23 12:02+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -327,7 +327,7 @@ msgstr ""
 #: src/config_ui.py:147
 msgid ""
 "When a firmware update is detected on this device, offer to run the "
-"install command below over SSH and fetch a fresh pairing code from "
+"install command below over SSH and fetch a fresh verification code from "
 "rmfakecloud."
 msgstr ""
 
@@ -521,44 +521,47 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:38
-msgid "Install command output"
+#: src/rmfakecloud_ui.py:44 src/rmfakecloud_ui.py:69
+msgid ":material/terminal: Install command output"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:41
+#: src/rmfakecloud_ui.py:47
 msgid "Install command failed — see output above."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:98
-msgid "Pairing code — enter it now on the device (expires in 5 minutes):"
+#: src/rmfakecloud_ui.py:113
+msgid ":material/lock_open: Verification code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:107
+#: src/rmfakecloud_ui.py:118
+msgid "Settings → General → Account → Pair"
+msgstr ""
+
+#: src/rmfakecloud_ui.py:125
 msgid "Get a new code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:110
-msgid "Fetch a fresh pairing code without re-running the install command"
+#: src/rmfakecloud_ui.py:128
+msgid "Fetch a fresh verification code without re-running the install command"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:115
+#: src/rmfakecloud_ui.py:133
 #, python-brace-format
-msgid "Could not get a pairing code: {error}"
+msgid "Could not get a verification code: {error}"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:129
+#: src/rmfakecloud_ui.py:146
 msgid ""
-"Runs the install command over SSH, then fetches a fresh pairing code from"
-" rmfakecloud. Enter the code on the device within 5 minutes: Settings → "
-"General → Account → Pair with the reMarkable Cloud."
+"Runs the install command over SSH, then fetches a fresh verification code"
+" from rmfakecloud."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:139
+#: src/rmfakecloud_ui.py:153
 msgid "Re-pair now"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:143
-msgid "Run the install command over SSH and fetch a fresh pairing code"
+#: src/rmfakecloud_ui.py:157
+msgid "Run the install command over SSH and fetch a fresh verification code"
 msgstr ""
 
 #: src/template_editor_ui.py:61

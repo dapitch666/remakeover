@@ -74,6 +74,19 @@ def test_page_renders_when_enabled(tmp_path):
     assert any(b.key == "ui_rmfc_repair" for b in at.button)
 
 
+def test_install_output_subheader_hidden_before_any_run(tmp_path):
+    """The "Install command output" subheader is absent until an install has run."""
+    cfg_path = _cfg(tmp_path)
+    with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at = _goto_page(at)
+
+    assert not at.exception
+    assert not any("Install command output" in s.value for s in at.subheader)
+    assert not at.code
+
+
 # ---------------------------------------------------------------------------
 # Re-pair now
 # ---------------------------------------------------------------------------
@@ -99,8 +112,41 @@ def test_repair_now_runs_install_then_fetches_code(tmp_path):
     assert at.session_state["rmfc_install_output"] == "Starting xochitl...\n"
     assert at.session_state["rmfc_install_ok"] is True
     assert at.session_state["rmfc_code"] == "abcdefgh"
-    assert any("Starting xochitl" in c.value for c in at.code)
+    code_values = [c.value for c in at.code]
+    assert sum("Starting xochitl" in v for v in code_values) == 1
+    assert any("Install command output" in s.value for s in at.subheader)
     assert any(b.key == "ui_rmfc_new_code" for b in at.button)
+
+
+def test_second_install_run_fully_replaces_first_output(tmp_path):
+    """Re-running the install command replaces the previous output, leaving no stale duplicate.
+
+    Regression guard: the live-streaming placeholder and the persisted-output
+    display used to be two separate elements, so a second run's streaming
+    placeholder didn't touch the first run's separate final block until the
+    second run finished — leaving stale output visible in the meantime.
+    """
+    cfg_path = _cfg(tmp_path)
+    with (
+        patch.dict(os.environ, make_env(tmp_path, cfg_path)),
+        patch(
+            _RUN_INSTALL_PATCH,
+            side_effect=[(True, "first run output"), (True, "second run output")],
+        ),
+        patch(_FETCH_CODE_PATCH, return_value=(True, "abcdefgh", "")),
+    ):
+        at = AppTest.from_file(APP_PY)
+        at.run()
+        at = _goto_page(at)
+        at.button(key="ui_rmfc_repair").click().run()
+        at.button(key="ui_rmfc_repair").click().run()
+
+    assert not at.exception
+    assert at.session_state["rmfc_install_output"] == "second run output"
+    code_values = [c.value for c in at.code]
+    assert code_values.count("second run output") == 1
+    assert not any("first run output" in v for v in code_values)
+    assert len([s for s in at.subheader if "Install command output" in s.value]) == 1
 
 
 def test_install_failure_shows_output_and_error_without_fetching_code(tmp_path):

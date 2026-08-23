@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  reMakeover\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-21 17:34+0200\n"
+"POT-Creation-Date: 2026-08-23 12:02+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -364,12 +364,12 @@ msgstr "Se reconnecter automatiquement à rmfakecloud après une mise à jour"
 #: src/config_ui.py:147
 msgid ""
 "When a firmware update is detected on this device, offer to run the "
-"install command below over SSH and fetch a fresh pairing code from "
+"install command below over SSH and fetch a fresh verification code from "
 "rmfakecloud."
 msgstr ""
 "Quand une mise à jour du firmware est détectée sur cet appareil, propose "
 "d'exécuter la commande d'installation ci-dessous en SSH et de récupérer "
-"un nouveau code de connexion depuis rmfakecloud."
+"un nouveau code de vérification depuis rmfakecloud."
 
 #: src/config_ui.py:157
 msgid "rmfakecloud URL"
@@ -577,51 +577,51 @@ msgstr "Tester la connexion SSH"
 msgid "Confirm"
 msgstr "Confirmer"
 
-#: src/rmfakecloud_ui.py:38
-msgid "Install command output"
-msgstr "Sortie de la commande d'installation"
+#: src/rmfakecloud_ui.py:44 src/rmfakecloud_ui.py:69
+msgid ":material/terminal: Install command output"
+msgstr ":material/terminal: Sortie de la commande d'installation"
 
-#: src/rmfakecloud_ui.py:41
+#: src/rmfakecloud_ui.py:47
 msgid "Install command failed — see output above."
 msgstr "La commande d'installation a échoué — voir la sortie ci-dessus."
 
-#: src/rmfakecloud_ui.py:98
-msgid "Pairing code — enter it now on the device (expires in 5 minutes):"
-msgstr ""
-"Code de vérification — saisissez-le maintenant sur l'appareil (expire "
-"dans 5 minutes) :"
+#: src/rmfakecloud_ui.py:113
+msgid ":material/lock_open: Verification code"
+msgstr ":material/lock_open: Code de vérification"
 
-#: src/rmfakecloud_ui.py:107
+#: src/rmfakecloud_ui.py:118
+msgid "Settings → General → Account → Pair"
+msgstr "Paramètres → Général → Compte → Se connecter"
+
+#: src/rmfakecloud_ui.py:125
 msgid "Get a new code"
 msgstr "Obtenir un nouveau code"
 
-#: src/rmfakecloud_ui.py:110
-msgid "Fetch a fresh pairing code without re-running the install command"
+#: src/rmfakecloud_ui.py:128
+msgid "Fetch a fresh verification code without re-running the install command"
 msgstr ""
 "Récupère un nouveau code de vérification sans relancer la commande "
 "d'installation"
 
-#: src/rmfakecloud_ui.py:115
+#: src/rmfakecloud_ui.py:133
 #, python-brace-format
-msgid "Could not get a pairing code: {error}"
+msgid "Could not get a verification code: {error}"
 msgstr "Impossible d'obtenir un code de vérification : {error}"
 
-#: src/rmfakecloud_ui.py:129
+#: src/rmfakecloud_ui.py:146
 msgid ""
-"Runs the install command over SSH, then fetches a fresh pairing code from"
-" rmfakecloud. Enter the code on the device within 5 minutes: Settings → "
-"General → Account → Pair with the reMarkable Cloud."
+"Runs the install command over SSH, then fetches a fresh verification code"
+" from rmfakecloud."
 msgstr ""
 "Exécute la commande d'installation en SSH, puis récupère un nouveau code "
-"de vérification depuis rmfakecloud. Saisissez le code sur l'appareil dans"
-" les 5 minutes : Paramètres → Général → Compte → Jumelez."
+"de vérification depuis rmfakecloud."
 
-#: src/rmfakecloud_ui.py:139
+#: src/rmfakecloud_ui.py:153
 msgid "Re-pair now"
 msgstr "Jumelez maintenant"
 
-#: src/rmfakecloud_ui.py:143
-msgid "Run the install command over SSH and fetch a fresh pairing code"
+#: src/rmfakecloud_ui.py:157
+msgid "Run the install command over SSH and fetch a fresh verification code"
 msgstr ""
 "Exécute la commande d'installation en SSH et récupère un nouveau code de "
 "vérification"
@@ -1076,4 +1076,24 @@ msgstr "Sélectionnez un appareil dans la barre latérale."
 
 #~ msgid "Dismiss"
 #~ msgstr "Fermer"
+
+#~ msgid "Pairing code — enter it now on the device (expires in 5 minutes):"
+#~ msgstr ""
+#~ "Code de vérification — saisissez-le "
+#~ "maintenant sur l'appareil (expire dans 5"
+#~ " minutes) :"
+
+#~ msgid ""
+#~ "Runs the install command over SSH, "
+#~ "then fetches a fresh pairing code "
+#~ "from rmfakecloud. Enter the code on "
+#~ "the device within 5 minutes: Settings"
+#~ " → General → Account → Pair"
+#~ msgstr ""
+#~ "Exécute la commande d'installation en "
+#~ "SSH, puis récupère un nouveau code "
+#~ "de vérification depuis rmfakecloud. Saisissez"
+#~ " le code sur l'appareil dans les "
+#~ "5 minutes : Paramètres → Général →"
+#~ " Compte → Jumelez."
 

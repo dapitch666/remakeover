@@ -145,7 +145,7 @@ def render_config_panel(
         key=f"{key_prefix}config_rmfakecloud_enabled",
         help=_(
             "When a firmware update is detected on this device, offer to run the install "
-            "command below over SSH and fetch a fresh pairing code from rmfakecloud."
+            "command below over SSH and fetch a fresh verification code from rmfakecloud."
         ),
     )
     rmfakecloud_url = ""
