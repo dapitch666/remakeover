@@ -49,15 +49,29 @@ def _goto_page(at):
 # ---------------------------------------------------------------------------
 
 
-def test_page_stops_when_not_enabled_for_device(tmp_path):
-    """Direct navigation to the page is refused when the device lacks rmfakecloud_enabled."""
-    cfg_path = _cfg(tmp_path, rmfakecloud_enabled=False)
+def test_page_stops_when_not_enabled_for_selected_device(tmp_path):
+    """The in-page guard stops rendering when the *selected* device lacks rmfakecloud_enabled.
+
+    Two devices: D2 has rmfakecloud enabled (so app.py registers the nav page and
+    ``switch_page`` can reach it), but D1 — selected on load — does not, so
+    ``pages/rmfakecloud.py``'s own ``st.info`` + ``st.stop()`` guard fires.
+
+    A single disabled device is a different case: app.py never registers the nav
+    page, and since Streamlit 1.63 (streamlit/streamlit#16611) ``switch_page`` to
+    an unregistered page raises instead of silently reaching the script — so that
+    layer is covered by app.py's registration gate, not this in-page guard.
+    """
+    cfg_path = write_config(
+        tmp_path,
+        {"devices": {"D1": _device_cfg(rmfakecloud_enabled=False), "D2": _device_cfg()}},
+    )
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file(APP_PY)
         at.run()
         at = _goto_page(at)
 
     assert not at.exception
+    assert at.session_state["selected_name"] == "D1"
     assert any("not enabled" in i.value.lower() for i in at.info)
     assert not any(b.key == "ui_rmfc_repair" for b in at.button)
 
