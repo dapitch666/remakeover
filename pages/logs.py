@@ -8,7 +8,7 @@ import src.dialog as _dialog
 from src.i18n import _
 from src.ui_common import rainbow_divider
 
-st.title(_(":material/list: Session Logs"))
+st.title(_("Session Logs"), icon=":material/list:")
 rainbow_divider()
 if not st.session_state.get("logs"):
     st.info(_("No logs for this session."))

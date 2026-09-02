@@ -41,7 +41,7 @@ def _set_selected_template_uuid(template_uuid: str | None) -> None:
 
 # ── Page ──────────────────────────────────────────────────────────────────────
 
-st.title(_(":material/description: Templates"))
+st.title(_("Templates"), icon=":material/description:")
 rainbow_divider()
 
 config, selected_name, DEVICES = init_page()

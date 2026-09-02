@@ -30,50 +30,68 @@ def _render_boxed_code(code: str) -> None:
     )
 
 
-def _render_install_output(placeholder: DeltaGenerator) -> None:
-    """Render the persisted install output/error into *placeholder*, as one atomic unit.
+def _install_status(ok: bool | None) -> tuple[str, str]:
+    """``(label, state)`` for the install status card, keyed on outcome (``None`` = still running).
 
-    Called both to show a prior run's persisted output and, via _run_install(),
-    to redraw the final state after a live run completes — always through the
-    same placeholder so a subsequent run's own atomic redraws (see _run_install)
-    can never leave this stale while they're in progress.
+    ``state`` is derived explicitly rather than from ``ok``'s truthiness so a
+    ``None`` never renders as a spurious "error".
+    """
+    if ok is True:
+        return _("Install command succeeded"), "complete"
+    if ok is False:
+        return _("Install command failed"), "error"
+    return _("Running install command…"), "running"
+
+
+def _render_install_output(placeholder: DeltaGenerator) -> None:
+    """Render the persisted install output into *placeholder* as a status card.
+
+    Collapsed once the command succeeded (the verification code below is what
+    matters then); left expanded on failure so the output stays visible.
     """
     with placeholder.container():
         output = st.session_state.get("rmfc_install_output")
         if output is None:
             return
-        st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
-        st.code(output, language=None)
-        if st.session_state.get("rmfc_install_ok") is False:
+        ok = st.session_state.get("rmfc_install_ok")
+        label, state = _install_status(ok)
+        with st.status(label, state=state, expanded=ok is False):
+            st.code(output, language=None)
+        if ok is False:
             st.error(_("Install command failed — see output above."), icon=":material/error:")
 
 
 def _run_install(
     device: Device, add_log: Callable[[str], None], placeholder: DeltaGenerator
 ) -> None:
-    """Run the install command, live-updating *placeholder* as output arrives.
+    """Run the install command inside a status card, streaming output as it arrives.
 
-    Every chunk redraws the subheader + accumulated output together as one
-    atomic unit into the *same* placeholder used for the persisted/final
-    display — a chunk-only update would leave a *different*, not-yet-reached
-    element (the subheader) missing until the run finishes, and would leave a
-    previous run's separate final block stale below it on a re-run.
+    The card is rendered through the same *placeholder* as the persisted display
+    (_render_install_output), so a re-run replaces the previous run's card in
+    place instead of stacking a second one. Chunks stream into a nested
+    ``st.empty()`` while ``st.status`` handles the running → complete/error
+    transition on its own.
     """
     st.session_state.pop("rmfc_code", None)
     st.session_state.pop("rmfc_code_error", None)
 
     lines: list[str] = []
+    with placeholder.container():
+        with st.status(_install_status(None)[0], expanded=True) as status:
+            output_slot = st.empty()
 
-    def _on_chunk(text: str) -> None:
-        lines.append(text)
-        with placeholder.container():
-            st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
-            st.code("".join(lines), language=None)
+            def _on_chunk(text: str) -> None:
+                lines.append(text)
+                output_slot.code("".join(lines), language=None)
 
-    ok, output = run_install(device, on_chunk=_on_chunk)
-    st.session_state["rmfc_install_output"] = output
-    st.session_state["rmfc_install_ok"] = ok
-    _render_install_output(placeholder)
+            ok, output = run_install(device, on_chunk=_on_chunk)
+            output_slot.code(output, language=None)
+            st.session_state["rmfc_install_output"] = output
+            st.session_state["rmfc_install_ok"] = ok
+            label, state = _install_status(ok)
+            status.update(label=label, state=state, expanded=not ok)
+        if not ok:
+            st.error(_("Install command failed — see output above."), icon=":material/error:")
 
     if not ok:
         add_log(f"rmfakecloud install failed on '{device.name}'")
@@ -111,7 +129,7 @@ def _display_code() -> None:
     code = st.session_state.get("rmfc_code")
     code_error = st.session_state.get("rmfc_code_error")
     if code:
-        st.subheader(_(":material/lock_open: Verification code"), divider="rainbow")
+        st.subheader(_("Verification code"), icon=":material/lock_open:", divider="rainbow")
 
         with st.container(
             horizontal=True, width="content", vertical_alignment="center", gap="medium"

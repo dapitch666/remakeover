@@ -370,7 +370,7 @@ def render_editor_panel(
     with _mf7:
         st.text_input(_("Template version"), key="tpl_meta_template_version", placeholder="1.0.0")
 
-    with st.expander(_(":material/grid_on: Icon"), expanded=False):
+    with st.expander(_("Icon"), icon=":material/grid_on:", expanded=False):
         _ico1, _ico2 = st.columns([1, 3])
         with _ico1:
             _icon_svg_now = st.session_state.get("tpl_meta_icon_svg_code", "")
@@ -595,7 +595,9 @@ def render_editor_panel(
             on_click=_on_tpl_delete,
         )
 
-    with st.expander(_(":material/help: reMarkable JSON format documentation"), expanded=False):
+    with st.expander(
+        _("reMarkable JSON format documentation"), icon=":material/help:", expanded=False
+    ):
         _spec_path = os.path.join(
             os.path.dirname(__file__), "..", "docs", "template-format-spec.md"
         )

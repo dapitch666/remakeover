@@ -20,7 +20,7 @@ _RMFC_DEVICE_SCOPED_KEYS = (
 
 # ── Page ─────────────────────────────────────────────────────────────────────
 
-st.title(_(":material/cloud: rmfakecloud"))
+st.title(_("rmfakecloud"), icon=":material/cloud:")
 rainbow_divider()
 
 config, selected_name, DEVICES = init_page()
