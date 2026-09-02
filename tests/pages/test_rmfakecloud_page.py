@@ -88,8 +88,8 @@ def test_page_renders_when_enabled(tmp_path):
     assert any(b.key == "ui_rmfc_repair" for b in at.button)
 
 
-def test_install_output_subheader_hidden_before_any_run(tmp_path):
-    """The "Install command output" subheader is absent until an install has run."""
+def test_install_status_hidden_before_any_run(tmp_path):
+    """The install status card is absent until an install has run."""
     cfg_path = _cfg(tmp_path)
     with patch.dict(os.environ, make_env(tmp_path, cfg_path)):
         at = AppTest.from_file(APP_PY)
@@ -97,7 +97,7 @@ def test_install_output_subheader_hidden_before_any_run(tmp_path):
         at = _goto_page(at)
 
     assert not at.exception
-    assert not any("Install command output" in s.value for s in at.subheader)
+    assert not at.status
     assert not at.code
 
 
@@ -128,17 +128,16 @@ def test_repair_now_runs_install_then_fetches_code(tmp_path):
     assert at.session_state["rmfc_code"] == "abcdefgh"
     code_values = [c.value for c in at.code]
     assert sum("Starting xochitl" in v for v in code_values) == 1
-    assert any("Install command output" in s.value for s in at.subheader)
+    assert any(s.label == "Install command succeeded" for s in at.status)
     assert any(b.key == "ui_rmfc_new_code" for b in at.button)
 
 
 def test_second_install_run_fully_replaces_first_output(tmp_path):
     """Re-running the install command replaces the previous output, leaving no stale duplicate.
 
-    Regression guard: the live-streaming placeholder and the persisted-output
-    display used to be two separate elements, so a second run's streaming
-    placeholder didn't touch the first run's separate final block until the
-    second run finished — leaving stale output visible in the meantime.
+    Regression guard: the install output is rendered as one status card through
+    a fixed placeholder, so a second run replaces the first run's card in place
+    rather than stacking a second card or leaving a stale output block behind.
     """
     cfg_path = _cfg(tmp_path)
     with (
@@ -160,7 +159,7 @@ def test_second_install_run_fully_replaces_first_output(tmp_path):
     code_values = [c.value for c in at.code]
     assert code_values.count("second run output") == 1
     assert not any("first run output" in v for v in code_values)
-    assert len([s for s in at.subheader if "Install command output" in s.value]) == 1
+    assert len([s for s in at.status if s.label == "Install command succeeded"]) == 1
 
 
 def test_install_failure_shows_output_and_error_without_fetching_code(tmp_path):

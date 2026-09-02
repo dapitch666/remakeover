@@ -3,7 +3,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version:  reMakeover\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-02 10:16+0200\n"
+"POT-Creation-Date: 2026-09-02 10:33+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: fr\n"
@@ -569,38 +569,46 @@ msgstr "Tester la connexion SSH"
 msgid "Confirm"
 msgstr "Confirmer"
 
-#: src/rmfakecloud_ui.py:45 src/rmfakecloud_ui.py:70
-msgid "Install command output"
-msgstr "Sortie de la commande d'installation"
+#: src/rmfakecloud_ui.py:36
+msgid "Install command succeeded"
+msgstr "Commande d'installation réussie"
 
-#: src/rmfakecloud_ui.py:48
+#: src/rmfakecloud_ui.py:38
+msgid "Install command failed"
+msgstr "Échec de la commande d'installation"
+
+#: src/rmfakecloud_ui.py:39
+msgid "Running install command…"
+msgstr "Exécution de la commande d'installation…"
+
+#: src/rmfakecloud_ui.py:60 src/rmfakecloud_ui.py:96
 msgid "Install command failed — see output above."
 msgstr "La commande d'installation a échoué — voir la sortie ci-dessus."
 
-#: src/rmfakecloud_ui.py:114
+#: src/rmfakecloud_ui.py:134
 msgid "Verification code"
 msgstr "Code de vérification"
 
-#: src/rmfakecloud_ui.py:119
+#: src/rmfakecloud_ui.py:139
 msgid "Settings → General → Account → Pair"
 msgstr "Paramètres → Général → Compte → Se connecter"
 
-#: src/rmfakecloud_ui.py:126
+#: src/rmfakecloud_ui.py:146
 msgid "Get a new code"
 msgstr "Obtenir un nouveau code"
 
-#: src/rmfakecloud_ui.py:129
+#: src/rmfakecloud_ui.py:149
 msgid "Fetch a fresh verification code without re-running the install command"
 msgstr ""
 "Récupère un nouveau code de vérification sans relancer la commande "
 "d'installation"
 
-#: src/rmfakecloud_ui.py:134
+#: src/rmfakecloud_ui.py:154
 #, python-brace-format
 msgid "Could not get a verification code: {error}"
 msgstr "Impossible d'obtenir un code de vérification : {error}"
 
-#: src/rmfakecloud_ui.py:148
+#: src/rmfakecloud_ui.py:168
 msgid ""
 "Runs the install command over SSH, then fetches a fresh verification code"
 " from rmfakecloud."
@@ -608,11 +616,11 @@ msgstr ""
 "Exécute la commande d'installation en SSH, puis récupère un nouveau code "
 "de vérification depuis rmfakecloud."
 
-#: src/rmfakecloud_ui.py:156
+#: src/rmfakecloud_ui.py:176
 msgid "Re-pair now"
 msgstr "Jumelez maintenant"
 
-#: src/rmfakecloud_ui.py:160
+#: src/rmfakecloud_ui.py:180
 msgid "Run the install command over SSH and fetch a fresh verification code"
 msgstr ""
 "Exécute la commande d'installation en SSH et récupère un nouveau code de "
@@ -1112,4 +1120,7 @@ msgstr "Sélectionnez un appareil dans la barre latérale."
 
 #~ msgid ":material/filter_list: Filters"
 #~ msgstr ":material/filter_list: Filtres"
+
+#~ msgid "Install command output"
+#~ msgstr "Sortie de la commande d'installation"
 
