@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-09-02 10:33+0200\n"
+"POT-Creation-Date: 2026-09-02 10:55+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -513,54 +513,54 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:36
+#: src/rmfakecloud_ui.py:40
 msgid "Install command succeeded"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:38
+#: src/rmfakecloud_ui.py:42
 msgid "Install command failed"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:39
+#: src/rmfakecloud_ui.py:43
 msgid "Running install command…"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:60 src/rmfakecloud_ui.py:96
+#: src/rmfakecloud_ui.py:61 src/rmfakecloud_ui.py:94
 msgid "Install command failed — see output above."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:134
+#: src/rmfakecloud_ui.py:132
 msgid "Verification code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:139
+#: src/rmfakecloud_ui.py:137
 msgid "Settings → General → Account → Pair"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:146
+#: src/rmfakecloud_ui.py:144
 msgid "Get a new code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:149
+#: src/rmfakecloud_ui.py:147
 msgid "Fetch a fresh verification code without re-running the install command"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:154
+#: src/rmfakecloud_ui.py:152
 #, python-brace-format
 msgid "Could not get a verification code: {error}"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:168
+#: src/rmfakecloud_ui.py:166
 msgid ""
 "Runs the install command over SSH, then fetches a fresh verification code"
 " from rmfakecloud."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:176
+#: src/rmfakecloud_ui.py:174
 msgid "Re-pair now"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:180
+#: src/rmfakecloud_ui.py:178
 msgid "Run the install command over SSH and fetch a fresh verification code"
 msgstr ""
 

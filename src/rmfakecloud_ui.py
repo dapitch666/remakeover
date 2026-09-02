@@ -30,13 +30,17 @@ def _render_boxed_code(code: str) -> None:
     )
 
 
-def _install_status_label(ok: bool | None) -> str:
-    """Status-card label for the install stage, keyed on its outcome (``None`` = still running)."""
+def _install_status(ok: bool | None) -> tuple[str, str]:
+    """``(label, state)`` for the install status card, keyed on outcome (``None`` = still running).
+
+    ``state`` is derived explicitly rather than from ``ok``'s truthiness so a
+    ``None`` never renders as a spurious "error".
+    """
     if ok is True:
-        return _("Install command succeeded")
+        return _("Install command succeeded"), "complete"
     if ok is False:
-        return _("Install command failed")
-    return _("Running install command…")
+        return _("Install command failed"), "error"
+    return _("Running install command…"), "running"
 
 
 def _render_install_output(placeholder: DeltaGenerator) -> None:
@@ -50,11 +54,8 @@ def _render_install_output(placeholder: DeltaGenerator) -> None:
         if output is None:
             return
         ok = st.session_state.get("rmfc_install_ok")
-        with st.status(
-            _install_status_label(ok),
-            state="complete" if ok else "error",
-            expanded=ok is False,
-        ):
+        label, state = _install_status(ok)
+        with st.status(label, state=state, expanded=ok is False):
             st.code(output, language=None)
         if ok is False:
             st.error(_("Install command failed — see output above."), icon=":material/error:")
@@ -76,7 +77,7 @@ def _run_install(
 
     lines: list[str] = []
     with placeholder.container():
-        with st.status(_install_status_label(None), expanded=True) as status:
+        with st.status(_install_status(None)[0], expanded=True) as status:
             output_slot = st.empty()
 
             def _on_chunk(text: str) -> None:
@@ -87,11 +88,8 @@ def _run_install(
             output_slot.code(output, language=None)
             st.session_state["rmfc_install_output"] = output
             st.session_state["rmfc_install_ok"] = ok
-            status.update(
-                label=_install_status_label(ok),
-                state="complete" if ok else "error",
-                expanded=not ok,
-            )
+            label, state = _install_status(ok)
+            status.update(label=label, state=state, expanded=not ok)
         if not ok:
             st.error(_("Install command failed — see output above."), icon=":material/error:")
 
