@@ -297,7 +297,7 @@ def render_left_panel(
         )
 
     # Sync section (collapsed)
-    with st.expander(_(":material/sync: Sync"), expanded=False):
+    with st.expander(_("Sync"), icon=":material/sync:", expanded=False):
         local_manifest = load_manifest(device.name)
         if local_manifest.get("last_modified"):
             date, time = format_datetime_for_ui(local_manifest["last_modified"])
@@ -457,7 +457,7 @@ def render_left_panel(
     st.divider()
 
     # Filter: text search + category multiselect
-    with st.expander(_(":material/filter_list: Filters"), expanded=False):
+    with st.expander(_("Filters"), icon=":material/filter_list:", expanded=False):
         filter_text = st.text_input(
             _("Search"),
             key="tpl_filter_text",

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-08-23 12:02+0200\n"
+"POT-Creation-Date: 2026-09-02 10:16+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -21,11 +21,11 @@ msgstr ""
 msgid "Sleep Screen"
 msgstr ""
 
-#: app.py:178
+#: app.py:178 pages/templates.py:44
 msgid "Templates"
 msgstr ""
 
-#: app.py:190
+#: app.py:190 pages/rmfakecloud.py:23
 msgid "rmfakecloud"
 msgstr ""
 
@@ -60,7 +60,7 @@ msgstr ""
 msgid "'{new}' already exists. Replace this file?"
 msgstr ""
 
-#: pages/images.py:128 src/config_ui.py:348
+#: pages/images.py:128 src/config_ui.py:364
 msgid "Confirm deletion"
 msgstr ""
 
@@ -131,7 +131,7 @@ msgid "Error sending image."
 msgstr ""
 
 #: pages/images.py:281
-msgid ":material/image: Images"
+msgid "Images"
 msgstr ""
 
 #: pages/images.py:300
@@ -214,7 +214,7 @@ msgid ""
 msgstr ""
 
 #: pages/logs.py:11
-msgid ":material/list: Session Logs"
+msgid "Session Logs"
 msgstr ""
 
 #: pages/logs.py:14
@@ -237,18 +237,10 @@ msgstr ""
 msgid "Clear logs for this session?"
 msgstr ""
 
-#: pages/rmfakecloud.py:23
-msgid ":material/cloud: rmfakecloud"
-msgstr ""
-
 #: pages/rmfakecloud.py:38
 msgid ""
 "rmfakecloud re-pairing is not enabled for this device. Enable it in the "
 "device settings."
-msgstr ""
-
-#: pages/templates.py:44
-msgid ":material/description: Templates"
 msgstr ""
 
 #: pages/templates.py:65
@@ -371,149 +363,149 @@ msgstr ""
 msgid "Detected: {dt}, Firmware: {fw}"
 msgstr ""
 
-#: src/config_ui.py:234 src/config_ui.py:235 src/config_ui.py:417
-#: src/config_ui.py:418 src/config_ui.py:445 src/config_ui.py:450
+#: src/config_ui.py:234 src/config_ui.py:235 src/config_ui.py:433
+#: src/config_ui.py:434 src/config_ui.py:461 src/config_ui.py:466
 msgid "unknown"
 msgstr ""
 
-#: src/config_ui.py:284
+#: src/config_ui.py:300
 #, python-brace-format
 msgid ""
 "A local data folder already exists for '{name}'. Choose another device "
 "name."
 msgstr ""
 
-#: src/config_ui.py:288
+#: src/config_ui.py:304
 #, python-brace-format
 msgid "Could not save configuration: {error}"
 msgstr ""
 
-#: src/config_ui.py:294
+#: src/config_ui.py:310
 #, python-brace-format
 msgid "Configuration of '{name}' saved"
 msgstr ""
 
-#: src/config_ui.py:304 src/template_editor_ui.py:217
+#: src/config_ui.py:320 src/template_editor_ui.py:217
 #: src/template_editor_ui.py:518 src/template_list_ui.py:232
 msgid "Save"
 msgstr ""
 
-#: src/config_ui.py:308
+#: src/config_ui.py:324
 msgid "Save device configuration"
 msgstr ""
 
-#: src/config_ui.py:320 src/template_editor_ui.py:176
+#: src/config_ui.py:336 src/template_editor_ui.py:176
 #: src/template_editor_ui.py:589
 msgid "Delete"
 msgstr ""
 
-#: src/config_ui.py:325
+#: src/config_ui.py:341
 msgid "Delete this device and its local images and templates"
 msgstr ""
 
-#: src/config_ui.py:338 src/dialog.py:25 src/template_editor_ui.py:172
+#: src/config_ui.py:354 src/dialog.py:25 src/template_editor_ui.py:172
 #: src/template_editor_ui.py:235 src/template_list_ui.py:258
 msgid "Cancel"
 msgstr ""
 
-#: src/config_ui.py:343
+#: src/config_ui.py:359
 msgid "Cancel editing this device"
 msgstr ""
 
-#: src/config_ui.py:350
+#: src/config_ui.py:366
 #, python-brace-format
 msgid ""
 "Confirm deletion of device '{name}'? This will also remove its local "
 "images and templates."
 msgstr ""
 
-#: src/config_ui.py:371
+#: src/config_ui.py:387
 #, python-brace-format
 msgid "'{name}' deleted, but local data could not be fully removed"
 msgstr ""
 
-#: src/config_ui.py:379 src/template_editor_ui.py:187
+#: src/config_ui.py:395 src/template_editor_ui.py:187
 #, python-brace-format
 msgid "'{name}' deleted"
 msgstr ""
 
-#: src/config_ui.py:400
+#: src/config_ui.py:416
 msgid ""
 "Fill in the rmfakecloud URL, email, password and install command, or "
 "uncheck auto re-pairing, before saving."
 msgstr ""
 
-#: src/config_ui.py:408
+#: src/config_ui.py:424
 msgid ""
 "To save, fill all fields, turn the device on and run Test Connection to "
 "detect device model and firmware."
 msgstr ""
 
-#: src/config_ui.py:416
+#: src/config_ui.py:432
 #, python-brace-format
 msgid "Connected to {device_type} (firmware {firmware_version})"
 msgstr ""
 
-#: src/config_ui.py:424
+#: src/config_ui.py:440
 #, python-brace-format
 msgid "Connection failed: {error}"
 msgstr ""
 
-#: src/config_ui.py:445
+#: src/config_ui.py:461
 #, python-brace-format
 msgid "model: {old} -> {new}"
 msgstr ""
 
-#: src/config_ui.py:450
+#: src/config_ui.py:466
 #, python-brace-format
 msgid "firmware: {old} -> {new}"
 msgstr ""
 
-#: src/config_ui.py:457
+#: src/config_ui.py:473
 msgid "sleep screen now enabled"
 msgstr ""
 
-#: src/config_ui.py:459
+#: src/config_ui.py:475
 msgid "sleep screen now disabled"
 msgstr ""
 
-#: src/config_ui.py:471
+#: src/config_ui.py:487
 #, python-brace-format
 msgid "Could not save detected metadata for '{name}'"
 msgstr ""
 
-#: src/config_ui.py:479
+#: src/config_ui.py:495
 #, python-brace-format
 msgid "Detected update for '{name}': {details}"
 msgstr ""
 
-#: src/config_ui.py:531
+#: src/config_ui.py:547
 msgid "Device"
 msgstr ""
 
-#: src/config_ui.py:535
+#: src/config_ui.py:551
 msgid "─ New device ─"
 msgstr ""
 
-#: src/config_ui.py:553
+#: src/config_ui.py:569
 msgid "Device configuration"
 msgstr ""
 
-#: src/config_ui.py:599
+#: src/config_ui.py:615
 msgid "SSH connection OK"
 msgstr ""
 
-#: src/config_ui.py:619
+#: src/config_ui.py:635
 #, python-brace-format
 msgid "Connection status unknown (last checked {n} min ago)"
 msgstr ""
 
-#: src/config_ui.py:623
+#: src/config_ui.py:639
 #, python-brace-format
 msgid "SSH connection failed: {err}"
 msgstr ""
 
-#: src/config_ui.py:628
+#: src/config_ui.py:644
 msgid "Test SSH connection"
 msgstr ""
 
@@ -521,46 +513,46 @@ msgstr ""
 msgid "Confirm"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:44 src/rmfakecloud_ui.py:69
-msgid ":material/terminal: Install command output"
+#: src/rmfakecloud_ui.py:45 src/rmfakecloud_ui.py:70
+msgid "Install command output"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:47
+#: src/rmfakecloud_ui.py:48
 msgid "Install command failed — see output above."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:113
-msgid ":material/lock_open: Verification code"
+#: src/rmfakecloud_ui.py:114
+msgid "Verification code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:118
+#: src/rmfakecloud_ui.py:119
 msgid "Settings → General → Account → Pair"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:125
+#: src/rmfakecloud_ui.py:126
 msgid "Get a new code"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:128
+#: src/rmfakecloud_ui.py:129
 msgid "Fetch a fresh verification code without re-running the install command"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:133
+#: src/rmfakecloud_ui.py:134
 #, python-brace-format
 msgid "Could not get a verification code: {error}"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:146
+#: src/rmfakecloud_ui.py:148
 msgid ""
 "Runs the install command over SSH, then fetches a fresh verification code"
 " from rmfakecloud."
 msgstr ""
 
-#: src/rmfakecloud_ui.py:153
+#: src/rmfakecloud_ui.py:156
 msgid "Re-pair now"
 msgstr ""
 
-#: src/rmfakecloud_ui.py:157
+#: src/rmfakecloud_ui.py:160
 msgid "Run the install command over SSH and fetch a fresh verification code"
 msgstr ""
 
@@ -668,7 +660,7 @@ msgid "Template version"
 msgstr ""
 
 #: src/template_editor_ui.py:373
-msgid ":material/grid_on: Icon"
+msgid "Icon"
 msgstr ""
 
 #: src/template_editor_ui.py:391
@@ -751,8 +743,8 @@ msgstr ""
 msgid "Delete this template"
 msgstr ""
 
-#: src/template_editor_ui.py:598
-msgid ":material/help: reMarkable JSON format documentation"
+#: src/template_editor_ui.py:599
+msgid "reMarkable JSON format documentation"
 msgstr ""
 
 #: src/template_list_ui.py:159
@@ -800,7 +792,7 @@ msgid "Import .template files from your computer"
 msgstr ""
 
 #: src/template_list_ui.py:300
-msgid ":material/sync: Sync"
+msgid "Sync"
 msgstr ""
 
 #: src/template_list_ui.py:304
@@ -905,7 +897,7 @@ msgid "Remote-only (delete on sync)"
 msgstr ""
 
 #: src/template_list_ui.py:460
-msgid ":material/filter_list: Filters"
+msgid "Filters"
 msgstr ""
 
 #: src/template_list_ui.py:462

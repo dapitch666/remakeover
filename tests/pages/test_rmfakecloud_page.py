@@ -316,7 +316,7 @@ def test_firmware_change_redirect_lands_on_the_right_device_end_to_end(tmp_path)
         at.button(key="sidebar_test_ssh").click().run()
 
     assert not at.exception
-    assert at.title[0].value == ":material/cloud: rmfakecloud"
+    assert at.title[0].value == "rmfakecloud"
     assert at.session_state["device"] == "D2"
     assert at.session_state["selected_name"] == "D2"
 

@@ -278,7 +278,7 @@ _IMAGE_DEVICE_SCOPED_KEYS = (
 
 # ── Page ─────────────────────────────────────────────────────────────────────
 
-st.title(_(":material/image: Images"))
+st.title(_("Images"), icon=":material/image:")
 rainbow_divider()
 
 config, selected_name, DEVICES = init_page()

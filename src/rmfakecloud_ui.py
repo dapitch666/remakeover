@@ -42,7 +42,7 @@ def _render_install_output(placeholder: DeltaGenerator) -> None:
         output = st.session_state.get("rmfc_install_output")
         if output is None:
             return
-        st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
+        st.subheader(_("Install command output"), icon=":material/terminal:", divider="rainbow")
         st.code(output, language=None)
         if st.session_state.get("rmfc_install_ok") is False:
             st.error(_("Install command failed — see output above."), icon=":material/error:")
@@ -67,7 +67,7 @@ def _run_install(
     def _on_chunk(text: str) -> None:
         lines.append(text)
         with placeholder.container():
-            st.subheader(_(":material/terminal: Install command output"), divider="rainbow")
+            st.subheader(_("Install command output"), icon=":material/terminal:", divider="rainbow")
             st.code("".join(lines), language=None)
 
     ok, output = run_install(device, on_chunk=_on_chunk)
@@ -111,7 +111,7 @@ def _display_code() -> None:
     code = st.session_state.get("rmfc_code")
     code_error = st.session_state.get("rmfc_code_error")
     if code:
-        st.subheader(_(":material/lock_open: Verification code"), divider="rainbow")
+        st.subheader(_("Verification code"), icon=":material/lock_open:", divider="rainbow")
 
         with st.container(
             horizontal=True, width="content", vertical_alignment="center", gap="medium"
