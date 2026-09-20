@@ -462,6 +462,7 @@ def render_left_panel(
             _("Search"),
             key="tpl_filter_text",
             type="search",
+            live="400ms",
             placeholder=_("Filter by name…"),
             label_visibility="collapsed",
         )
