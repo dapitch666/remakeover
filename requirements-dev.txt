@@ -1,4 +1,4 @@
-mypy==2.3.1
+mypy==2.4.0
 pytest-cov==7.1.0
 ruff==0.16.10
 types-paramiko==5.0.0.20260724
