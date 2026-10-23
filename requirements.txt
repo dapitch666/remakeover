@@ -1,5 +1,5 @@
-streamlit==1.65.0
-paramiko==5.0.0
+streamlit==1.66.1
+paramiko==5.1.0
 pillow==12.3.0
 zstandard==0.25.0
 babel==2.18.0
